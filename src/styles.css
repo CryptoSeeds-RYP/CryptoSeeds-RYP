@@ -684,6 +684,51 @@ button:disabled {
   gap: 14px;
 }
 
+.project-filter-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid rgba(236, 218, 157, 0.16);
+  border-radius: 8px;
+  background: rgba(21, 24, 19, 0.62);
+}
+
+.project-filter-bar label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 0 10px;
+  border: 1px solid rgba(236, 218, 157, 0.14);
+  border-radius: 8px;
+  color: #ecd882;
+  background: rgba(244, 239, 226, 0.05);
+}
+
+.project-filter-bar select {
+  min-width: 150px;
+  border: 0;
+  background: transparent;
+  color: #fff8df;
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
+.project-filter-bar select:focus {
+  outline: 2px solid rgba(236, 216, 130, 0.45);
+  outline-offset: 4px;
+}
+
+.project-filter-bar span {
+  margin-left: auto;
+  color: #aeb9aa;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
 .project-card {
   display: grid;
   gap: 12px;
@@ -1018,6 +1063,10 @@ button:disabled {
     grid-template-columns: 1fr;
   }
 
+  .project-filter-bar span {
+    margin-left: 0;
+  }
+
   .map-title strong {
     max-width: 300px;
   }
@@ -1062,6 +1111,11 @@ button:disabled {
   .map-title {
     left: 18px;
     top: 18px;
+  }
+
+  .project-filter-bar label,
+  .project-filter-bar select {
+    width: 100%;
   }
 
   .homestead-marker {

@@ -20,6 +20,10 @@ describe("microverse scene state", () => {
       slotIndex: 0,
       label: "Iberian Chestnut Grove",
       category: "Regenerative agriculture",
+      lifecycle: "MILESTONE",
+      visualKind: "GROVE",
+      riskLevel: "MEDIUM",
+      projectStatus: "OPEN",
       status: "MILESTONE_REACHED",
       progress: 34,
     });
@@ -34,6 +38,8 @@ describe("microverse scene state", () => {
       slotIndex: 2,
       label: "Open field",
       category: "Unassigned",
+      lifecycle: "EMPTY",
+      visualKind: "OPEN_FIELD",
       status: "EMPTY",
       progress: 0,
     });

@@ -1,4 +1,10 @@
 import type { Project, ProjectParticipation, StakingTier } from "../types";
+import {
+  lifecycleForProjectPlot,
+  visualKindForProject,
+  type ProjectLifecycleVisualState,
+  type ProjectVisualKind,
+} from "./projectVisuals";
 
 export type MicroVersePlot = {
   id: string;
@@ -6,7 +12,11 @@ export type MicroVersePlot = {
   slotIndex: number;
   label: string;
   category: string;
+  riskLevel?: Project["riskLevel"];
+  projectStatus?: Project["status"];
   status: "EMPTY" | ProjectParticipation["status"];
+  lifecycle: ProjectLifecycleVisualState;
+  visualKind: ProjectVisualKind;
   progress: number;
   x: number;
   y: number;
@@ -62,7 +72,11 @@ export function buildMicroVerseSceneState({
         slotIndex: index,
         label: project?.name ?? "Open field",
         category: project?.category ?? "Unassigned",
+        riskLevel: project?.riskLevel,
+        projectStatus: project?.status,
         status: participation?.status ?? "EMPTY",
+        lifecycle: lifecycleForProjectPlot({ project, participation }),
+        visualKind: visualKindForProject(project),
         progress: project?.progress ?? 0,
         x: position.x,
         y: position.y,

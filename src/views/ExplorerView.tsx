@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { CheckCircle2, FileText, Map, ShieldAlert } from "lucide-react";
+import { CheckCircle2, FileText, Filter, Map, ShieldAlert } from "lucide-react";
 import { ViewHeader } from "../components/ViewHeader";
 import { participationForProject, projectParticipationBlockingReasons } from "../domain/participation";
 import { canAccess } from "../domain/tiering";
@@ -26,6 +26,8 @@ export function ExplorerView({
   onPrepareProject: (project: Project) => void;
 }) {
   const [acknowledgedProjectId, setAcknowledgedProjectId] = useState<string | undefined>();
+  const [statusFilter, setStatusFilter] = useState<"ALL" | Project["status"]>("ALL");
+  const [riskFilter, setRiskFilter] = useState<"ALL" | Project["riskLevel"]>("ALL");
   const selectedEligible = canAccess(selectedProject.requiredTier, activeTier);
   const riskAcknowledged = acknowledgedProjectId === selectedProject.id;
   const blockingReasons = projectParticipationBlockingReasons({
@@ -36,6 +38,13 @@ export function ExplorerView({
   });
   const selectedParticipation = participationForProject(participations, selectedProject.id);
   const canPrepare = blockingReasons.length === 0 && riskAcknowledged;
+  const statusOptions = uniqueProjectValues(projects.map((project) => project.status));
+  const riskOptions = uniqueProjectValues(projects.map((project) => project.riskLevel));
+  const visibleProjects = projects.filter((project) => {
+    const matchesStatus = statusFilter === "ALL" || project.status === statusFilter;
+    const matchesRisk = riskFilter === "ALL" || project.riskLevel === riskFilter;
+    return matchesStatus && matchesRisk;
+  });
 
   useEffect(() => {
     setAcknowledgedProjectId(undefined);
@@ -44,8 +53,37 @@ export function ExplorerView({
   return (
     <div className="location-view">
       <ViewHeader icon={Map} label="Explorer's Map" value="Approved project pipeline" />
+      <div className="project-filter-bar">
+        <label>
+          <Filter size={16} />
+          <select
+            aria-label="Project status filter"
+            value={statusFilter}
+            onChange={(event) => setStatusFilter(event.target.value as "ALL" | Project["status"])}
+          >
+            <option value="ALL">All statuses</option>
+            {statusOptions.map((status) => (
+              <option key={status} value={status}>{formatLabel(status)}</option>
+            ))}
+          </select>
+        </label>
+        <label>
+          <ShieldAlert size={16} />
+          <select
+            aria-label="Project risk filter"
+            value={riskFilter}
+            onChange={(event) => setRiskFilter(event.target.value as "ALL" | Project["riskLevel"])}
+          >
+            <option value="ALL">All risk levels</option>
+            {riskOptions.map((risk) => (
+              <option key={risk} value={risk}>{formatLabel(risk)}</option>
+            ))}
+          </select>
+        </label>
+        <span>{visibleProjects.length} projects</span>
+      </div>
       <div className="project-grid">
-        {projects.map((project) => {
+        {visibleProjects.map((project) => {
           const eligible = canAccess(project.requiredTier, activeTier);
           const participation = participationForProject(participations, project.id);
           return (
@@ -173,6 +211,10 @@ export function ExplorerView({
       </section>
     </div>
   );
+}
+
+function uniqueProjectValues<T extends string>(values: T[]): T[] {
+  return Array.from(new Set(values));
 }
 
 function DetailItem({ label, value }: { label: string; value: string }) {
