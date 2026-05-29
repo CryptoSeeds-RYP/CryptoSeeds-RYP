@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { CheckCircle2, FileText, Map, ShieldAlert } from "lucide-react";
 import { ViewHeader } from "../components/ViewHeader";
+import { evaluateProjectEligibility } from "../domain/projectRegistry";
 import { canAccess } from "../domain/tiering";
 import type { Project, StakingTier } from "../types";
 import { formatLabel } from "../utils/format";
@@ -23,7 +24,8 @@ export function ExplorerView({
   const [acknowledgedProjectId, setAcknowledgedProjectId] = useState<string | undefined>();
   const selectedEligible = canAccess(selectedProject.requiredTier, activeTier);
   const riskAcknowledged = acknowledgedProjectId === selectedProject.id;
-  const canPrepare = selectedEligible && selectedProject.participationOpen && riskAcknowledged;
+  const eligibility = evaluateProjectEligibility(selectedProject, activeTier);
+  const canPrepare = eligibility.eligible && riskAcknowledged;
 
   useEffect(() => {
     setAcknowledgedProjectId(undefined);
@@ -73,9 +75,10 @@ export function ExplorerView({
             <p>{selectedProject.summary}</p>
           </div>
           <div className="project-detail-grid">
-            <DetailItem label="Operator" value={selectedProject.operator} />
+            <DetailItem label="Operator" value={selectedProject.operator.name} />
+            <DetailItem label="Verification" value={formatLabel(selectedProject.operator.verificationStatus)} />
             <DetailItem label="Required Tier" value={selectedProject.requiredTier} />
-            <DetailItem label="Duration" value={selectedProject.duration} />
+            <DetailItem label="Governance" value={formatLabel(selectedProject.governance.status)} />
             <DetailItem label="Updates" value={selectedProject.updateCadence} />
           </div>
         </div>
@@ -98,6 +101,13 @@ export function ExplorerView({
               />
               <span>I have reviewed the risk disclosure for this project.</span>
             </label>
+            {!eligibility.eligible && (
+              <div className="eligibility-list">
+                {eligibility.reasons.map((reason) => (
+                  <span key={reason}>{reason}</span>
+                ))}
+              </div>
+            )}
             <button className="primary-action" disabled={!canPrepare} onClick={() => onPrepareProject(selectedProject)}>
               <CheckCircle2 size={17} />
               Prepare Wallet Preview
@@ -111,7 +121,10 @@ export function ExplorerView({
             </div>
             <ul>
               {selectedProject.documents.map((document) => (
-                <li key={document}>{document}</li>
+                <li key={document.id}>
+                  <strong>{document.title}</strong>
+                  <span>{formatLabel(document.type)} - {document.version} - {formatLabel(document.status)}</span>
+                </li>
               ))}
             </ul>
           </section>

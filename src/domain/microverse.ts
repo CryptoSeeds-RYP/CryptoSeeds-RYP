@@ -28,6 +28,42 @@ export type ProjectStatus =
 
 export type RiskLevel = "LOW" | "MEDIUM" | "HIGH" | "EXPERIMENTAL" | "DONATION";
 
+export type ProjectDocumentType =
+  | "PROPOSAL"
+  | "RISK_DISCLOSURE"
+  | "MILESTONE_PLAN"
+  | "OPERATOR_PROFILE"
+  | "TECHNICAL_SUMMARY"
+  | "IMPACT_REPORT"
+  | "DONATION_POLICY";
+
+export type ProjectDocumentStatus = "DRAFT" | "UNDER_REVIEW" | "APPROVED" | "ARCHIVED";
+
+export type ProjectDocument = {
+  id: string;
+  title: string;
+  type: ProjectDocumentType;
+  version: string;
+  status: ProjectDocumentStatus;
+  issuedAt: string;
+  uri?: string;
+  contentHash?: string;
+  requiredForParticipation: boolean;
+};
+
+export type ProjectOperator = {
+  name: string;
+  jurisdiction?: string;
+  verificationStatus: "PENDING" | "VERIFIED" | "COMMUNITY_REVIEW" | "REJECTED";
+};
+
+export type GovernanceApproval = {
+  status: "NOT_SUBMITTED" | "UNDER_REVIEW" | "VOTE_OPEN" | "APPROVED" | "REJECTED";
+  proposalId?: string;
+  approvedAt?: string;
+  voteSummary?: string;
+};
+
 export type Project = {
   id: string;
   name: string;
@@ -38,12 +74,13 @@ export type Project = {
   riskLevel: RiskLevel;
   duration: string;
   progress: number;
-  operator: string;
+  operator: ProjectOperator;
+  governance: GovernanceApproval;
   updateCadence: string;
   summary: string;
   riskDisclosure: string;
   participationTerms: string;
-  documents: string[];
+  documents: ProjectDocument[];
   milestones: string[];
   impactMetrics: string[];
   participationOpen: boolean;

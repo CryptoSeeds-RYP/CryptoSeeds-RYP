@@ -644,6 +644,31 @@ button:disabled {
   line-height: 1.4;
 }
 
+.review-block li strong,
+.review-block li span {
+  display: block;
+}
+
+.review-block li span {
+  margin-top: 2px;
+  color: #aeb9aa;
+  font-size: 0.8rem;
+}
+
+.eligibility-list {
+  display: grid;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid rgba(255, 189, 136, 0.24);
+  border-radius: 8px;
+  background: rgba(136, 76, 42, 0.16);
+}
+
+.eligibility-list span {
+  color: #ffbd88;
+  font-size: 0.84rem;
+}
+
 .risk-block {
   gap: 14px;
 }

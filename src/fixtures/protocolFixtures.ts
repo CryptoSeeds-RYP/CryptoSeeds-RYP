@@ -1,4 +1,12 @@
-import type { Project, Reward, SeedBotSignal, UserMicroVerseState } from "../domain/microverse";
+import type {
+  Project,
+  ProjectDocument,
+  ProjectDocumentStatus,
+  ProjectDocumentType,
+  Reward,
+  SeedBotSignal,
+  UserMicroVerseState,
+} from "../domain/microverse";
 import { DEMO_WALLET_ADDRESS } from "../domain/demo";
 import { tierRequirements } from "../domain/tiering";
 
@@ -25,6 +33,34 @@ export const connectedUser: UserMicroVerseState = {
   claimableRewards: [],
 };
 
+function projectDocument({
+  id,
+  title,
+  type,
+  requiredForParticipation = true,
+  status = "APPROVED",
+  version = "v1.0",
+}: {
+  id: string;
+  title: string;
+  type: ProjectDocumentType;
+  requiredForParticipation?: boolean;
+  status?: ProjectDocumentStatus;
+  version?: string;
+}): ProjectDocument {
+  return {
+    id,
+    title,
+    type,
+    version,
+    status,
+    issuedAt: "2026-05-29",
+    uri: `ipfs://pending/${id}`,
+    contentHash: `sha256:pending-${id}`,
+    requiredForParticipation,
+  };
+}
+
 export const projects: Project[] = [
   {
     id: "chestnut-spain",
@@ -36,12 +72,26 @@ export const projects: Project[] = [
     riskLevel: "MEDIUM",
     duration: "18 months",
     progress: 34,
-    operator: "Iberian regenerative orchard operator",
+    operator: {
+      name: "Iberian regenerative orchard operator",
+      jurisdiction: "Spain",
+      verificationStatus: "COMMUNITY_REVIEW",
+    },
+    governance: {
+      status: "APPROVED",
+      proposalId: "CS-PROP-001",
+      approvedAt: "2026-05-29",
+      voteSummary: "Approved for participation pipeline",
+    },
     updateCadence: "Monthly milestone notes plus seasonal reports",
     summary: "Organic chestnut restoration with milestone-based reporting and seasonal updates.",
     riskDisclosure: "Agricultural timelines can shift due to weather, soil recovery, logistics, and operator execution. Participation does not guarantee a fixed return.",
     participationTerms: "RYP gates access and records participation intent. Any real-world financial rights require separate legal review and wallet-approved terms.",
-    documents: ["Proposal", "Risk disclosure", "Milestone plan"],
+    documents: [
+      projectDocument({ id: "chestnut-proposal", title: "Project Proposal", type: "PROPOSAL" }),
+      projectDocument({ id: "chestnut-risk", title: "Risk Disclosure", type: "RISK_DISCLOSURE" }),
+      projectDocument({ id: "chestnut-milestones", title: "Milestone Plan", type: "MILESTONE_PLAN" }),
+    ],
     milestones: ["Land audit", "Soil restoration", "Irrigation setup", "First harvest report"],
     impactMetrics: ["Soil health", "Tree survival rate", "Water efficiency", "Seasonal yield report"],
     participationOpen: true,
@@ -56,12 +106,31 @@ export const projects: Project[] = [
     riskLevel: "EXPERIMENTAL",
     duration: "12 months",
     progress: 12,
-    operator: "Research greenhouse partner",
+    operator: {
+      name: "Research greenhouse partner",
+      jurisdiction: "Portugal",
+      verificationStatus: "PENDING",
+    },
+    governance: {
+      status: "VOTE_OPEN",
+      proposalId: "CS-PROP-002",
+      voteSummary: "Community review in progress",
+    },
     updateCadence: "Bi-weekly research notes during active cycles",
     summary: "Controlled greenhouse research for sustainable hemp and CBD cultivation methods.",
     riskDisclosure: "Experimental R&D may fail to reach commercial or cultivation targets. Regulatory, licensing, and scientific uncertainty is higher than standard projects.",
     participationTerms: "Governance approval is required before participation opens. No token-holder revenue right is implied by the project listing.",
-    documents: ["Research outline", "Disclosure", "Operator note"],
+    documents: [
+      projectDocument({ id: "hemp-outline", title: "Research Outline", type: "PROPOSAL" }),
+      projectDocument({ id: "hemp-risk", title: "Experimental Risk Disclosure", type: "RISK_DISCLOSURE" }),
+      projectDocument({
+        id: "hemp-operator",
+        title: "Operator Note",
+        type: "OPERATOR_PROFILE",
+        requiredForParticipation: false,
+        status: "UNDER_REVIEW",
+      }),
+    ],
     milestones: ["Community review", "Facility check", "Research cycle", "Data report"],
     impactMetrics: ["Research completion", "Cultivation efficiency", "Resource use", "Published findings"],
     participationOpen: false,
@@ -76,12 +145,26 @@ export const projects: Project[] = [
     riskLevel: "LOW",
     duration: "9 months",
     progress: 62,
-    operator: "Solar water infrastructure partner",
+    operator: {
+      name: "Solar water infrastructure partner",
+      jurisdiction: "Kenya",
+      verificationStatus: "VERIFIED",
+    },
+    governance: {
+      status: "APPROVED",
+      proposalId: "CS-PROP-003",
+      approvedAt: "2026-05-29",
+      voteSummary: "Approved for active participation",
+    },
     updateCadence: "Monthly deployment reports",
     summary: "Solar-powered water infrastructure with public milestone and impact reporting.",
     riskDisclosure: "Infrastructure deployment can be affected by permitting, equipment delivery, maintenance, and site conditions. Impact reports may lag field work.",
     participationTerms: "Participation links the project to the user's MicroVerse record and future claim/update surfaces. Wallet approval is required for any on-chain action.",
-    documents: ["Operator profile", "Technical summary", "Impact plan"],
+    documents: [
+      projectDocument({ id: "solar-operator", title: "Operator Profile", type: "OPERATOR_PROFILE" }),
+      projectDocument({ id: "solar-technical", title: "Technical Summary", type: "TECHNICAL_SUMMARY" }),
+      projectDocument({ id: "solar-impact", title: "Impact Plan", type: "IMPACT_REPORT" }),
+    ],
     milestones: ["Site review", "Panel installation", "Pump activation", "Impact report"],
     impactMetrics: ["Water access", "Solar uptime", "Maintenance events", "Community reach"],
     participationOpen: true,
@@ -96,12 +179,29 @@ export const projects: Project[] = [
     riskLevel: "DONATION",
     duration: "Ongoing",
     progress: 48,
-    operator: "CryptoSeeds stewardship treasury",
+    operator: {
+      name: "CryptoSeeds stewardship treasury",
+      verificationStatus: "VERIFIED",
+    },
+    governance: {
+      status: "APPROVED",
+      proposalId: "CS-PROP-004",
+      approvedAt: "2026-05-29",
+      voteSummary: "Approved as donation-only impact pool",
+    },
     updateCadence: "Allocation updates after each funding cycle",
     summary: "Donation-only impact pool for environmental and community support updates.",
     riskDisclosure: "Donation projects are not reward-bearing and should never be presented as investments or yield opportunities.",
     participationTerms: "Donations may generate impact updates, cosmetic recognition, or achievement records, but no financial return is expected.",
-    documents: ["Donation policy", "Impact reporting"],
+    documents: [
+      projectDocument({ id: "glade-donation-policy", title: "Donation Policy", type: "DONATION_POLICY" }),
+      projectDocument({
+        id: "glade-impact-reporting",
+        title: "Impact Reporting Framework",
+        type: "IMPACT_REPORT",
+        requiredForParticipation: false,
+      }),
+    ],
     milestones: ["Cause selection", "Allocation", "Impact update"],
     impactMetrics: ["Causes funded", "Impact reports", "Community reach"],
     participationOpen: true,
