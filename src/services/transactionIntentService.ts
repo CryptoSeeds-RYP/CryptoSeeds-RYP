@@ -1,6 +1,7 @@
 import { appConfig } from "../config/env";
 import type { Project, StakingTier } from "../domain/microverse";
 import { latestRiskDisclosure } from "../domain/projectRegistry";
+import { seedBotFeeDisclosure, type SeedBotStrategy } from "../domain/seedbot";
 import { effectiveFee, tierRequirements } from "../domain/tiering";
 import type {
   RiskAcknowledgement,
@@ -100,6 +101,49 @@ export function buildSeedBotSwapIntent(walletAddress?: string): TransactionInten
     accounts: walletAccounts(walletAddress),
     riskSummary: "Self-custodial execution. No private keys, no hidden transaction, no profit claim.",
     expectedResult: "Wallet signs a prepared swap transaction, then the app broadcasts it.",
+  });
+}
+
+export function buildSeedBotAllocationIntent({
+  strategy,
+  walletAddress,
+  mode = "BASKET",
+}: {
+  strategy: SeedBotStrategy;
+  walletAddress?: string;
+  mode?: "BASKET" | "PER_ASSET";
+}): TransactionIntent {
+  return buildIntent({
+    id: `seedbot-allocation-${strategy.id}-${mode.toLowerCase()}`,
+    type: "SEEDBOT_ALLOCATE",
+    title: `Allocate to ${strategy.name}`,
+    walletAddress,
+    inputToken: strategy.assets.map((asset) => asset.symbol).join(" / "),
+    amount: mode === "BASKET" ? "Strategy basket preview" : "Per-asset preview",
+    estimatedFees: seedBotFeeDisclosure(strategy.feeModel),
+    slippage: "User-controlled per route",
+    status: "DRAFT",
+    executionMode: "PREVIEW_ONLY",
+    signaturePolicy: "Self-custodial allocation preview. Phantom or MetaMask approval is required per route.",
+    programs: [
+      {
+        label: "SeedBot strategy adapter",
+        address: `strategy:${strategy.id}`,
+        role: "Allocation preview only",
+      },
+    ],
+    accounts: [
+      ...walletAccounts(walletAddress),
+      ...strategy.assets.map((asset) => ({
+        label: `${asset.walletRoute} route for ${asset.symbol}`,
+        address: `${asset.chain}:${asset.symbol}`,
+        role: `${asset.targetWeightPercent}% target allocation`,
+        signer: false,
+        writable: false,
+      })),
+    ],
+    riskSummary: "Historical strategy performance only. Past performance does not guarantee future results.",
+    expectedResult: "Wallet-approved allocation route is prepared; no funds move until the user signs.",
   });
 }
 

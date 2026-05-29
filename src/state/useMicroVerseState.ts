@@ -4,6 +4,7 @@ import { appConfig } from "../config/env";
 import { DEMO_WALLET_ADDRESS } from "../domain/demo";
 import type { LocationKey, Project, ProtocolSnapshot, StakingTier } from "../domain/microverse";
 import { createPreparedParticipation } from "../domain/participation";
+import type { SeedBotStrategy } from "../domain/seedbot";
 import type { TransactionIntent } from "../domain/transactions";
 import { projects as projectFixtures } from "../fixtures/protocolFixtures";
 import { cryptoSeedsServices } from "../services/mockServices";
@@ -11,6 +12,7 @@ import {
   advanceTransactionIntent,
   buildProjectParticipationIntent,
   buildProjectReviewIntent,
+  buildSeedBotAllocationIntent,
   buildSeedBotSwapIntent,
   buildStakePreviewIntent,
   resetTransactionIntent,
@@ -105,6 +107,17 @@ export function useMicroVerseState() {
     });
   }
 
+  function prepareSeedBotAllocation(strategy: SeedBotStrategy, mode: "BASKET" | "PER_ASSET") {
+    setActiveLocation("seedbot");
+    setIntent(
+      buildSeedBotAllocationIntent({
+        strategy,
+        mode,
+        walletAddress: effectiveIntentWalletAddress(),
+      }),
+    );
+  }
+
   function advanceIntent() {
     setIntent((current) => advanceTransactionIntent(current));
   }
@@ -132,6 +145,7 @@ export function useMicroVerseState() {
     selectProject,
     openProject,
     prepareProjectIntent,
+    prepareSeedBotAllocation,
     advanceIntent,
     resetIntent,
   };

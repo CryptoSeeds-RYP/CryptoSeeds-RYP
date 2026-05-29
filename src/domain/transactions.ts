@@ -6,6 +6,7 @@ export type TransactionIntentType =
   | "VOTE_PROPOSAL"
   | "CLAIM_NFT"
   | "SEEDBOT_SWAP"
+  | "SEEDBOT_ALLOCATE"
   | "REVOKE_PERMISSION";
 
 export type TransactionIntentStatus =

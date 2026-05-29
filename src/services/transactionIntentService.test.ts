@@ -4,6 +4,7 @@ import {
   advanceTransactionIntent,
   buildProjectParticipationIntent,
   buildProjectReviewIntent,
+  buildSeedBotAllocationIntent,
   buildSeedBotSwapIntent,
   buildStakePreviewIntent,
   resetTransactionIntent,
@@ -52,6 +53,44 @@ describe("transaction intents", () => {
     expect(intent.status).toBe("DRAFT");
     expect(intent.executionMode).toBe("PREVIEW_ONLY");
     expect(intent.signaturePolicy).toContain("Signal-only");
+  });
+
+  it("builds SeedBot allocation previews without custody or guaranteed returns", () => {
+    const intent = buildSeedBotAllocationIntent({
+      strategy: {
+        id: "test-strategy",
+        name: "Test Strategy",
+        summary: "Test",
+        risk: "MEDIUM",
+        minimumAccess: "RYP_HOLDER",
+        performance: [
+          { window: "7D", returnPercent: 1 },
+          { window: "30D", returnPercent: 2 },
+          { window: "90D", returnPercent: 3 },
+          { window: "180D", returnPercent: 4 },
+          { window: "1Y", returnPercent: 5 },
+        ],
+        feeModel: {
+          performanceFeeBps: 1200,
+          devSharePercent: 40,
+          treasurySharePercent: 60,
+          chargedOn: "REALIZED_POSITIVE_PNL_ONLY",
+          deductedFrom: "PROFIT_NOT_PRINCIPAL",
+        },
+        allocationModes: ["BASKET", "PER_ASSET"],
+        assets: [
+          { symbol: "SOL", chain: "SOLANA", walletRoute: "PHANTOM", targetWeightPercent: 60 },
+          { symbol: "ETH", chain: "EVM", walletRoute: "METAMASK", targetWeightPercent: 40 },
+        ],
+      },
+      walletAddress,
+    });
+
+    expect(intent.type).toBe("SEEDBOT_ALLOCATE");
+    expect(intent.executionMode).toBe("PREVIEW_ONLY");
+    expect(intent.signaturePolicy).toContain("Phantom or MetaMask approval");
+    expect(intent.riskSummary).toContain("Past performance does not guarantee future results");
+    expect(intent.estimatedFees).toContain("deducted from profit not principal");
   });
 
   it("advances and resets local lifecycle state without creating real execution", () => {

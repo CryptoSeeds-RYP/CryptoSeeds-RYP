@@ -1090,6 +1090,127 @@ button:disabled {
   padding: 16px;
 }
 
+.strategy-collection-panel {
+  grid-column: 1 / -1;
+}
+
+.terminal-disclaimer {
+  margin: 0;
+  color: #d8decf;
+  font-size: 0.9rem;
+}
+
+.strategy-card-list {
+  display: grid;
+  gap: 12px;
+}
+
+.strategy-card {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid rgba(236, 218, 157, 0.14);
+  border-radius: 8px;
+  background: rgba(244, 239, 226, 0.04);
+}
+
+.strategy-card.locked {
+  opacity: 0.7;
+}
+
+.strategy-card.enabled {
+  border-color: rgba(128, 198, 109, 0.3);
+  background: rgba(36, 69, 44, 0.3);
+}
+
+.strategy-card-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.strategy-card-header > div {
+  display: grid;
+  gap: 4px;
+}
+
+.strategy-card-header strong,
+.performance-grid strong {
+  color: #fff8df;
+}
+
+.strategy-card-header span,
+.strategy-card p,
+.performance-grid span,
+.asset-route-list span {
+  color: #aeb9aa;
+  font-size: 0.82rem;
+}
+
+.strategy-card-header em {
+  min-width: 128px;
+  color: #ecd882;
+  font-size: 0.82rem;
+  font-style: normal;
+  font-weight: 800;
+  text-align: right;
+}
+
+.performance-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.performance-grid div {
+  display: grid;
+  gap: 3px;
+  min-height: 58px;
+  padding: 9px;
+  border: 1px solid rgba(236, 218, 157, 0.1);
+  border-radius: 8px;
+  background: rgba(12, 13, 10, 0.28);
+}
+
+.asset-route-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.asset-route-list span {
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: rgba(244, 239, 226, 0.06);
+}
+
+.strategy-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.strategy-actions button {
+  flex: 1;
+  min-width: 146px;
+  min-height: 38px;
+  border: 1px solid rgba(236, 218, 157, 0.16);
+  background: rgba(244, 239, 226, 0.08);
+  color: #fff8df;
+  font-weight: 800;
+}
+
+.strategy-actions button:disabled {
+  color: #aeb9aa;
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+.strategy-card p {
+  margin: 0;
+  line-height: 1.45;
+}
+
 .signal-row,
 .risk-control {
   justify-content: space-between;
@@ -1227,6 +1348,18 @@ button:disabled {
 
   .project-filter-bar span {
     margin-left: 0;
+  }
+
+  .performance-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .strategy-card-header {
+    display: grid;
+  }
+
+  .strategy-card-header em {
+    text-align: left;
   }
 
   .map-title strong {

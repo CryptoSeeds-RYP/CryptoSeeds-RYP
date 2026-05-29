@@ -45,6 +45,7 @@ export default function App() {
     selectProject,
     openProject,
     prepareProjectIntent,
+    prepareSeedBotAllocation,
     advanceIntent,
     resetIntent,
   } = useMicroVerseState();
@@ -131,7 +132,9 @@ export default function App() {
                 unlocked={farm.seedBotUnlocked}
                 walletConnected={user.walletConnected}
                 activeTier={activeTier}
+                rypBalance={user.rypBalance}
                 signals={seedBotSignals}
+                onPrepareAllocation={prepareSeedBotAllocation}
               />
             )}
           </section>
