@@ -80,8 +80,8 @@ describe("transaction intents", () => {
         },
         allocationModes: ["BASKET", "PER_ASSET"],
         assets: [
-          { symbol: "SOL", chain: "SOLANA", walletRoute: "PHANTOM", targetWeightPercent: 60 },
-          { symbol: "ETH", chain: "EVM", walletRoute: "METAMASK", targetWeightPercent: 40 },
+          { symbol: "SOL", chain: "SOLANA", walletRoute: "PHANTOM", venueId: "JUPITER", targetWeightPercent: 60 },
+          { symbol: "ETH", chain: "EVM", walletRoute: "METAMASK", venueId: "HYPERLIQUID", targetWeightPercent: 40 },
         ],
       },
       walletAddress,
@@ -91,7 +91,9 @@ describe("transaction intents", () => {
     expect(intent.executionMode).toBe("PREVIEW_ONLY");
     expect(intent.signaturePolicy).toContain("Phantom or MetaMask approval");
     expect(intent.riskSummary).toContain("Past performance does not guarantee future results");
+    expect(intent.riskSummary).toContain("Route mode: DRY_RUN");
     expect(intent.estimatedFees).toContain("deducted from profit not principal");
+    expect(intent.accounts.some((account) => account.label.includes("Hyperliquid"))).toBe(true);
   });
 
   it("advances and resets local lifecycle state without creating real execution", () => {

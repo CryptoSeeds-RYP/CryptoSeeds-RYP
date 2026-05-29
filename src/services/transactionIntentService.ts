@@ -4,6 +4,7 @@ import { latestRiskDisclosure } from "../domain/projectRegistry";
 import { seedBotFeeDisclosure, type SeedBotStrategy } from "../domain/seedbot";
 import { venueById } from "../domain/seedbotVenues";
 import { effectiveFee, tierRequirements } from "../domain/tiering";
+import { buildSeedBotRoutePlan } from "./seedbotVenueRouter";
 import type {
   RiskAcknowledgement,
   TransactionAccountReference,
@@ -115,13 +116,17 @@ export function buildSeedBotAllocationIntent({
   mode?: "BASKET" | "PER_ASSET";
 }): TransactionIntent {
   const venue = venueById(strategy.preferredVenueId);
+  const routePlan = buildSeedBotRoutePlan({ strategy });
+  const routeSummary = routePlan.routes
+    .map((route) => `${route.venueName}: ${route.assets.map((asset) => asset.symbol).join("/")}`)
+    .join("; ");
 
   return buildIntent({
     id: `seedbot-allocation-${strategy.id}-${mode.toLowerCase()}`,
     type: "SEEDBOT_ALLOCATE",
     title: `Allocate to ${strategy.name}`,
     walletAddress,
-    inputToken: strategy.assets.map((asset) => asset.symbol).join(" / "),
+    inputToken: routeSummary || strategy.assets.map((asset) => asset.symbol).join(" / "),
     amount: mode === "BASKET" ? "Strategy basket preview" : "Per-asset preview",
     estimatedFees: seedBotFeeDisclosure(strategy.feeModel),
     slippage: "User-controlled per route",
@@ -137,15 +142,15 @@ export function buildSeedBotAllocationIntent({
     ],
     accounts: [
       ...walletAccounts(walletAddress),
-      ...strategy.assets.map((asset) => ({
-        label: `${asset.walletRoute} route for ${asset.symbol}`,
-        address: `${asset.chain}:${asset.symbol}`,
-        role: `${asset.targetWeightPercent}% target allocation`,
+      ...routePlan.routes.flatMap((route) => route.assets.map((asset) => ({
+        label: `${route.venueName} ${asset.walletRoute} route for ${asset.symbol}`,
+        address: `${route.venueId}:${asset.chain}:${asset.symbol}`,
+        role: `${asset.targetWeightPercent}% target allocation via ${route.mode}`,
         signer: false,
         writable: false,
-      })),
+      }))),
     ],
-    riskSummary: `Historical strategy performance only. Past performance does not guarantee future results. Preferred venue: ${venue?.name ?? strategy.preferredVenueId}.`,
+    riskSummary: `Historical strategy performance only. Past performance does not guarantee future results. Preferred venue: ${venue?.name ?? strategy.preferredVenueId}. Route mode: ${routePlan.mode}.`,
     expectedResult: "Wallet-approved allocation route is prepared; no funds move until the user signs.",
   });
 }

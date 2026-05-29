@@ -17,6 +17,7 @@ export type SeedBotStrategyAsset = {
   symbol: string;
   chain: TransactionChain;
   walletRoute: SeedBotWalletRoute;
+  venueId: SeedBotVenueId;
   targetWeightPercent: number;
 };
 
@@ -76,9 +77,9 @@ export const seedBotStrategies: SeedBotStrategy[] = [
     feeModel: seedBotPerformanceFeeModel,
     allocationModes: ["BASKET", "PER_ASSET"],
     assets: [
-      { symbol: "SOL", chain: "SOLANA", walletRoute: "PHANTOM", targetWeightPercent: 45 },
-      { symbol: "RYP", chain: "SOLANA", walletRoute: "PHANTOM", targetWeightPercent: 30 },
-      { symbol: "JUP", chain: "SOLANA", walletRoute: "PHANTOM", targetWeightPercent: 25 },
+      { symbol: "SOL", chain: "SOLANA", walletRoute: "PHANTOM", venueId: "JUPITER", targetWeightPercent: 45 },
+      { symbol: "RYP", chain: "SOLANA", walletRoute: "PHANTOM", venueId: "JUPITER", targetWeightPercent: 30 },
+      { symbol: "JUP", chain: "SOLANA", walletRoute: "PHANTOM", venueId: "JUPITER", targetWeightPercent: 25 },
     ],
   },
   {
@@ -98,9 +99,9 @@ export const seedBotStrategies: SeedBotStrategy[] = [
     feeModel: seedBotPerformanceFeeModel,
     allocationModes: ["BASKET", "PER_ASSET"],
     assets: [
-      { symbol: "SOL", chain: "SOLANA", walletRoute: "PHANTOM", targetWeightPercent: 35 },
-      { symbol: "ETH", chain: "EVM", walletRoute: "METAMASK", targetWeightPercent: 35 },
-      { symbol: "USDC", chain: "SOLANA", walletRoute: "PHANTOM", targetWeightPercent: 30 },
+      { symbol: "SOL", chain: "EVM", walletRoute: "METAMASK", venueId: "HYPERLIQUID", targetWeightPercent: 35 },
+      { symbol: "ETH", chain: "EVM", walletRoute: "METAMASK", venueId: "HYPERLIQUID", targetWeightPercent: 35 },
+      { symbol: "USDC", chain: "EVM", walletRoute: "METAMASK", venueId: "HYPERLIQUID", targetWeightPercent: 30 },
     ],
   },
   {
@@ -120,9 +121,9 @@ export const seedBotStrategies: SeedBotStrategy[] = [
     feeModel: seedBotPerformanceFeeModel,
     allocationModes: ["BASKET", "PER_ASSET"],
     assets: [
-      { symbol: "USDC", chain: "SOLANA", walletRoute: "PHANTOM", targetWeightPercent: 55 },
-      { symbol: "SOL", chain: "SOLANA", walletRoute: "PHANTOM", targetWeightPercent: 25 },
-      { symbol: "ETH", chain: "EVM", walletRoute: "METAMASK", targetWeightPercent: 20 },
+      { symbol: "USDC", chain: "EVM", walletRoute: "METAMASK", venueId: "GRVT", targetWeightPercent: 55 },
+      { symbol: "SOL", chain: "EVM", walletRoute: "METAMASK", venueId: "GRVT", targetWeightPercent: 25 },
+      { symbol: "ETH", chain: "EVM", walletRoute: "METAMASK", venueId: "GRVT", targetWeightPercent: 20 },
     ],
   },
 ];
