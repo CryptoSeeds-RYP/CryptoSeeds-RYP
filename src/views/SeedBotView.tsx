@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { Bot, CheckCircle2, LockKeyhole, ShieldCheck, Signal } from "lucide-react";
+import { Bot, CheckCircle2, CirclePause, LockKeyhole, SearchCheck, ShieldCheck, Signal, XCircle } from "lucide-react";
 import { ViewHeader } from "../components/ViewHeader";
+import { appConfig } from "../config/env";
 import {
   buildSeedBotCapabilities,
   canAccessSeedBotStrategy,
@@ -14,6 +15,7 @@ import {
   type SeedBotStrategy,
 } from "../domain/seedbot";
 import { recommendedSeedBotVenue, venueById } from "../domain/seedbotVenues";
+import { shortEvmAddress } from "../evm/useMetaMaskWallet";
 import { buildSeedBotRoutePlan } from "../services/seedbotVenueRouter";
 import type { SeedBotSignal, StakingTier } from "../types";
 import { formatLabel } from "../utils/format";
@@ -23,6 +25,8 @@ export function SeedBotView({
   walletConnected,
   activeTier,
   rypBalance,
+  evmWalletAddress,
+  evmChainId,
   signals,
   onPrepareAllocation,
 }: {
@@ -30,6 +34,8 @@ export function SeedBotView({
   walletConnected: boolean;
   activeTier: StakingTier;
   rypBalance: number;
+  evmWalletAddress?: string;
+  evmChainId?: string;
   signals: SeedBotSignal[];
   onPrepareAllocation: (strategy: SeedBotStrategy, mode: "BASKET" | "PER_ASSET") => void;
 }) {
@@ -70,6 +76,44 @@ export function SeedBotView({
           <div className="risk-control"><span>Primary venue</span><strong>{recommendedVenue.name}</strong></div>
           <div className="risk-control"><span>Automation</span><strong>Disabled in MVP</strong></div>
           <div className="risk-control"><span>Slippage</span><strong>0.5% demo cap</strong></div>
+        </section>
+        <section className="terminal-panel execution-guard-panel">
+          <div className="panel-title">
+            <ShieldCheck size={18} />
+            <strong>Execution Guard</strong>
+          </div>
+          <div className="execution-guard-grid">
+            <div>
+              <span>Venue</span>
+              <strong>Hyperliquid {appConfig.seedBotHyperliquidNetwork}</strong>
+            </div>
+            <div>
+              <span>Signed execution</span>
+              <strong>{appConfig.seedBotSignedExecutionEnabled ? "Enabled" : "Disabled"}</strong>
+            </div>
+            <div>
+              <span>EVM wallet</span>
+              <strong>{evmWalletAddress ? shortEvmAddress(evmWalletAddress) : "Not connected"}</strong>
+            </div>
+            <div>
+              <span>Chain</span>
+              <strong>{evmChainId ?? "Pending"}</strong>
+            </div>
+          </div>
+          <div className="execution-control-row">
+            <button disabled title="Requires a known order id and signed testnet mode">
+              <SearchCheck size={15} />
+              Status
+            </button>
+            <button disabled title="Requires a known order id and signed testnet mode">
+              <XCircle size={15} />
+              Cancel
+            </button>
+            <button disabled title="Requires signed testnet mode">
+              <CirclePause size={15} />
+              Kill Switch
+            </button>
+          </div>
         </section>
         <section className="terminal-panel">
           <div className="panel-title">

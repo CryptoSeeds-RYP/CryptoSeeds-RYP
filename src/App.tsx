@@ -133,6 +133,8 @@ export default function App() {
                 walletConnected={user.walletConnected}
                 activeTier={activeTier}
                 rypBalance={user.rypBalance}
+                evmWalletAddress={metaMask.address}
+                evmChainId={metaMask.chainId}
                 signals={seedBotSignals}
                 onPrepareAllocation={prepareSeedBotAllocation}
               />
