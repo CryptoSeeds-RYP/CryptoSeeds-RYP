@@ -14,6 +14,7 @@ import {
   type SeedBotStrategy,
 } from "../domain/seedbot";
 import { recommendedSeedBotVenue, venueById } from "../domain/seedbotVenues";
+import { buildSeedBotRoutePlan } from "../services/seedbotVenueRouter";
 import type { SeedBotSignal, StakingTier } from "../types";
 import { formatLabel } from "../utils/format";
 
@@ -107,6 +108,7 @@ export function SeedBotView({
               const selectedWindow = selectedWindows[strategy.id] ?? "30D";
               const selectedPerformance = performanceForWindow(strategy, selectedWindow);
               const venue = venueById(strategy.preferredVenueId);
+              const routePlan = buildSeedBotRoutePlan({ strategy });
 
               return (
                 <article
@@ -145,8 +147,17 @@ export function SeedBotView({
                   <div className="asset-route-list">
                     {strategy.assets.map((asset) => (
                       <span key={`${strategy.id}-${asset.symbol}`}>
-                        {asset.symbol} {asset.targetWeightPercent}% / {asset.walletRoute}
+                        {asset.symbol} {asset.targetWeightPercent}% / {asset.venueId}
                       </span>
+                    ))}
+                  </div>
+                  <div className="venue-route-list">
+                    {routePlan.routes.map((route) => (
+                      <div key={`${strategy.id}-${route.venueId}`}>
+                        <span>{route.venueName}</span>
+                        <strong>{formatLabel(route.mode)}</strong>
+                        <em>{route.assets.map((asset) => asset.symbol).join(" / ")}</em>
+                      </div>
                     ))}
                   </div>
                   <p>{seedBotFeeDisclosure(strategy.feeModel)}</p>

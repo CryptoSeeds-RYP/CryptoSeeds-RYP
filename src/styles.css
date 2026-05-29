@@ -1279,6 +1279,37 @@ button:disabled {
   background: rgba(244, 239, 226, 0.06);
 }
 
+.venue-route-list {
+  display: grid;
+  gap: 8px;
+}
+
+.venue-route-list div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 10px;
+  padding: 9px;
+  border: 1px solid rgba(236, 218, 157, 0.1);
+  border-radius: 8px;
+  background: rgba(12, 13, 10, 0.24);
+}
+
+.venue-route-list span,
+.venue-route-list em {
+  color: #aeb9aa;
+  font-size: 0.8rem;
+  font-style: normal;
+}
+
+.venue-route-list strong {
+  color: #ecd882;
+  font-size: 0.78rem;
+}
+
+.venue-route-list em {
+  grid-column: 1 / -1;
+}
+
 .strategy-actions {
   display: flex;
   flex-wrap: wrap;
