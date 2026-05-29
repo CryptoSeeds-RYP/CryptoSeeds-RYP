@@ -1,4 +1,11 @@
-import type { Project, ProtocolSnapshot, Reward, SeedBotSignal, UserMicroVerseState } from "../domain/microverse";
+import type {
+  Project,
+  ProjectParticipation,
+  ProtocolSnapshot,
+  Reward,
+  SeedBotSignal,
+  UserMicroVerseState,
+} from "../domain/microverse";
 import type { StakingTier } from "../domain/microverse";
 import type { ProjectEligibilityResult } from "../domain/projectRegistry";
 
@@ -30,6 +37,10 @@ export interface RewardService {
   listRewards(walletConnected: boolean): Promise<Reward[]>;
 }
 
+export interface ProjectParticipationService {
+  listParticipations(walletAddress?: string): Promise<ProjectParticipation[]>;
+}
+
 export interface SeedBotService {
   listSignals(): Promise<SeedBotSignal[]>;
 }
@@ -39,6 +50,7 @@ export type CryptoSeedsServices = {
   tokenBalances: TokenBalanceService;
   staking: StakingService;
   projects: ProjectRegistryService;
+  participations: ProjectParticipationService;
   rewards: RewardService;
   seedBot: SeedBotService;
   loadProtocolSnapshot(walletAddress?: string, simulatedTier?: StakingTier): Promise<ProtocolSnapshot>;

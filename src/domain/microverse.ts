@@ -86,6 +86,26 @@ export type Project = {
   participationOpen: boolean;
 };
 
+export type ProjectParticipationStatus =
+  | "REVIEWED"
+  | "PREPARED"
+  | "ACTIVE"
+  | "MILESTONE_REACHED"
+  | "HARVEST_AVAILABLE"
+  | "COMPLETED";
+
+export type ProjectParticipation = {
+  id: string;
+  projectId: string;
+  walletAddress: string;
+  status: ProjectParticipationStatus;
+  slotIndex: number;
+  joinedAt: string;
+  updatedAt: string;
+  acknowledgedDisclosureRef: string;
+  milestoneIndex: number;
+};
+
 export type Reward = {
   id: string;
   type: "STAKING" | "FEE_SHARE" | "PROJECT_UPDATE" | "NFT" | "GOVERNANCE";
@@ -128,6 +148,7 @@ export type ProtocolSnapshot = {
   user: UserMicroVerseState;
   farm: FarmVisualState;
   projects: Project[];
+  participations: ProjectParticipation[];
   rewards: Reward[];
   seedBotSignals: SeedBotSignal[];
 };

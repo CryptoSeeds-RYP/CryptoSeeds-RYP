@@ -5,6 +5,7 @@ import { projectSlotsForTier, tierRequirements } from "../domain/tiering";
 import {
   connectedUser,
   disconnectedUser,
+  projectParticipations,
   projects,
   rewards,
   seedBotSignals,
@@ -66,6 +67,12 @@ export function createMockServices(): CryptoSeedsServices {
       },
     },
     projects: projectRegistry,
+    participations: {
+      async listParticipations(walletAddress) {
+        if (!walletAddress) return [];
+        return projectParticipations.filter((participation) => participation.walletAddress === walletAddress);
+      },
+    },
     rewards: {
       async listRewards(walletConnected) {
         return walletConnected ? rewards : lockedRewards();
@@ -78,6 +85,7 @@ export function createMockServices(): CryptoSeedsServices {
     },
     async loadProtocolSnapshot(walletAddress, simulatedTier = "SPROUT"): Promise<ProtocolSnapshot> {
       const user = await services.staking.getStakeState(walletAddress, simulatedTier);
+      const participations = await services.participations.listParticipations(user.walletAddress);
       return {
         user,
         farm: {
@@ -90,6 +98,7 @@ export function createMockServices(): CryptoSeedsServices {
           weatherState: user.walletConnected ? "CLEAR" : "RAIN",
         },
         projects: await services.projects.listProjects(),
+        participations,
         rewards: await services.rewards.listRewards(user.walletConnected),
         seedBotSignals: await services.seedBot.listSignals(),
       };

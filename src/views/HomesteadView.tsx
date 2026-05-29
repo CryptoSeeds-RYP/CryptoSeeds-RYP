@@ -1,6 +1,7 @@
 import { Bot, Coins, KeyRound, Leaf, LockKeyhole, Map, ScrollText, Sprout, Vote, Wheat } from "lucide-react";
-import type { LocationKey, StakingTier } from "../types";
-import { formatRyp } from "../utils/format";
+import { buildProjectSlots } from "../domain/participation";
+import type { LocationKey, Project, ProjectParticipation, StakingTier } from "../types";
+import { formatLabel, formatRyp } from "../utils/format";
 import { Metric } from "../components/Metric";
 
 export function HomesteadView({
@@ -8,6 +9,9 @@ export function HomesteadView({
   walletConnected,
   rypBalance,
   stakedAmount,
+  projectSlotsUnlocked,
+  projects,
+  participations,
   votingActive,
   seedBotUnlocked,
   onLocation,
@@ -16,10 +20,15 @@ export function HomesteadView({
   walletConnected: boolean;
   rypBalance: number;
   stakedAmount: number;
+  projectSlotsUnlocked: number;
+  projects: Project[];
+  participations: ProjectParticipation[];
   votingActive: boolean;
   seedBotUnlocked: boolean;
   onLocation: (location: LocationKey) => void;
 }) {
+  const projectSlots = buildProjectSlots({ slotCount: projectSlotsUnlocked, participations, projects });
+
   return (
     <div className="homestead-view">
       <div className="microverse-map">
@@ -57,7 +66,29 @@ export function HomesteadView({
         <Metric icon={KeyRound} label="Golden Key" value={walletConnected && activeTier !== "NONE" ? "Active" : "Locked"} />
         <Metric icon={ScrollText} label="Voting NFT" value={votingActive ? "14d timer" : "Locked"} />
       </div>
+
+      <section className="project-slot-panel">
+        <div className="view-header">
+          <div>
+            <Leaf size={20} />
+            <strong>Project Fields</strong>
+          </div>
+          <span>{projectSlotsUnlocked} slots unlocked</span>
+        </div>
+        <div className="project-slot-grid">
+          {projectSlots.map((slot) => (
+            <button
+              key={slot.slotIndex}
+              className={`project-slot ${slot.participation ? "active" : ""}`}
+              onClick={() => onLocation("explorer")}
+            >
+              <span>Slot {slot.slotIndex + 1}</span>
+              <strong>{slot.project?.name ?? "Open field"}</strong>
+              <em>{slot.participation ? formatLabel(slot.participation.status) : "Ready for vetted project"}</em>
+            </button>
+          ))}
+        </div>
+      </section>
     </div>
   );
 }
-

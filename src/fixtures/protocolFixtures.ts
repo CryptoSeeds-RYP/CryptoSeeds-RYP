@@ -3,6 +3,7 @@ import type {
   ProjectDocument,
   ProjectDocumentStatus,
   ProjectDocumentType,
+  ProjectParticipation,
   Reward,
   SeedBotSignal,
   UserMicroVerseState,
@@ -162,6 +163,7 @@ export const projects: Project[] = [
     participationTerms: "Participation links the project to the user's MicroVerse record and future claim/update surfaces. Wallet approval is required for any on-chain action.",
     documents: [
       projectDocument({ id: "solar-operator", title: "Operator Profile", type: "OPERATOR_PROFILE" }),
+      projectDocument({ id: "solar-risk", title: "Infrastructure Risk Disclosure", type: "RISK_DISCLOSURE" }),
       projectDocument({ id: "solar-technical", title: "Technical Summary", type: "TECHNICAL_SUMMARY" }),
       projectDocument({ id: "solar-impact", title: "Impact Plan", type: "IMPACT_REPORT" }),
     ],
@@ -195,6 +197,7 @@ export const projects: Project[] = [
     participationTerms: "Donations may generate impact updates, cosmetic recognition, or achievement records, but no financial return is expected.",
     documents: [
       projectDocument({ id: "glade-donation-policy", title: "Donation Policy", type: "DONATION_POLICY" }),
+      projectDocument({ id: "glade-risk", title: "Donation Risk Disclosure", type: "RISK_DISCLOSURE" }),
       projectDocument({
         id: "glade-impact-reporting",
         title: "Impact Reporting Framework",
@@ -205,6 +208,31 @@ export const projects: Project[] = [
     milestones: ["Cause selection", "Allocation", "Impact update"],
     impactMetrics: ["Causes funded", "Impact reports", "Community reach"],
     participationOpen: true,
+  },
+];
+
+export const projectParticipations: ProjectParticipation[] = [
+  {
+    id: "participation-chestnut-spain",
+    projectId: "chestnut-spain",
+    walletAddress: DEMO_WALLET_ADDRESS,
+    status: "MILESTONE_REACHED",
+    slotIndex: 0,
+    joinedAt: "2026-05-29T09:00:00.000Z",
+    updatedAt: "2026-05-29T12:00:00.000Z",
+    acknowledgedDisclosureRef: "project:chestnut-spain:document:chestnut-risk:v1.0",
+    milestoneIndex: 1,
+  },
+  {
+    id: "participation-solar-water-node",
+    projectId: "solar-water-node",
+    walletAddress: DEMO_WALLET_ADDRESS,
+    status: "ACTIVE",
+    slotIndex: 1,
+    joinedAt: "2026-05-29T10:30:00.000Z",
+    updatedAt: "2026-05-29T13:30:00.000Z",
+    acknowledgedDisclosureRef: "project:solar-water-node:document:solar-risk:v1.0",
+    milestoneIndex: 2,
   },
 ];
 

@@ -362,6 +362,8 @@ button:disabled {
 .side-panel,
 .project-card,
 .project-detail-main,
+.project-slot-panel,
+.project-slot,
 .review-block,
 .ledger-item,
 .proposal-card,
@@ -400,6 +402,43 @@ button:disabled {
   margin-left: auto;
   color: #fff8df;
   font-size: 1.1rem;
+}
+
+.project-slot-panel {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+}
+
+.project-slot-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.project-slot {
+  display: grid;
+  gap: 6px;
+  min-height: 108px;
+  padding: 14px;
+  text-align: left;
+}
+
+.project-slot.active {
+  border-color: rgba(128, 198, 109, 0.42);
+  background: rgba(36, 69, 44, 0.74);
+}
+
+.project-slot span,
+.project-slot em {
+  color: #aeb9aa;
+  font-size: 0.82rem;
+  font-style: normal;
+}
+
+.project-slot strong {
+  color: #fff8df;
+  line-height: 1.25;
 }
 
 .side-stack {
@@ -875,6 +914,7 @@ button:disabled {
   }
 
   .metric-row,
+  .project-slot-grid,
   .project-grid,
   .project-detail-grid,
   .project-review-grid,

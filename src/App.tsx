@@ -49,7 +49,7 @@ export default function App() {
 
   if (!snapshot) return <LoadingShell />;
 
-  const { user, farm, projects, rewards, seedBotSignals } = snapshot;
+  const { user, farm, projects, participations, rewards, seedBotSignals } = snapshot;
   const activeTier = user.stakingTier;
   const eligibleProjects = projects.filter((project) => canAccess(project.requiredTier, activeTier));
 
@@ -99,6 +99,9 @@ export default function App() {
                 walletConnected={user.walletConnected}
                 rypBalance={user.rypBalance}
                 stakedAmount={user.stakedAmount}
+                projectSlotsUnlocked={farm.projectSlotsUnlocked}
+                projects={projects}
+                participations={participations}
                 votingActive={farm.governanceActive}
                 seedBotUnlocked={farm.seedBotUnlocked}
                 onLocation={openLocation}

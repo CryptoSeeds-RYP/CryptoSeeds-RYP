@@ -6,6 +6,8 @@ export type {
   ProjectDocumentStatus,
   ProjectDocumentType,
   ProjectOperator,
+  ProjectParticipation,
+  ProjectParticipationStatus,
   ProjectStatus,
   ProtocolSnapshot,
   GovernanceApproval,
