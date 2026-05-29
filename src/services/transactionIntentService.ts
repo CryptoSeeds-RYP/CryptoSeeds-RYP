@@ -1,5 +1,6 @@
 import { appConfig } from "../config/env";
 import type { Project, StakingTier } from "../domain/microverse";
+import { latestRiskDisclosure } from "../domain/projectRegistry";
 import { effectiveFee, tierRequirements } from "../domain/tiering";
 import type {
   RiskAcknowledgement,
@@ -244,11 +245,15 @@ function projectAccounts(project: Project, walletAddress?: string): TransactionA
 }
 
 function projectAcknowledgement(project: Project, accepted: boolean): RiskAcknowledgement {
+  const disclosure = latestRiskDisclosure(project);
+
   return {
     id: `risk-${project.id}`,
     label: `Risk disclosure for ${project.name}`,
     accepted,
     acceptedAt: accepted ? new Date().toISOString() : undefined,
-    disclosureRef: `project:${project.id}:risk-disclosure:v1`,
+    disclosureRef: disclosure
+      ? `project:${project.id}:document:${disclosure.id}:${disclosure.version}`
+      : `project:${project.id}:risk-disclosure:missing`,
   };
 }

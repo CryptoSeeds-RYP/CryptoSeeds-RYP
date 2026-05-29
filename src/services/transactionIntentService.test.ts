@@ -41,6 +41,7 @@ describe("transaction intents", () => {
     expect(intent.executionMode).toBe("WALLET_APPROVED");
     expect(intent.acknowledgement?.accepted).toBe(true);
     expect(intent.acknowledgement?.acceptedAt).toBeDefined();
+    expect(intent.acknowledgement?.disclosureRef).toContain("chestnut-risk:v1.0");
     expect(intent.accounts.some((account) => account.label === "Risk acknowledgement")).toBe(true);
   });
 

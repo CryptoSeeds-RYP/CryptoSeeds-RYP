@@ -10,6 +10,7 @@ import {
   seedBotSignals,
 } from "../fixtures/protocolFixtures";
 import type { CryptoSeedsServices, WalletSession } from "./adapters";
+import { createFixtureProjectRegistryService } from "./projectRegistryService";
 import { readSplTokenBalance } from "./solanaTokenBalanceService";
 
 function withTier(user: UserMicroVerseState, tier: StakingTier): UserMicroVerseState {
@@ -29,6 +30,7 @@ function lockedRewards(): Reward[] {
 
 export function createMockServices(): CryptoSeedsServices {
   let walletSession: WalletSession = { connected: false };
+  const projectRegistry = createFixtureProjectRegistryService(projects);
 
   const services: CryptoSeedsServices = {
     wallet: {
@@ -63,11 +65,7 @@ export function createMockServices(): CryptoSeedsServices {
         return withTier(baseUser, simulatedTier);
       },
     },
-    projects: {
-      async listProjects() {
-        return projects;
-      },
-    },
+    projects: projectRegistry,
     rewards: {
       async listRewards(walletConnected) {
         return walletConnected ? rewards : lockedRewards();
