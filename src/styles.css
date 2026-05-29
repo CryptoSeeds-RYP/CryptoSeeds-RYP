@@ -1,0 +1,931 @@
+:root {
+  color-scheme: dark;
+  font-family:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+  background: #11120f;
+  color: #f4efe2;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+button {
+  border: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+.app-shell {
+  min-height: 100vh;
+  background:
+    linear-gradient(135deg, rgba(17, 18, 15, 0.95), rgba(22, 34, 28, 0.86)),
+    url("/assets/microverse-river-delta.jpg") center / cover fixed;
+}
+
+.loading-shell {
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.loading-panel {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  max-width: 420px;
+  padding: 28px;
+  border: 1px solid rgba(236, 218, 157, 0.2);
+  border-radius: 8px;
+  background: rgba(21, 24, 19, 0.86);
+  text-align: center;
+}
+
+.loading-panel img {
+  width: 58px;
+  height: 58px;
+}
+
+.loading-panel strong {
+  color: #fff8df;
+  font-size: 1.2rem;
+}
+
+.loading-panel span {
+  color: #aeb9aa;
+  line-height: 1.45;
+}
+
+.topbar {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 18px;
+  min-height: 76px;
+  padding: 14px 24px;
+  border-bottom: 1px solid rgba(236, 218, 157, 0.16);
+  background: rgba(17, 18, 15, 0.82);
+  backdrop-filter: blur(18px);
+}
+
+.brand-lockup,
+.network-strip,
+.wallet-dock,
+.wallet-button,
+.panel-title,
+.view-header > div,
+.metric-tile,
+.map-marker,
+.project-card-top,
+.project-footer,
+.ledger-item,
+.vote-row,
+.signal-row,
+.risk-control,
+.lifecycle-step,
+.reference-line,
+.state-line {
+  display: flex;
+  align-items: center;
+}
+
+.brand-lockup {
+  gap: 12px;
+  min-width: 210px;
+}
+
+.brand-lockup img {
+  width: 42px;
+  height: 42px;
+}
+
+.brand-lockup strong,
+.intent-title {
+  display: block;
+  color: #fff8df;
+}
+
+.brand-lockup span {
+  display: block;
+  margin-top: 2px;
+  color: #aeb9aa;
+  font-size: 0.82rem;
+}
+
+.network-strip {
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.network-strip span,
+.status-pill,
+.risk-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 6px 10px;
+  border: 1px solid rgba(236, 218, 157, 0.18);
+  border-radius: 8px;
+  background: rgba(247, 243, 226, 0.07);
+  color: #d8decf;
+  font-size: 0.82rem;
+}
+
+.wallet-button,
+.primary-action,
+.secondary-action,
+.ledger-action button,
+.vote-row button {
+  gap: 8px;
+  justify-content: center;
+  min-height: 42px;
+  padding: 0 14px;
+  border: 1px solid rgba(236, 218, 157, 0.24);
+  border-radius: 8px;
+  background: linear-gradient(135deg, #4c8a45, #b78236);
+  color: #fffdf3;
+  font-weight: 700;
+}
+
+.wallet-button.connected {
+  background: linear-gradient(135deg, #2c755e, #6d4a9f);
+}
+
+.wallet-dock {
+  justify-content: end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.wallet-dock .wallet-adapter-button {
+  min-height: 42px;
+  height: 42px;
+  padding: 0 14px;
+  border: 1px solid rgba(236, 218, 157, 0.24);
+  border-radius: 8px;
+  background: linear-gradient(135deg, #4c8a45, #b78236);
+  color: #fffdf3;
+  font-family: inherit;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.wallet-dock .wallet-adapter-button:not([disabled]):hover {
+  background: linear-gradient(135deg, #5da153, #c39146);
+}
+
+.metamask-button {
+  background: linear-gradient(135deg, #d7752f, #8f5cd3);
+}
+
+.demo-button {
+  background: rgba(244, 239, 226, 0.08);
+}
+
+.workspace {
+  display: grid;
+  grid-template-columns: 72px 1fr;
+  min-height: calc(100vh - 76px);
+}
+
+.nav-rail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 18px 12px;
+  border-right: 1px solid rgba(236, 218, 157, 0.16);
+  background: rgba(17, 18, 15, 0.78);
+  backdrop-filter: blur(14px);
+}
+
+.nav-rail button,
+.tier-control button {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border: 1px solid rgba(236, 218, 157, 0.16);
+  border-radius: 8px;
+  background: rgba(244, 239, 226, 0.06);
+  color: #bac8b3;
+}
+
+.nav-rail button.active,
+.nav-rail button:hover,
+.tier-control button.active {
+  border-color: rgba(236, 218, 157, 0.46);
+  background: rgba(184, 130, 55, 0.22);
+  color: #fff8df;
+}
+
+.content-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: 18px;
+  padding: 18px;
+}
+
+.primary-surface {
+  min-width: 0;
+}
+
+.homestead-view,
+.location-view {
+  display: grid;
+  gap: 16px;
+  min-height: calc(100vh - 112px);
+}
+
+.microverse-map {
+  position: relative;
+  min-height: 610px;
+  overflow: hidden;
+  border: 1px solid rgba(236, 218, 157, 0.2);
+  border-radius: 8px;
+  background: #181d17;
+}
+
+.microverse-map img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: saturate(1.05) contrast(1.04);
+}
+
+.map-overlay {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, rgba(12, 13, 10, 0.76), rgba(12, 13, 10, 0.12) 45%, rgba(12, 13, 10, 0.72)),
+    linear-gradient(0deg, rgba(12, 13, 10, 0.82), transparent 42%);
+}
+
+.map-title {
+  position: absolute;
+  left: 28px;
+  top: 26px;
+  display: grid;
+  gap: 4px;
+}
+
+.map-title span {
+  color: #ecd882;
+  font-size: 0.86rem;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.map-title strong {
+  max-width: 520px;
+  color: #fff8df;
+  font-size: clamp(2rem, 4vw, 4.5rem);
+  line-height: 0.96;
+}
+
+.map-marker {
+  position: absolute;
+  gap: 8px;
+  min-width: 126px;
+  min-height: 42px;
+  padding: 8px 12px;
+  border: 1px solid rgba(255, 248, 223, 0.22);
+  border-radius: 8px;
+  background: rgba(18, 24, 18, 0.74);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.24);
+  backdrop-filter: blur(14px);
+}
+
+.map-marker:hover {
+  background: rgba(76, 138, 69, 0.76);
+}
+
+.map-marker.locked {
+  color: #d9c9aa;
+  background: rgba(82, 72, 63, 0.76);
+}
+
+.homestead-marker {
+  left: 18%;
+  bottom: 28%;
+}
+
+.explorer-marker {
+  left: 42%;
+  top: 38%;
+}
+
+.harvest-marker {
+  right: 18%;
+  bottom: 22%;
+}
+
+.governance-marker {
+  right: 22%;
+  top: 24%;
+}
+
+.seedbot-marker {
+  left: 57%;
+  bottom: 42%;
+}
+
+.metric-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.metric-tile,
+.side-panel,
+.project-card,
+.project-detail-main,
+.review-block,
+.ledger-item,
+.proposal-card,
+.terminal-panel {
+  border: 1px solid rgba(236, 218, 157, 0.16);
+  border-radius: 8px;
+  background: rgba(21, 24, 19, 0.82);
+  backdrop-filter: blur(14px);
+}
+
+.metric-tile {
+  gap: 10px;
+  min-height: 86px;
+  padding: 18px;
+}
+
+.metric-tile svg {
+  color: #ecd882;
+}
+
+.metric-tile span,
+.project-card span,
+.detail-item span,
+.side-panel p,
+.reference-line span,
+.ledger-item span,
+.proposal-card span,
+.view-header span,
+.risk-control span,
+.state-line span {
+  color: #aeb9aa;
+  font-size: 0.86rem;
+}
+
+.metric-tile strong {
+  margin-left: auto;
+  color: #fff8df;
+  font-size: 1.1rem;
+}
+
+.side-stack {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+}
+
+.side-panel {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+}
+
+.panel-title {
+  gap: 8px;
+  color: #fff8df;
+}
+
+.panel-title svg,
+.view-header svg {
+  color: #80c66d;
+}
+
+.state-lines {
+  display: grid;
+  gap: 8px;
+}
+
+.state-line {
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 30px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(236, 218, 157, 0.09);
+}
+
+.state-line strong {
+  color: #fff8df;
+  text-align: right;
+}
+
+.tier-control {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+}
+
+.tier-control button {
+  width: 100%;
+  height: 38px;
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.transaction-panel p {
+  margin: 0;
+  line-height: 1.45;
+}
+
+.transaction-subsection {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid rgba(236, 218, 157, 0.1);
+  border-radius: 8px;
+  background: rgba(244, 239, 226, 0.04);
+}
+
+.lifecycle-list,
+.reference-list {
+  display: grid;
+  gap: 8px;
+}
+
+.lifecycle-list {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.lifecycle-step {
+  gap: 8px;
+  min-height: 28px;
+  color: #aeb9aa;
+  font-size: 0.8rem;
+}
+
+.lifecycle-step.complete {
+  color: #80c66d;
+}
+
+.lifecycle-step.current {
+  color: #ecd882;
+}
+
+.lifecycle-step.blocked,
+.lifecycle-step.failed {
+  color: #ffbd88;
+}
+
+.reference-line {
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+}
+
+.reference-line code {
+  max-width: 146px;
+  overflow: hidden;
+  color: #fff8df;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 0.76rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.acknowledgement-summary > span {
+  color: #aeb9aa;
+  font-size: 0.84rem;
+  line-height: 1.35;
+}
+
+.acknowledgement-summary > strong {
+  color: #fff8df;
+}
+
+.primary-action {
+  width: 100%;
+}
+
+.transaction-actions {
+  display: grid;
+  gap: 8px;
+}
+
+.secondary-action {
+  min-height: 38px;
+  border: 1px solid rgba(236, 218, 157, 0.16);
+  background: rgba(244, 239, 226, 0.08);
+  color: #d8decf;
+  font-weight: 700;
+}
+
+.location-view {
+  align-content: start;
+}
+
+.view-header {
+  justify-content: space-between;
+  min-height: 58px;
+  padding: 0 2px;
+}
+
+.view-header > div {
+  gap: 10px;
+  font-size: 1.08rem;
+}
+
+.project-grid,
+.proposal-grid,
+.terminal-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.project-card {
+  display: grid;
+  gap: 12px;
+  min-height: 218px;
+  padding: 16px;
+  text-align: left;
+}
+
+.project-detail-panel {
+  display: grid;
+  gap: 14px;
+}
+
+.project-detail-main {
+  display: grid;
+  gap: 16px;
+  padding: 18px;
+}
+
+.project-detail-main h2 {
+  margin: 6px 0 8px;
+  color: #fff8df;
+  font-size: 1.55rem;
+}
+
+.project-detail-main p,
+.review-block p {
+  margin: 0;
+  color: #d8decf;
+  line-height: 1.5;
+}
+
+.project-detail-grid,
+.project-review-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.project-detail-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.project-review-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.detail-item {
+  display: grid;
+  gap: 6px;
+  min-height: 72px;
+  padding: 12px;
+  border: 1px solid rgba(236, 218, 157, 0.12);
+  border-radius: 8px;
+  background: rgba(244, 239, 226, 0.05);
+}
+
+.detail-item strong {
+  color: #fff8df;
+  line-height: 1.3;
+}
+
+.review-block {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  min-height: 188px;
+  padding: 16px;
+}
+
+.review-block ul,
+.review-block ol {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding-left: 18px;
+  color: #d8decf;
+  line-height: 1.4;
+}
+
+.risk-block {
+  gap: 14px;
+}
+
+.acknowledgement-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #d8decf;
+  font-size: 0.9rem;
+  line-height: 1.35;
+}
+
+.acknowledgement-row input {
+  width: 18px;
+  height: 18px;
+  accent-color: #80c66d;
+}
+
+.project-card:hover,
+.project-card.selected {
+  border-color: rgba(236, 218, 157, 0.46);
+  background: rgba(36, 47, 30, 0.9);
+}
+
+.project-card strong {
+  color: #fff8df;
+  font-size: 1.1rem;
+}
+
+.project-card-top,
+.project-footer {
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.risk-pill.low {
+  color: #c7f0c0;
+}
+
+.risk-pill.medium {
+  color: #f2db89;
+}
+
+.risk-pill.high,
+.risk-pill.experimental {
+  color: #ffbd88;
+}
+
+.risk-pill.donation {
+  color: #cdb9ff;
+}
+
+.progress-track {
+  height: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(244, 239, 226, 0.1);
+}
+
+.progress-track span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #80c66d, #ecd882, #b78236);
+}
+
+.ledger-list {
+  display: grid;
+  gap: 12px;
+}
+
+.ledger-item {
+  justify-content: space-between;
+  gap: 18px;
+  min-height: 88px;
+  padding: 16px;
+}
+
+.ledger-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 44px;
+  height: 44px;
+  border-radius: 8px;
+  background: rgba(128, 198, 109, 0.14);
+  color: #ecd882;
+}
+
+.ledger-item > div:nth-child(2) {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  margin-right: auto;
+}
+
+.ledger-action {
+  display: grid;
+  justify-items: end;
+  gap: 8px;
+  min-width: 160px;
+}
+
+.proposal-card {
+  display: grid;
+  gap: 12px;
+  min-height: 194px;
+  padding: 16px;
+}
+
+.proposal-card p {
+  margin: 0;
+  color: #d8decf;
+}
+
+.vote-row {
+  gap: 8px;
+  margin-top: auto;
+}
+
+.vote-row button {
+  flex: 1;
+  min-height: 38px;
+  background: rgba(244, 239, 226, 0.08);
+}
+
+.terminal-grid {
+  align-items: start;
+}
+
+.terminal-panel {
+  display: grid;
+  gap: 12px;
+  min-height: 260px;
+  padding: 16px;
+}
+
+.signal-row,
+.risk-control {
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 42px;
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(236, 218, 157, 0.09);
+}
+
+.signal-row strong,
+.risk-control strong {
+  color: #fff8df;
+  text-align: right;
+}
+
+.signal-row em {
+  min-width: 58px;
+  color: #80c66d;
+  font-style: normal;
+  text-align: right;
+}
+
+@media (max-width: 1160px) {
+  .content-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .side-stack {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 860px) {
+  .topbar {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .network-strip {
+    justify-content: flex-start;
+  }
+
+  .wallet-dock {
+    justify-content: flex-start;
+  }
+
+  .workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .nav-rail {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    flex-direction: row;
+    justify-content: space-around;
+    border-right: 0;
+    border-bottom: 1px solid rgba(236, 218, 157, 0.16);
+  }
+
+  .content-grid {
+    padding: 12px;
+  }
+
+  .microverse-map {
+    min-height: 520px;
+  }
+
+  .metric-row,
+  .project-grid,
+  .project-detail-grid,
+  .project-review-grid,
+  .proposal-grid,
+  .terminal-grid,
+  .side-stack {
+    grid-template-columns: 1fr;
+  }
+
+  .map-title strong {
+    max-width: 300px;
+  }
+
+  .map-marker {
+    min-width: 44px;
+  }
+
+  .map-marker span {
+    display: none;
+  }
+}
+
+@media (max-width: 560px) {
+  .brand-lockup {
+    min-width: 0;
+  }
+
+  .nav-rail {
+    gap: 8px;
+    padding: 10px;
+  }
+
+  .nav-rail button {
+    width: 42px;
+    height: 42px;
+  }
+
+  .microverse-map {
+    min-height: 440px;
+  }
+
+  .map-title {
+    left: 18px;
+    top: 18px;
+  }
+
+  .homestead-marker {
+    left: 12%;
+    bottom: 24%;
+  }
+
+  .explorer-marker {
+    left: 45%;
+    top: 44%;
+  }
+
+  .harvest-marker {
+    right: 12%;
+    bottom: 22%;
+  }
+
+  .governance-marker {
+    right: 16%;
+    top: 28%;
+  }
+
+  .seedbot-marker {
+    left: 55%;
+    bottom: 48%;
+  }
+
+  .ledger-item {
+    align-items: flex-start;
+  }
+
+  .ledger-action {
+    min-width: 120px;
+  }
+}

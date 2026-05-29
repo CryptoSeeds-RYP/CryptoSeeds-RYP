@@ -1,0 +1,62 @@
+# CryptoSeeds MicroVerse
+
+CryptoSeeds MicroVerse is a full Web3 and DeFi-style Solana dApp built around RYP. The product vision combines staking access, visual ecosystem progression, vetted project participation, governance, rewards, NFT identity, and optional self-custodial trading tools through the SeedBot Terminal.
+
+The first build should be a polished, state-driven dApp rather than a marketing website or full game. Users should be able to connect a wallet, see RYP status, understand staking tiers, browse project opportunities, review risks, harvest eligible rewards, and access governance in a simple premium interface.
+
+## Product Pillars
+
+- **Web3 dApp core:** wallet-first, on-chain-aware, self-custodial, and transaction transparent.
+- **DeFi utility:** staking, rewards, fee logic, treasury flows, project pools, and trading-tool access.
+- **RYP utility:** staking, access, governance eligibility, rewards, and ecosystem tools.
+- **MicroVerse dashboard:** a live farm/environment hub that evolves from user and project state.
+- **Vetted project discovery:** clear project cards, risk labels, documents, milestones, and lifecycle tracking.
+- **Self-custody:** no seed phrase collection, no custodial user wallets, no hidden transaction execution.
+- **Governance:** 1 wallet = 1 vote, gated by a non-transferable Voting Rights NFT after a staking delay.
+- **SeedBot Terminal:** signal-only and wallet-approved trading tools first; guarded automation only later.
+
+## RYP Token
+
+Mainnet RYP mint:
+
+`CFPzKkPYqpyfNJp3WDB4dykMemfhwYrV9cgNUy7nsoPD`
+
+## Current Build Stage
+
+This repository is starting with product and architecture foundations plus the first frontend dApp shell. Implementation should be added in small evaluated slices:
+
+1. Docs and product architecture.
+2. Web3 dApp shell for the MicroVerse dashboard.
+3. Wallet/RYP read-only integration.
+4. Staking tier and farm-state simulation mapped to protocol state.
+5. Project discovery and detail flow.
+6. Governance eligibility and NFT identity flow.
+7. SeedBot Terminal signal-only/wallet-approved execution prototype.
+
+## Local Development
+
+```bash
+npm install
+npm run dev
+npm run build
+npm run token:check
+```
+
+The current dev server uses Vite at `http://127.0.0.1:5173`.
+
+Copy `.env.example` to `.env` and fill in the deployed protocol program details before connecting to live CryptoSeeds program state. The public RYP mint is already configured.
+
+## Protocol Development
+
+The protocol scaffold is Anchor/Rust based:
+
+```bash
+anchor build
+anchor test
+```
+
+Rust, Cargo, Solana/Agave tooling, and Anchor must be installed before protocol builds can run locally.
+
+## Guardrails
+
+CryptoSeeds can be a serious DeFi dApp without promising returns. Do not build or describe the product as a casino, meme token, guaranteed-yield app, passive-income engine, or unreviewed investment platform. Use language such as project participation, ecosystem rewards, utility access, governance, impact updates, and self-custodial tools.

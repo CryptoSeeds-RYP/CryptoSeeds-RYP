@@ -1,0 +1,21 @@
+[package]
+name = "cryptoseeds_protocol"
+version = "0.1.0"
+description = "CryptoSeeds MicroVerse core Solana program"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "cryptoseeds_protocol"
+
+[features]
+default = []
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+cpi = ["no-entrypoint"]
+
+[dependencies]
+anchor-lang = { version = "1.0.2", features = ["init-if-needed"] }
+anchor-spl = "1.0.2"
+
