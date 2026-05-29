@@ -1,14 +1,16 @@
 import { useEffect, useState } from "react";
 import { CheckCircle2, FileText, Map, ShieldAlert } from "lucide-react";
 import { ViewHeader } from "../components/ViewHeader";
+import { participationForProject } from "../domain/participation";
 import { evaluateProjectEligibility } from "../domain/projectRegistry";
 import { canAccess } from "../domain/tiering";
-import type { Project, StakingTier } from "../types";
+import type { Project, ProjectParticipation, StakingTier } from "../types";
 import { formatLabel } from "../utils/format";
 
 export function ExplorerView({
   activeTier,
   projects,
+  participations,
   selectedProject,
   selectedProjectId,
   onProjectSelect,
@@ -16,6 +18,7 @@ export function ExplorerView({
 }: {
   activeTier: StakingTier;
   projects: Project[];
+  participations: ProjectParticipation[];
   selectedProject: Project;
   selectedProjectId: string;
   onProjectSelect: (project: Project) => void;
@@ -25,7 +28,8 @@ export function ExplorerView({
   const selectedEligible = canAccess(selectedProject.requiredTier, activeTier);
   const riskAcknowledged = acknowledgedProjectId === selectedProject.id;
   const eligibility = evaluateProjectEligibility(selectedProject, activeTier);
-  const canPrepare = eligibility.eligible && riskAcknowledged;
+  const selectedParticipation = participationForProject(participations, selectedProject.id);
+  const canPrepare = eligibility.eligible && riskAcknowledged && !selectedParticipation;
 
   useEffect(() => {
     setAcknowledgedProjectId(undefined);
@@ -37,6 +41,7 @@ export function ExplorerView({
       <div className="project-grid">
         {projects.map((project) => {
           const eligible = canAccess(project.requiredTier, activeTier);
+          const participation = participationForProject(participations, project.id);
           return (
             <button
               key={project.id}
@@ -54,7 +59,7 @@ export function ExplorerView({
               </div>
               <div className="project-footer">
                 <span>{project.requiredTier}</span>
-                <span>{eligible ? "Eligible" : "Locked"}</span>
+                <span>{participation ? formatLabel(participation.status) : eligible ? "Eligible" : "Locked"}</span>
               </div>
             </button>
           );
@@ -106,6 +111,12 @@ export function ExplorerView({
                 {eligibility.reasons.map((reason) => (
                   <span key={reason}>{reason}</span>
                 ))}
+              </div>
+            )}
+            {selectedParticipation && (
+              <div className="eligibility-list ready-list">
+                <span>{formatLabel(selectedParticipation.status)} in slot {selectedParticipation.slotIndex + 1}</span>
+                <span>{selectedParticipation.acknowledgedDisclosureRef}</span>
               </div>
             )}
             <button className="primary-action" disabled={!canPrepare} onClick={() => onPrepareProject(selectedProject)}>

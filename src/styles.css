@@ -708,6 +708,20 @@ button:disabled {
   font-size: 0.84rem;
 }
 
+.ready-list {
+  border-color: rgba(128, 198, 109, 0.24);
+  background: rgba(48, 102, 61, 0.18);
+}
+
+.ready-list span {
+  color: #c7f0c0;
+  overflow-wrap: anywhere;
+}
+
+.snapshot-note {
+  overflow-wrap: anywhere;
+}
+
 .risk-block {
   gap: 14px;
 }

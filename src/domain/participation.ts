@@ -34,6 +34,10 @@ export function hasProjectParticipation(participations: ProjectParticipation[], 
   return activeParticipations(participations).some((participation) => participation.projectId === projectId);
 }
 
+export function participationForProject(participations: ProjectParticipation[], projectId: string) {
+  return activeParticipations(participations).find((participation) => participation.projectId === projectId);
+}
+
 export function nextAvailableProjectSlot(participations: ProjectParticipation[], slotCount: number) {
   const occupied = new Set(activeParticipations(participations).map((participation) => participation.slotIndex));
 

@@ -6,6 +6,7 @@ import {
   createPreparedParticipation,
   hasProjectParticipation,
   nextAvailableProjectSlot,
+  participationForProject,
 } from "./participation";
 
 describe("project participation", () => {
@@ -71,5 +72,10 @@ describe("project participation", () => {
         slotCount: 4,
       }),
     ).toBeUndefined();
+  });
+
+  it("returns active participation by project id", () => {
+    expect(participationForProject(projectParticipations, "solar-water-node")?.status).toBe("ACTIVE");
+    expect(participationForProject(projectParticipations, "missing")).toBeUndefined();
   });
 });

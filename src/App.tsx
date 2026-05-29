@@ -111,6 +111,7 @@ export default function App() {
               <ExplorerView
                 activeTier={activeTier}
                 projects={projects}
+                participations={participations}
                 selectedProject={selectedProject}
                 selectedProjectId={selectedProjectId}
                 onProjectSelect={selectProject}
@@ -135,7 +136,12 @@ export default function App() {
               onTierChange={setSelectedTier}
             />
             <TransactionPanel intent={intent} onAdvance={advanceIntent} onReset={resetIntent} />
-            <ProjectSnapshot project={selectedProject} activeTier={activeTier} eligibleProjects={eligibleProjects.length} />
+            <ProjectSnapshot
+              project={selectedProject}
+              participation={participations.find((participation) => participation.projectId === selectedProject.id)}
+              activeTier={activeTier}
+              eligibleProjects={eligibleProjects.length}
+            />
           </aside>
         </section>
       </section>
