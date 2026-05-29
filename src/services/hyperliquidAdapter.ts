@@ -489,13 +489,13 @@ function validateEvmAddress(label: string, value: string) {
 }
 
 function validatePositiveInteger(label: string, value: number) {
-  if (Number.isInteger(value) && value > 0) return [];
-  return [`${label} must be a positive integer.`];
+  if (Number.isSafeInteger(value) && value > 0) return [];
+  return [`${label} must be a positive safe integer.`];
 }
 
 function validateNonNegativeInteger(label: string, value: number) {
-  if (Number.isInteger(value) && value >= 0) return [];
-  return [`${label} must be a non-negative integer.`];
+  if (Number.isSafeInteger(value) && value >= 0) return [];
+  return [`${label} must be a non-negative safe integer.`];
 }
 
 function validateOptionalScheduleCancelTime(time: number | undefined, nonce: number) {

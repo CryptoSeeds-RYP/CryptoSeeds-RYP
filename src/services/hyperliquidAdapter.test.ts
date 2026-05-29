@@ -113,6 +113,23 @@ describe("hyperliquid adapter signed-order draft", () => {
     });
   });
 
+  it("blocks unsafe numeric identifiers before previewing controls", () => {
+    const query = buildHyperliquidOrderStatusQuery({
+      user: "0x1111111111111111111111111111111111111111",
+      oid: Number.MAX_SAFE_INTEGER + 1,
+    });
+    const cancel = buildHyperliquidCancelOrderDraft({
+      assetId: Number.MAX_SAFE_INTEGER + 1,
+      oid: 123,
+      nonce: 1_000,
+      expiresAfter: 2_000,
+      signedExecutionEnabled: true,
+    });
+
+    expect(query.blockedReasons).toEqual(["oid must be a positive safe integer."]);
+    expect(cancel.blockedReasons).toEqual(["assetId must be a non-negative safe integer."]);
+  });
+
   it("builds cancel drafts only when signed requests are enabled", () => {
     const blocked = buildHyperliquidCancelOrderDraft({
       assetId: 0,

@@ -16,6 +16,11 @@ import {
 } from "../domain/seedbot";
 import { recommendedSeedBotVenue, venueById } from "../domain/seedbotVenues";
 import { shortEvmAddress } from "../evm/useMetaMaskWallet";
+import {
+  buildHyperliquidCancelOrderDraft,
+  buildHyperliquidOrderStatusQuery,
+  buildHyperliquidScheduleCancelDraft,
+} from "../services/hyperliquidAdapter";
 import { buildSeedBotRoutePlan } from "../services/seedbotVenueRouter";
 import type { SeedBotSignal, StakingTier } from "../types";
 import { formatLabel } from "../utils/format";
@@ -44,6 +49,32 @@ export function SeedBotView({
   const [selectedWindows, setSelectedWindows] = useState<Record<string, SeedBotPerformanceWindowName>>(
     Object.fromEntries(seedBotStrategies.map((strategy) => [strategy.id, "30D"])),
   );
+  const [controlOrderId, setControlOrderId] = useState("123456");
+  const [controlAssetId, setControlAssetId] = useState("0");
+  const parsedOrderId = parseHyperliquidOrderId(controlOrderId);
+  const parsedAssetId = parseIntegerField(controlAssetId);
+  const previewNonce = Date.UTC(2026, 4, 30, 12, 0, 0);
+  const previewExpiresAfter = previewNonce + 60_000;
+  const statusQuery = buildHyperliquidOrderStatusQuery({
+    user: evmWalletAddress ?? "",
+    oid: parsedOrderId,
+    network: appConfig.seedBotHyperliquidNetwork,
+  });
+  const cancelDraft = buildHyperliquidCancelOrderDraft({
+    assetId: parsedAssetId,
+    oid: typeof parsedOrderId === "number" ? parsedOrderId : Number.NaN,
+    nonce: previewNonce,
+    expiresAfter: previewExpiresAfter,
+    network: appConfig.seedBotHyperliquidNetwork,
+    signedExecutionEnabled: appConfig.seedBotSignedExecutionEnabled,
+  });
+  const scheduleCancelDraft = buildHyperliquidScheduleCancelDraft({
+    time: previewNonce + 10_000,
+    nonce: previewNonce,
+    expiresAfter: previewExpiresAfter,
+    network: appConfig.seedBotHyperliquidNetwork,
+    signedExecutionEnabled: appConfig.seedBotSignedExecutionEnabled,
+  });
 
   function selectWindow(strategyId: string, window: SeedBotPerformanceWindowName) {
     setSelectedWindows((current) => ({ ...current, [strategyId]: window }));
@@ -113,6 +144,48 @@ export function SeedBotView({
               <CirclePause size={15} />
               Kill Switch
             </button>
+          </div>
+          <div className="execution-preview-form">
+            <label>
+              <span>Mock order id</span>
+              <input
+                value={controlOrderId}
+                onChange={(event) => setControlOrderId(event.target.value)}
+                spellCheck={false}
+              />
+            </label>
+            <label>
+              <span>Asset id</span>
+              <input
+                inputMode="numeric"
+                value={controlAssetId}
+                onChange={(event) => setControlAssetId(event.target.value)}
+                spellCheck={false}
+              />
+            </label>
+          </div>
+          <div className="execution-preview-grid">
+            <ExecutionPreviewCard
+              title="Status Query"
+              status={statusQuery.status}
+              blockedReasons={statusQuery.blockedReasons}
+              payload={{ endpoint: statusQuery.infoEndpoint, body: statusQuery.body ?? null }}
+            />
+            <ExecutionPreviewCard
+              title="Cancel Draft"
+              status={cancelDraft.status}
+              blockedReasons={cancelDraft.blockedReasons}
+              payload={{ endpoint: cancelDraft.exchangeEndpoint, request: cancelDraft.request ?? null }}
+            />
+            <ExecutionPreviewCard
+              title="Kill Switch Draft"
+              status={scheduleCancelDraft.status}
+              blockedReasons={scheduleCancelDraft.blockedReasons}
+              payload={{
+                endpoint: scheduleCancelDraft.exchangeEndpoint,
+                request: scheduleCancelDraft.request ?? null,
+              }}
+            />
           </div>
         </section>
         <section className="terminal-panel">
@@ -223,6 +296,35 @@ export function SeedBotView({
   );
 }
 
+function ExecutionPreviewCard({
+  title,
+  status,
+  blockedReasons,
+  payload,
+}: {
+  title: string;
+  status: string;
+  blockedReasons: string[];
+  payload: unknown;
+}) {
+  return (
+    <article className="execution-preview-card">
+      <header>
+        <strong>{title}</strong>
+        <span className={`status-pill ${blockedReasons.length > 0 ? "blocked" : "ready"}`}>{formatLabel(status)}</span>
+      </header>
+      {blockedReasons.length > 0 && (
+        <div className="execution-blockers">
+          {blockedReasons.map((reason) => (
+            <span key={reason}>{reason}</span>
+          ))}
+        </div>
+      )}
+      <pre>{JSON.stringify(payload, null, 2)}</pre>
+    </article>
+  );
+}
+
 function StrategyPerformanceGraph({ performance }: { performance: SeedBotPerformanceWindow }) {
   const width = 260;
   const height = 112;
@@ -251,4 +353,16 @@ function StrategyPerformanceGraph({ performance }: { performance: SeedBotPerform
       })}
     </svg>
   );
+}
+
+function parseHyperliquidOrderId(value: string) {
+  const trimmed = value.trim();
+  if (/^\d+$/.test(trimmed)) return Number(trimmed);
+  return trimmed;
+}
+
+function parseIntegerField(value: string) {
+  const trimmed = value.trim();
+  if (!/^\d+$/.test(trimmed)) return Number.NaN;
+  return Number(trimmed);
 }

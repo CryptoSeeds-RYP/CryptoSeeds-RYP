@@ -1410,6 +1410,109 @@ button:disabled {
   opacity: 0.58;
 }
 
+.execution-preview-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(86px, 0.36fr);
+  gap: 8px;
+}
+
+.execution-preview-form label {
+  display: grid;
+  gap: 6px;
+  color: #aeb9aa;
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.execution-preview-form input {
+  width: 100%;
+  min-width: 0;
+  min-height: 38px;
+  padding: 8px 10px;
+  border: 1px solid rgba(236, 218, 157, 0.14);
+  border-radius: 8px;
+  outline: none;
+  background: rgba(12, 13, 10, 0.38);
+  color: #fff8df;
+  font: inherit;
+}
+
+.execution-preview-form input:focus {
+  border-color: rgba(236, 216, 130, 0.48);
+  box-shadow: 0 0 0 2px rgba(236, 216, 130, 0.1);
+}
+
+.execution-preview-grid {
+  display: grid;
+  gap: 8px;
+}
+
+.execution-preview-card {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid rgba(236, 218, 157, 0.1);
+  border-radius: 8px;
+  background: rgba(12, 13, 10, 0.24);
+}
+
+.execution-preview-card header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.execution-preview-card header strong {
+  color: #fff8df;
+  font-size: 0.86rem;
+}
+
+.status-pill {
+  flex: 0 0 auto;
+  padding: 4px 7px;
+  border-radius: 8px;
+  font-size: 0.68rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.status-pill.ready {
+  color: #c7f0c0;
+  background: rgba(48, 102, 61, 0.22);
+}
+
+.status-pill.blocked {
+  color: #ffbd88;
+  background: rgba(141, 66, 45, 0.24);
+}
+
+.execution-blockers {
+  display: grid;
+  gap: 5px;
+}
+
+.execution-blockers span {
+  color: #ffbd88;
+  font-size: 0.75rem;
+  line-height: 1.35;
+}
+
+.execution-preview-card pre {
+  max-height: 186px;
+  margin: 0;
+  overflow: auto;
+  padding: 9px;
+  border: 1px solid rgba(236, 218, 157, 0.08);
+  border-radius: 8px;
+  background: rgba(4, 5, 4, 0.42);
+  color: #d8decf;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 0.7rem;
+  line-height: 1.42;
+  white-space: pre-wrap;
+}
+
 .signal-row em {
   min-width: 58px;
   color: #80c66d;
