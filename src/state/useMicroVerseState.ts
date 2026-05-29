@@ -72,6 +72,14 @@ export function useMicroVerseState() {
     setIntent(buildProjectReviewIntent(project, effectiveIntentWalletAddress()));
   }
 
+  function openProject(projectId: string) {
+    const project = snapshot?.projects.find((candidate) => candidate.id === projectId);
+    if (!project) return;
+
+    setActiveLocation("explorer");
+    selectProject(project);
+  }
+
   function prepareProjectIntent(project: Project) {
     const effectiveWallet = effectiveIntentWalletAddress();
     setSelectedProjectId(project.id);
@@ -122,6 +130,7 @@ export function useMicroVerseState() {
     setDemoMode,
     openLocation,
     selectProject,
+    openProject,
     prepareProjectIntent,
     advanceIntent,
     resetIntent,

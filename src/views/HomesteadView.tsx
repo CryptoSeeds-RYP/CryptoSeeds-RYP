@@ -15,6 +15,7 @@ export function HomesteadView({
   votingActive,
   seedBotUnlocked,
   onLocation,
+  onProjectOpen,
 }: {
   activeTier: StakingTier;
   walletConnected: boolean;
@@ -26,6 +27,7 @@ export function HomesteadView({
   votingActive: boolean;
   seedBotUnlocked: boolean;
   onLocation: (location: LocationKey) => void;
+  onProjectOpen: (projectId: string) => void;
 }) {
   const projectSlots = buildProjectSlots({ slotCount: projectSlotsUnlocked, participations, projects });
 
@@ -80,7 +82,7 @@ export function HomesteadView({
             <button
               key={slot.slotIndex}
               className={`project-slot ${slot.participation ? "active" : ""}`}
-              onClick={() => onLocation("explorer")}
+              onClick={() => (slot.project ? onProjectOpen(slot.project.id) : onLocation("explorer"))}
             >
               <span>Slot {slot.slotIndex + 1}</span>
               <strong>{slot.project?.name ?? "Open field"}</strong>

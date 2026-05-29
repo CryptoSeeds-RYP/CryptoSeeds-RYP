@@ -5,6 +5,7 @@ import { ProtocolPanel } from "./components/ProtocolPanel";
 import { TransactionPanel } from "./components/TransactionPanel";
 import { WalletDock } from "./components/WalletDock";
 import { appConfig } from "./config/env";
+import { activeParticipations } from "./domain/participation";
 import { effectiveFee, canAccess } from "./domain/tiering";
 import { useMetaMaskWallet } from "./evm/useMetaMaskWallet";
 import { useMicroVerseState } from "./state/useMicroVerseState";
@@ -42,6 +43,7 @@ export default function App() {
     setDemoMode,
     openLocation,
     selectProject,
+    openProject,
     prepareProjectIntent,
     advanceIntent,
     resetIntent,
@@ -52,6 +54,7 @@ export default function App() {
   const { user, farm, projects, participations, rewards, seedBotSignals } = snapshot;
   const activeTier = user.stakingTier;
   const eligibleProjects = projects.filter((project) => canAccess(project.requiredTier, activeTier));
+  const openProjectSlots = Math.max(0, farm.projectSlotsUnlocked - activeParticipations(participations).length);
 
   return (
     <main className="app-shell">
@@ -105,6 +108,7 @@ export default function App() {
                 votingActive={farm.governanceActive}
                 seedBotUnlocked={farm.seedBotUnlocked}
                 onLocation={openLocation}
+                onProjectOpen={openProject}
               />
             )}
             {activeLocation === "explorer" && (
@@ -141,6 +145,7 @@ export default function App() {
               participation={participations.find((participation) => participation.projectId === selectedProject.id)}
               activeTier={activeTier}
               eligibleProjects={eligibleProjects.length}
+              openProjectSlots={openProjectSlots}
             />
           </aside>
         </section>

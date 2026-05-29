@@ -9,11 +9,13 @@ export function ProjectSnapshot({
   participation,
   activeTier,
   eligibleProjects,
+  openProjectSlots,
 }: {
   project: Project;
   participation?: ProjectParticipation;
   activeTier: StakingTier;
   eligibleProjects: number;
+  openProjectSlots: number;
 }) {
   return (
     <section className="side-panel">
@@ -27,7 +29,8 @@ export function ProjectSnapshot({
         <StateLine label="Status" value={formatLabel(project.status)} />
         <StateLine label="Required" value={project.requiredTier} />
         <StateLine label="Eligible" value={canAccess(project.requiredTier, activeTier) ? "Yes" : "No"} />
-        <StateLine label="Open slots" value={`${eligibleProjects}`} />
+        <StateLine label="Eligible projects" value={`${eligibleProjects}`} />
+        <StateLine label="Open slots" value={`${openProjectSlots}`} />
         <StateLine label="Participation" value={participation ? formatLabel(participation.status) : "None"} />
         {participation && <StateLine label="Slot" value={`${participation.slotIndex + 1}`} />}
       </div>
