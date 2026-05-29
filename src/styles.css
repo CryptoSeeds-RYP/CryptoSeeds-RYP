@@ -884,6 +884,46 @@ button:disabled {
   font-size: 0.8rem;
 }
 
+.milestone-timeline {
+  padding-left: 0;
+  list-style: none;
+}
+
+.milestone-timeline li {
+  position: relative;
+  padding: 9px 10px 9px 34px;
+  border: 1px solid rgba(236, 218, 157, 0.12);
+  border-radius: 8px;
+  background: rgba(244, 239, 226, 0.04);
+}
+
+.milestone-timeline li::before {
+  position: absolute;
+  left: 12px;
+  top: 15px;
+  width: 10px;
+  height: 10px;
+  border: 2px solid rgba(236, 218, 157, 0.5);
+  border-radius: 999px;
+  content: "";
+}
+
+.milestone-timeline li.completed::before {
+  border-color: #80c66d;
+  background: #80c66d;
+}
+
+.milestone-timeline li.current {
+  border-color: rgba(255, 214, 107, 0.42);
+  background: rgba(111, 78, 31, 0.24);
+}
+
+.milestone-timeline li.current::before {
+  border-color: #ffd66b;
+  background: #ffd66b;
+  box-shadow: 0 0 16px rgba(255, 214, 107, 0.55);
+}
+
 .eligibility-list {
   display: grid;
   gap: 6px;

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { CheckCircle2, FileText, Filter, Map, ShieldAlert } from "lucide-react";
 import { ViewHeader } from "../components/ViewHeader";
 import { participationForProject, projectParticipationBlockingReasons } from "../domain/participation";
+import { buildProjectMilestoneViews } from "../domain/projectLifecycle";
 import { canAccess } from "../domain/tiering";
 import type { Project, ProjectParticipation, StakingTier } from "../types";
 import { formatLabel } from "../utils/format";
@@ -37,6 +38,10 @@ export function ExplorerView({
     slotCount: projectSlotsUnlocked,
   });
   const selectedParticipation = participationForProject(participations, selectedProject.id);
+  const milestoneViews = buildProjectMilestoneViews({
+    project: selectedProject,
+    participation: selectedParticipation,
+  });
   const canPrepare = blockingReasons.length === 0 && riskAcknowledged;
   const statusOptions = uniqueProjectValues(projects.map((project) => project.status));
   const riskOptions = uniqueProjectValues(projects.map((project) => project.riskLevel));
@@ -189,9 +194,12 @@ export function ExplorerView({
               <CheckCircle2 size={18} />
               <strong>Milestones</strong>
             </div>
-            <ol>
-              {selectedProject.milestones.map((milestone) => (
-                <li key={milestone}>{milestone}</li>
+            <ol className="milestone-timeline">
+              {milestoneViews.map((milestone) => (
+                <li className={milestone.state.toLowerCase()} key={milestone.label}>
+                  <strong>{milestone.label}</strong>
+                  <span>{formatLabel(milestone.state)}</span>
+                </li>
               ))}
             </ol>
           </section>
