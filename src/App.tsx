@@ -126,7 +126,14 @@ export default function App() {
             )}
             {activeLocation === "harvest" && <HarvestView rewards={rewards} />}
             {activeLocation === "governance" && <GovernanceView votingActive={farm.governanceActive} />}
-            {activeLocation === "seedbot" && <SeedBotView unlocked={farm.seedBotUnlocked} signals={seedBotSignals} />}
+            {activeLocation === "seedbot" && (
+              <SeedBotView
+                unlocked={farm.seedBotUnlocked}
+                walletConnected={user.walletConnected}
+                activeTier={activeTier}
+                signals={seedBotSignals}
+              />
+            )}
           </section>
 
           <aside className="side-stack">

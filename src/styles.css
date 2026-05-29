@@ -99,6 +99,7 @@ button:disabled {
 .vote-row,
 .signal-row,
 .risk-control,
+.capability-row,
 .lifecycle-step,
 .reference-line,
 .state-line {
@@ -1108,6 +1109,61 @@ button:disabled {
   min-width: 58px;
   color: #80c66d;
   font-style: normal;
+  text-align: right;
+}
+
+.capability-list {
+  display: grid;
+  gap: 10px;
+}
+
+.capability-row {
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid rgba(236, 218, 157, 0.12);
+  border-radius: 8px;
+  background: rgba(244, 239, 226, 0.04);
+}
+
+.capability-row.locked {
+  opacity: 0.68;
+}
+
+.capability-row.enabled {
+  border-color: rgba(128, 198, 109, 0.32);
+  background: rgba(36, 69, 44, 0.36);
+}
+
+.capability-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 32px;
+  height: 32px;
+  border-radius: 8px;
+  color: #ecd882;
+  background: rgba(236, 216, 130, 0.12);
+}
+
+.capability-row > div:nth-child(2) {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.capability-row strong {
+  color: #fff8df;
+}
+
+.capability-row span,
+.capability-row em {
+  color: #aeb9aa;
+  font-size: 0.8rem;
+  font-style: normal;
+}
+
+.capability-row em {
+  margin-left: auto;
+  max-width: 220px;
   text-align: right;
 }
 
