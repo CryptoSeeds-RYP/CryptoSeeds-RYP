@@ -48,9 +48,12 @@ export function MicroVerseScene({
       hostElement.appendChild(app.canvas);
       renderScene(app, stateRef.current, plotSelectRef.current);
 
-      app.ticker.add((ticker) => {
-        animateScene(app, ticker.lastTime / 1000);
-      });
+      const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      if (!reduceMotion) {
+        app.ticker.add((ticker) => {
+          animateScene(app, ticker.lastTime / 1000);
+        });
+      }
     }
 
     start();

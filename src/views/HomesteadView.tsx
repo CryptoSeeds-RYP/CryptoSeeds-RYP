@@ -62,6 +62,13 @@ export function HomesteadView({
           <span>{activeTier === "NONE" ? "Wild Fields" : `${activeTier} Homestead`}</span>
           <strong>{walletConnected ? "Protocol state active" : "Wallet not connected"}</strong>
         </div>
+        <div className="visual-legend" aria-label="MicroVerse plot states">
+          <span><i className="legend-dot open" />Open field</span>
+          <span><i className="legend-dot active" />Active</span>
+          <span><i className="legend-dot milestone" />Milestone</span>
+          <span><i className="legend-dot research" />R&D</span>
+          <span><i className="legend-dot donation" />Donation</span>
+        </div>
         <button className="map-marker homestead-marker" onClick={() => onLocation("homestead")} title="Homestead">
           <Sprout size={18} />
           <span>Homestead</span>

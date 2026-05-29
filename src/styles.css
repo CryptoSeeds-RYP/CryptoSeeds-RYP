@@ -325,6 +325,66 @@ button:disabled {
   line-height: 0.96;
 }
 
+.visual-legend {
+  position: absolute;
+  top: 24px;
+  right: 24px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  max-width: 420px;
+}
+
+.visual-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 30px;
+  padding: 6px 9px;
+  border: 1px solid rgba(255, 248, 223, 0.18);
+  border-radius: 8px;
+  color: #fff8df;
+  background: rgba(18, 24, 18, 0.68);
+  box-shadow: 0 12px 26px rgba(0, 0, 0, 0.18);
+  font-size: 0.75rem;
+  font-weight: 800;
+  backdrop-filter: blur(14px);
+}
+
+.legend-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  box-shadow: 0 0 14px currentColor;
+}
+
+.legend-dot.open {
+  color: #ecd882;
+  background: #ecd882;
+}
+
+.legend-dot.active {
+  color: #80c66d;
+  background: #80c66d;
+}
+
+.legend-dot.milestone {
+  color: #ffd66b;
+  background: #ffd66b;
+}
+
+.legend-dot.research {
+  color: #8fb7ff;
+  background: #8fb7ff;
+}
+
+.legend-dot.donation {
+  color: #d7b1ff;
+  background: #d7b1ff;
+}
+
 .map-marker {
   position: absolute;
   gap: 8px;
@@ -960,6 +1020,15 @@ button:disabled {
 
   .map-title strong {
     max-width: 300px;
+  }
+
+  .visual-legend {
+    left: 18px;
+    right: 18px;
+    top: auto;
+    bottom: 18px;
+    justify-content: flex-start;
+    max-width: none;
   }
 
   .map-marker {
