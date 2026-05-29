@@ -1,4 +1,5 @@
 import type { Project, ProjectParticipation } from "./microverse";
+import { latestRiskDisclosure } from "./projectRegistry";
 
 export type ProjectSlot = {
   slotIndex: number;
@@ -29,3 +30,48 @@ export function activeParticipations(participations: ProjectParticipation[]) {
   return participations.filter((participation) => participation.status !== "COMPLETED");
 }
 
+export function hasProjectParticipation(participations: ProjectParticipation[], projectId: string) {
+  return activeParticipations(participations).some((participation) => participation.projectId === projectId);
+}
+
+export function nextAvailableProjectSlot(participations: ProjectParticipation[], slotCount: number) {
+  const occupied = new Set(activeParticipations(participations).map((participation) => participation.slotIndex));
+
+  for (let slotIndex = 0; slotIndex < slotCount; slotIndex += 1) {
+    if (!occupied.has(slotIndex)) return slotIndex;
+  }
+
+  return undefined;
+}
+
+export function createPreparedParticipation({
+  project,
+  walletAddress,
+  participations,
+  slotCount,
+  now = new Date().toISOString(),
+}: {
+  project: Project;
+  walletAddress: string;
+  participations: ProjectParticipation[];
+  slotCount: number;
+  now?: string;
+}): ProjectParticipation | undefined {
+  if (hasProjectParticipation(participations, project.id)) return undefined;
+
+  const slotIndex = nextAvailableProjectSlot(participations, slotCount);
+  const disclosure = latestRiskDisclosure(project);
+  if (slotIndex === undefined || !disclosure) return undefined;
+
+  return {
+    id: `participation-${project.id}-${slotIndex}`,
+    projectId: project.id,
+    walletAddress,
+    status: "PREPARED",
+    slotIndex,
+    joinedAt: now,
+    updatedAt: now,
+    acknowledgedDisclosureRef: `project:${project.id}:document:${disclosure.id}:${disclosure.version}`,
+    milestoneIndex: 0,
+  };
+}

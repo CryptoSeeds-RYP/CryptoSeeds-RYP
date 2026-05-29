@@ -3,6 +3,7 @@ import { useWallet } from "@solana/wallet-adapter-react";
 import { appConfig } from "../config/env";
 import { DEMO_WALLET_ADDRESS } from "../domain/demo";
 import type { LocationKey, Project, ProtocolSnapshot, StakingTier } from "../domain/microverse";
+import { createPreparedParticipation } from "../domain/participation";
 import type { TransactionIntent } from "../domain/transactions";
 import { projects as projectFixtures } from "../fixtures/protocolFixtures";
 import { cryptoSeedsServices } from "../services/mockServices";
@@ -72,8 +73,28 @@ export function useMicroVerseState() {
   }
 
   function prepareProjectIntent(project: Project) {
+    const effectiveWallet = effectiveIntentWalletAddress();
     setSelectedProjectId(project.id);
-    setIntent(buildProjectParticipationIntent(project, effectiveIntentWalletAddress()));
+    setIntent(buildProjectParticipationIntent(project, effectiveWallet));
+    if (!effectiveWallet) return;
+
+    setSnapshot((current) => {
+      if (!current) return current;
+
+      const participation = createPreparedParticipation({
+        project,
+        walletAddress: effectiveWallet,
+        participations: current.participations,
+        slotCount: current.farm.projectSlotsUnlocked,
+      });
+
+      if (!participation) return current;
+
+      return {
+        ...current,
+        participations: [...current.participations, participation],
+      };
+    });
   }
 
   function advanceIntent() {
