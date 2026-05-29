@@ -2,7 +2,10 @@ import type { Project, ProjectParticipation, StakingTier } from "../types";
 
 export type MicroVersePlot = {
   id: string;
+  projectId?: string;
+  slotIndex: number;
   label: string;
+  category: string;
   status: "EMPTY" | ProjectParticipation["status"];
   progress: number;
   x: number;
@@ -55,7 +58,10 @@ export function buildMicroVerseSceneState({
 
       return {
         id: participation?.projectId ?? `empty-${index}`,
+        projectId: project?.id,
+        slotIndex: index,
         label: project?.name ?? "Open field",
+        category: project?.category ?? "Unassigned",
         status: participation?.status ?? "EMPTY",
         progress: project?.progress ?? 0,
         x: position.x,

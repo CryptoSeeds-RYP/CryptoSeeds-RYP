@@ -296,6 +296,7 @@ button:disabled {
 .map-overlay {
   position: absolute;
   inset: 0;
+  pointer-events: none;
   background:
     linear-gradient(90deg, rgba(12, 13, 10, 0.76), rgba(12, 13, 10, 0.12) 45%, rgba(12, 13, 10, 0.72)),
     linear-gradient(0deg, rgba(12, 13, 10, 0.82), transparent 42%);

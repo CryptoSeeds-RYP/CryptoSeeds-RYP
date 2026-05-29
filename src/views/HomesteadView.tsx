@@ -55,7 +55,7 @@ export function HomesteadView({
     <div className="homestead-view">
       <div className="microverse-map">
         <Suspense fallback={<div className="microverse-scene-fallback" aria-hidden="true" />}>
-          <MicroVerseScene scene={scene} />
+          <MicroVerseScene scene={scene} onPlotSelect={onProjectOpen} />
         </Suspense>
         <div className="map-overlay" />
         <div className="map-title">

@@ -16,7 +16,10 @@ describe("microverse scene state", () => {
     expect(scene.plots).toHaveLength(3);
     expect(scene.plots[0]).toMatchObject({
       id: "chestnut-spain",
+      projectId: "chestnut-spain",
+      slotIndex: 0,
       label: "Iberian Chestnut Grove",
+      category: "Regenerative agriculture",
       status: "MILESTONE_REACHED",
       progress: 34,
     });
@@ -28,10 +31,13 @@ describe("microverse scene state", () => {
     });
     expect(scene.plots[2]).toMatchObject({
       id: "empty-2",
+      slotIndex: 2,
       label: "Open field",
+      category: "Unassigned",
       status: "EMPTY",
       progress: 0,
     });
+    expect(scene.plots[2].projectId).toBeUndefined();
   });
 
   it("preserves environment state for visual rendering", () => {
