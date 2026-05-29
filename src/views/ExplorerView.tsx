@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
 import { CheckCircle2, FileText, Map, ShieldAlert } from "lucide-react";
 import { ViewHeader } from "../components/ViewHeader";
-import { participationForProject } from "../domain/participation";
-import { evaluateProjectEligibility } from "../domain/projectRegistry";
+import { participationForProject, projectParticipationBlockingReasons } from "../domain/participation";
 import { canAccess } from "../domain/tiering";
 import type { Project, ProjectParticipation, StakingTier } from "../types";
 import { formatLabel } from "../utils/format";
@@ -11,6 +10,7 @@ export function ExplorerView({
   activeTier,
   projects,
   participations,
+  projectSlotsUnlocked,
   selectedProject,
   selectedProjectId,
   onProjectSelect,
@@ -19,6 +19,7 @@ export function ExplorerView({
   activeTier: StakingTier;
   projects: Project[];
   participations: ProjectParticipation[];
+  projectSlotsUnlocked: number;
   selectedProject: Project;
   selectedProjectId: string;
   onProjectSelect: (project: Project) => void;
@@ -27,9 +28,14 @@ export function ExplorerView({
   const [acknowledgedProjectId, setAcknowledgedProjectId] = useState<string | undefined>();
   const selectedEligible = canAccess(selectedProject.requiredTier, activeTier);
   const riskAcknowledged = acknowledgedProjectId === selectedProject.id;
-  const eligibility = evaluateProjectEligibility(selectedProject, activeTier);
+  const blockingReasons = projectParticipationBlockingReasons({
+    project: selectedProject,
+    activeTier,
+    participations,
+    slotCount: projectSlotsUnlocked,
+  });
   const selectedParticipation = participationForProject(participations, selectedProject.id);
-  const canPrepare = eligibility.eligible && riskAcknowledged && !selectedParticipation;
+  const canPrepare = blockingReasons.length === 0 && riskAcknowledged;
 
   useEffect(() => {
     setAcknowledgedProjectId(undefined);
@@ -106,9 +112,9 @@ export function ExplorerView({
               />
               <span>I have reviewed the risk disclosure for this project.</span>
             </label>
-            {!eligibility.eligible && (
+            {blockingReasons.length > 0 && (
               <div className="eligibility-list">
-                {eligibility.reasons.map((reason) => (
+                {blockingReasons.map((reason) => (
                   <span key={reason}>{reason}</span>
                 ))}
               </div>

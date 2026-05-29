@@ -116,6 +116,7 @@ export default function App() {
                 activeTier={activeTier}
                 projects={projects}
                 participations={participations}
+                projectSlotsUnlocked={farm.projectSlotsUnlocked}
                 selectedProject={selectedProject}
                 selectedProjectId={selectedProjectId}
                 onProjectSelect={selectProject}

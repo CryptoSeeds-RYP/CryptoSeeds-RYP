@@ -7,6 +7,7 @@ import {
   hasProjectParticipation,
   nextAvailableProjectSlot,
   participationForProject,
+  projectParticipationBlockingReasons,
 } from "./participation";
 
 describe("project participation", () => {
@@ -77,5 +78,35 @@ describe("project participation", () => {
   it("returns active participation by project id", () => {
     expect(participationForProject(projectParticipations, "solar-water-node")?.status).toBe("ACTIVE");
     expect(participationForProject(projectParticipations, "missing")).toBeUndefined();
+  });
+
+  it("explains participation blocking reasons", () => {
+    const chestnut = projects.find((project) => project.id === "chestnut-spain")!;
+    const hemp = projects.find((project) => project.id === "hemp-greenhouse")!;
+
+    expect(
+      projectParticipationBlockingReasons({
+        project: chestnut,
+        activeTier: "FRUIT",
+        participations: projectParticipations,
+        slotCount: 3,
+      }),
+    ).toContain("Project is already in your MicroVerse");
+
+    expect(
+      projectParticipationBlockingReasons({
+        project: hemp,
+        activeTier: "SEED",
+        participations: projectParticipations,
+        slotCount: 2,
+      }),
+    ).toEqual(
+      expect.arrayContaining([
+        "Requires SAPLING tier",
+        "Participation is not open",
+        "Governance approval is not complete",
+        "No open project slot",
+      ]),
+    );
   });
 });

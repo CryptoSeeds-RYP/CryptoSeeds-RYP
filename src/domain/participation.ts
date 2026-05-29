@@ -1,5 +1,6 @@
 import type { Project, ProjectParticipation } from "./microverse";
-import { latestRiskDisclosure } from "./projectRegistry";
+import type { StakingTier } from "./microverse";
+import { evaluateProjectEligibility, latestRiskDisclosure } from "./projectRegistry";
 
 export type ProjectSlot = {
   slotIndex: number;
@@ -78,4 +79,28 @@ export function createPreparedParticipation({
     acknowledgedDisclosureRef: `project:${project.id}:document:${disclosure.id}:${disclosure.version}`,
     milestoneIndex: 0,
   };
+}
+
+export function projectParticipationBlockingReasons({
+  project,
+  activeTier,
+  participations,
+  slotCount,
+}: {
+  project: Project;
+  activeTier: StakingTier;
+  participations: ProjectParticipation[];
+  slotCount: number;
+}) {
+  const reasons = [...evaluateProjectEligibility(project, activeTier).reasons];
+
+  if (hasProjectParticipation(participations, project.id)) {
+    reasons.push("Project is already in your MicroVerse");
+  }
+
+  if (nextAvailableProjectSlot(participations, slotCount) === undefined) {
+    reasons.push("No open project slot");
+  }
+
+  return reasons;
 }
