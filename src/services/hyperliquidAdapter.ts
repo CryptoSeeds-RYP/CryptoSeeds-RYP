@@ -60,6 +60,37 @@ export type HyperliquidAgentApprovalPreview = {
   safetyChecks: string[];
 };
 
+export type HyperliquidResolvedAsset = {
+  symbol: string;
+  assetId?: number;
+  tradable: boolean;
+  blockedReason?: string;
+};
+
+export type HyperliquidUnsignedOrderDraft = {
+  status: "BLOCKED" | "READY_FOR_SIGNATURE";
+  network: HyperliquidNetwork;
+  exchangeEndpoint: string;
+  blockedReasons: string[];
+  request?: {
+    action: {
+      type: "order";
+      orders: Array<{
+        a: number;
+        b: boolean;
+        p: string;
+        s: string;
+        r: boolean;
+        t: { limit: { tif: HyperliquidTif } };
+      }>;
+      grouping: "na";
+    };
+    nonce: number;
+    expiresAfter: number;
+    signature: "SIGNATURE_REQUIRED";
+  };
+};
+
 export const DEFAULT_HYPERLIQUID_NETWORK: HyperliquidNetwork = "TESTNET";
 
 export const hyperliquidEndpointConfigs: Record<HyperliquidNetwork, HyperliquidEndpointConfig> = {
@@ -168,6 +199,74 @@ export function buildHyperliquidAgentApprovalPreview({
   };
 }
 
+export function buildHyperliquidUnsignedOrderDraft({
+  asset,
+  side,
+  price,
+  size,
+  nonce,
+  expiresAfter,
+  network = DEFAULT_HYPERLIQUID_NETWORK,
+  tif = "Ioc",
+  reduceOnly = false,
+  signedExecutionEnabled = false,
+}: {
+  asset: HyperliquidResolvedAsset;
+  side: "BUY" | "SELL";
+  price: string;
+  size: string;
+  nonce: number;
+  expiresAfter: number;
+  network?: HyperliquidNetwork;
+  tif?: HyperliquidTif;
+  reduceOnly?: boolean;
+  signedExecutionEnabled?: boolean;
+}): HyperliquidUnsignedOrderDraft {
+  const config = hyperliquidConfig(network);
+  const blockedReasons = [
+    ...(signedExecutionEnabled ? [] : ["Signed execution feature flag is disabled."]),
+    ...validateResolvedAsset(asset),
+    ...validatePositiveDecimal("price", price),
+    ...validatePositiveDecimal("size", size),
+    ...validateNonceWindow(nonce, expiresAfter),
+  ];
+
+  if (blockedReasons.length > 0 || typeof asset.assetId !== "number") {
+    return {
+      status: "BLOCKED",
+      network: config.network,
+      exchangeEndpoint: config.exchangeEndpoint,
+      blockedReasons,
+    };
+  }
+
+  return {
+    status: "READY_FOR_SIGNATURE",
+    network: config.network,
+    exchangeEndpoint: config.exchangeEndpoint,
+    blockedReasons: [],
+    request: {
+      action: {
+        type: "order",
+        orders: [
+          {
+            a: asset.assetId,
+            b: side === "BUY",
+            p: price,
+            s: size,
+            r: reduceOnly,
+            t: { limit: { tif } },
+          },
+        ],
+        grouping: "na",
+      },
+      nonce,
+      expiresAfter,
+      signature: "SIGNATURE_REQUIRED",
+    },
+  };
+}
+
 export function hyperliquidExecutionSafeguards(network: HyperliquidNetwork = DEFAULT_HYPERLIQUID_NETWORK) {
   return [
     `Default execution environment is ${network}.`,
@@ -177,4 +276,27 @@ export function hyperliquidExecutionSafeguards(network: HyperliquidNetwork = DEF
     "Use per-strategy max allocation, max slippage, and position limits before live mode.",
     "Resolve numeric asset ids from the info endpoint before signing.",
   ];
+}
+
+function validateResolvedAsset(asset: HyperliquidResolvedAsset) {
+  if (asset.blockedReason) return [asset.blockedReason];
+  if (!asset.tradable) return ["Asset is not tradable."];
+  if (typeof asset.assetId !== "number") return ["Numeric Hyperliquid asset id is required."];
+  return [];
+}
+
+function validatePositiveDecimal(label: string, value: string) {
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue) || numericValue <= 0) {
+    return [`Order ${label} must be a positive decimal string.`];
+  }
+  return [];
+}
+
+function validateNonceWindow(nonce: number, expiresAfter: number) {
+  if (!Number.isInteger(nonce) || nonce <= 0) return ["Nonce must be a positive millisecond timestamp."];
+  if (!Number.isInteger(expiresAfter) || expiresAfter <= nonce) {
+    return ["expiresAfter must be a millisecond timestamp after nonce."];
+  }
+  return [];
 }

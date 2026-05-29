@@ -52,12 +52,20 @@ Asset lookup is handled by `src/services/hyperliquidMarketDataService.ts`:
 - blocks missing or delisted assets before signing
 - leaves strategy route assets immutable
 
+Unsigned order draft modeling is handled in `src/services/hyperliquidAdapter.ts`:
+
+- refuses to create a signable request while `VITE_SEEDBOT_SIGNED_EXECUTION=false`
+- requires a resolved numeric asset id
+- requires positive decimal price and size strings
+- requires `expiresAfter` to be after `nonce`
+- outputs `SIGNATURE_REQUIRED` rather than a signature
+- does not broadcast or store signing material
+
 Live implementation still needs:
 
 - official SDK or signature helper
-- signed testnet order spike
 - agent-wallet approval UX
-- nonce handling
+- nonce source and signing UX
 - order status polling
 - cancel/kill-switch flow
 - max size, slippage, and position caps
