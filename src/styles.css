@@ -274,6 +274,25 @@ button:disabled {
   filter: saturate(1.05) contrast(1.04);
 }
 
+.microverse-scene {
+  position: absolute;
+  inset: 0;
+}
+
+.microverse-scene-fallback {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, rgba(12, 13, 10, 0.72), rgba(28, 57, 44, 0.28), rgba(12, 13, 10, 0.72)),
+    url("/assets/microverse-river-delta.jpg") center / cover;
+}
+
+.microverse-scene canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
 .map-overlay {
   position: absolute;
   inset: 0;

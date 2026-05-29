@@ -1,8 +1,14 @@
+import { lazy, Suspense, useMemo } from "react";
 import { Bot, Coins, KeyRound, Leaf, LockKeyhole, Map, ScrollText, Sprout, Vote, Wheat } from "lucide-react";
 import { buildProjectSlots } from "../domain/participation";
-import type { LocationKey, Project, ProjectParticipation, StakingTier } from "../types";
+import type { FarmVisualState, LocationKey, Project, ProjectParticipation, StakingTier } from "../types";
 import { formatLabel, formatRyp } from "../utils/format";
 import { Metric } from "../components/Metric";
+import { buildMicroVerseSceneState } from "../visual/microverseSceneState";
+
+const MicroVerseScene = lazy(() =>
+  import("../visual/MicroVerseScene").then((module) => ({ default: module.MicroVerseScene })),
+);
 
 export function HomesteadView({
   activeTier,
@@ -10,6 +16,7 @@ export function HomesteadView({
   rypBalance,
   stakedAmount,
   projectSlotsUnlocked,
+  weatherState,
   projects,
   participations,
   votingActive,
@@ -22,6 +29,7 @@ export function HomesteadView({
   rypBalance: number;
   stakedAmount: number;
   projectSlotsUnlocked: number;
+  weatherState: FarmVisualState["weatherState"];
   projects: Project[];
   participations: ProjectParticipation[];
   votingActive: boolean;
@@ -30,11 +38,25 @@ export function HomesteadView({
   onProjectOpen: (projectId: string) => void;
 }) {
   const projectSlots = buildProjectSlots({ slotCount: projectSlotsUnlocked, participations, projects });
+  const scene = useMemo(
+    () =>
+      buildMicroVerseSceneState({
+        tier: activeTier,
+        walletConnected,
+        weather: weatherState,
+        projectSlotsUnlocked,
+        projects,
+        participations,
+      }),
+    [activeTier, walletConnected, weatherState, projectSlotsUnlocked, projects, participations],
+  );
 
   return (
     <div className="homestead-view">
       <div className="microverse-map">
-        <img src="/assets/microverse-river-delta.jpg" alt="CryptoSeeds regenerative MicroVerse" />
+        <Suspense fallback={<div className="microverse-scene-fallback" aria-hidden="true" />}>
+          <MicroVerseScene scene={scene} />
+        </Suspense>
         <div className="map-overlay" />
         <div className="map-title">
           <span>{activeTier === "NONE" ? "Wild Fields" : `${activeTier} Homestead`}</span>

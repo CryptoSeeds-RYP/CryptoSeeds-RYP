@@ -103,6 +103,7 @@ export default function App() {
                 rypBalance={user.rypBalance}
                 stakedAmount={user.stakedAmount}
                 projectSlotsUnlocked={farm.projectSlotsUnlocked}
+                weatherState={farm.weatherState}
                 projects={projects}
                 participations={participations}
                 votingActive={farm.governanceActive}
