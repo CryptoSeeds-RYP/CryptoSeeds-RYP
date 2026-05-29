@@ -442,6 +442,8 @@ button:disabled {
 .side-panel,
 .project-card,
 .project-detail-main,
+.visual-state-panel,
+.visual-state-card,
 .project-slot-panel,
 .project-slot,
 .review-block,
@@ -482,6 +484,69 @@ button:disabled {
   margin-left: auto;
   color: #fff8df;
   font-size: 1.1rem;
+}
+
+.compact-action {
+  min-height: 36px;
+  padding: 7px 10px;
+  font-size: 0.82rem;
+}
+
+.compact-action.ready {
+  border-color: rgba(255, 214, 107, 0.44);
+  color: #fff8df;
+  background: rgba(183, 130, 54, 0.28);
+}
+
+.visual-state-panel {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+}
+
+.visual-state-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.visual-state-card {
+  display: grid;
+  gap: 6px;
+  min-height: 94px;
+  padding: 14px;
+}
+
+.visual-state-card span,
+.visual-state-card em {
+  color: #aeb9aa;
+  font-size: 0.82rem;
+  font-style: normal;
+}
+
+.visual-state-card strong {
+  color: #fff8df;
+  font-size: 1.5rem;
+}
+
+.visual-state-card.harvest {
+  border-color: rgba(255, 214, 107, 0.44);
+  background: rgba(111, 78, 31, 0.72);
+}
+
+.visual-state-card.milestone {
+  border-color: rgba(236, 216, 130, 0.36);
+  background: rgba(76, 63, 30, 0.72);
+}
+
+.visual-state-card.active {
+  border-color: rgba(128, 198, 109, 0.38);
+  background: rgba(36, 69, 44, 0.68);
+}
+
+.visual-state-card.paused {
+  border-color: rgba(255, 163, 123, 0.42);
+  background: rgba(78, 43, 35, 0.7);
 }
 
 .project-slot-panel {
@@ -1053,6 +1118,7 @@ button:disabled {
   }
 
   .metric-row,
+  .visual-state-grid,
   .project-slot-grid,
   .project-grid,
   .project-detail-grid,

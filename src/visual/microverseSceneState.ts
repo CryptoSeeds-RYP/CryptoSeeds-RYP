@@ -29,6 +29,13 @@ export type MicroVerseSceneState = {
   plots: MicroVersePlot[];
 };
 
+export type MicroVersePlotSummary = {
+  lifecycle: ProjectLifecycleVisualState;
+  label: string;
+  count: number;
+  projectIds: string[];
+};
+
 const plotPositions = [
   { x: 0.25, y: 0.66 },
   { x: 0.45, y: 0.54 },
@@ -83,4 +90,38 @@ export function buildMicroVerseSceneState({
       };
     }),
   };
+}
+
+const lifecycleSummaryLabels: Record<ProjectLifecycleVisualState, string> = {
+  EMPTY: "Open fields",
+  PREPARING: "Preparing",
+  ACTIVE: "Active",
+  MILESTONE: "Milestones",
+  HARVEST: "Harvest ready",
+  COMPLETED: "Completed",
+  PAUSED: "Paused",
+};
+
+const lifecycleSummaryOrder: ProjectLifecycleVisualState[] = [
+  "HARVEST",
+  "MILESTONE",
+  "ACTIVE",
+  "PREPARING",
+  "COMPLETED",
+  "PAUSED",
+  "EMPTY",
+];
+
+export function summarizeMicroVersePlots(plots: MicroVersePlot[]): MicroVersePlotSummary[] {
+  return lifecycleSummaryOrder
+    .map((lifecycle) => {
+      const matchingPlots = plots.filter((plot) => plot.lifecycle === lifecycle);
+      return {
+        lifecycle,
+        label: lifecycleSummaryLabels[lifecycle],
+        count: matchingPlots.length,
+        projectIds: matchingPlots.flatMap((plot) => (plot.projectId ? [plot.projectId] : [])),
+      };
+    })
+    .filter((summary) => summary.count > 0);
 }

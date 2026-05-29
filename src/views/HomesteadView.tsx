@@ -4,7 +4,7 @@ import { buildProjectSlots } from "../domain/participation";
 import type { FarmVisualState, LocationKey, Project, ProjectParticipation, StakingTier } from "../types";
 import { formatLabel, formatRyp } from "../utils/format";
 import { Metric } from "../components/Metric";
-import { buildMicroVerseSceneState } from "../visual/microverseSceneState";
+import { buildMicroVerseSceneState, summarizeMicroVersePlots } from "../visual/microverseSceneState";
 
 const MicroVerseScene = lazy(() =>
   import("../visual/MicroVerseScene").then((module) => ({ default: module.MicroVerseScene })),
@@ -50,6 +50,8 @@ export function HomesteadView({
       }),
     [activeTier, walletConnected, weatherState, projectSlotsUnlocked, projects, participations],
   );
+  const plotSummary = useMemo(() => summarizeMicroVersePlots(scene.plots), [scene]);
+  const harvestReady = plotSummary.some((summary) => summary.lifecycle === "HARVEST");
 
   return (
     <div className="homestead-view">
@@ -97,6 +99,31 @@ export function HomesteadView({
         <Metric icon={KeyRound} label="Golden Key" value={walletConnected && activeTier !== "NONE" ? "Active" : "Locked"} />
         <Metric icon={ScrollText} label="Voting NFT" value={votingActive ? "14d timer" : "Locked"} />
       </div>
+
+      <section className="visual-state-panel">
+        <div className="view-header">
+          <div>
+            <Wheat size={20} />
+            <strong>Field Signals</strong>
+          </div>
+          <button
+            className={`secondary-action compact-action ${harvestReady ? "ready" : ""}`}
+            onClick={() => onLocation("harvest")}
+          >
+            <Wheat size={16} />
+            Harvest Ledger
+          </button>
+        </div>
+        <div className="visual-state-grid">
+          {plotSummary.map((summary) => (
+            <article className={`visual-state-card ${summary.lifecycle.toLowerCase()}`} key={summary.lifecycle}>
+              <span>{summary.label}</span>
+              <strong>{summary.count}</strong>
+              <em>{summary.projectIds.length > 0 ? `${summary.projectIds.length} linked projects` : "Unassigned slots"}</em>
+            </article>
+          ))}
+        </div>
+      </section>
 
       <section className="project-slot-panel">
         <div className="view-header">

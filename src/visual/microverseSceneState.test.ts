@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { projectParticipations, projects } from "../fixtures/protocolFixtures";
-import { buildMicroVerseSceneState } from "./microverseSceneState";
+import { buildMicroVerseSceneState, summarizeMicroVersePlots } from "./microverseSceneState";
 
 describe("microverse scene state", () => {
   it("maps unlocked project slots to plot markers", () => {
@@ -61,5 +61,28 @@ describe("microverse scene state", () => {
       walletConnected: false,
       weather: "RAIN",
     });
+  });
+
+  it("summarizes plots by lifecycle priority", () => {
+    const scene = buildMicroVerseSceneState({
+      tier: "SPROUT",
+      walletConnected: true,
+      weather: "CLEAR",
+      projectSlotsUnlocked: 3,
+      projects,
+      participations: [
+        projectParticipations[0],
+        {
+          ...projectParticipations[1],
+          status: "HARVEST_AVAILABLE",
+        },
+      ],
+    });
+
+    expect(summarizeMicroVersePlots(scene.plots)).toEqual([
+      expect.objectContaining({ lifecycle: "HARVEST", count: 1, projectIds: ["solar-water-node"] }),
+      expect.objectContaining({ lifecycle: "MILESTONE", count: 1, projectIds: ["chestnut-spain"] }),
+      expect.objectContaining({ lifecycle: "EMPTY", count: 1, projectIds: [] }),
+    ]);
   });
 });
