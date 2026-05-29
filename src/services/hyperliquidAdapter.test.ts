@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { buildHyperliquidUnsignedOrderDraft } from "./hyperliquidAdapter";
+import {
+  buildHyperliquidCancelOrderDraft,
+  buildHyperliquidOrderStatusQuery,
+  buildHyperliquidScheduleCancelDraft,
+  buildHyperliquidUnsignedOrderDraft,
+} from "./hyperliquidAdapter";
 
 describe("hyperliquid adapter signed-order draft", () => {
   it("blocks signed order drafts when the execution flag is disabled", () => {
@@ -74,5 +79,98 @@ describe("hyperliquid adapter signed-order draft", () => {
       "Order size must be a positive decimal string.",
       "expiresAfter must be a millisecond timestamp after nonce.",
     ]);
+  });
+
+  it("builds order-status queries for wallet-owned order review", () => {
+    const query = buildHyperliquidOrderStatusQuery({
+      user: "0x1111111111111111111111111111111111111111",
+      oid: 123,
+    });
+
+    expect(query).toMatchObject({
+      status: "READY",
+      infoEndpoint: "https://api.hyperliquid-testnet.xyz/info",
+      body: {
+        type: "orderStatus",
+        user: "0x1111111111111111111111111111111111111111",
+        oid: 123,
+      },
+    });
+  });
+
+  it("blocks malformed order-status queries", () => {
+    const query = buildHyperliquidOrderStatusQuery({
+      user: "not-a-wallet",
+      oid: "bad-oid",
+    });
+
+    expect(query).toMatchObject({
+      status: "BLOCKED",
+      blockedReasons: [
+        "user must be a 42-character EVM address.",
+        "Order id must be a positive integer or 16-byte client order id hex string.",
+      ],
+    });
+  });
+
+  it("builds cancel drafts only when signed requests are enabled", () => {
+    const blocked = buildHyperliquidCancelOrderDraft({
+      assetId: 0,
+      oid: 123,
+      nonce: 1_000,
+      expiresAfter: 2_000,
+    });
+
+    expect(blocked.status).toBe("BLOCKED");
+
+    const ready = buildHyperliquidCancelOrderDraft({
+      assetId: 0,
+      oid: 123,
+      nonce: 1_000,
+      expiresAfter: 2_000,
+      signedExecutionEnabled: true,
+    });
+
+    expect(ready).toMatchObject({
+      status: "READY_FOR_SIGNATURE",
+      request: {
+        action: {
+          type: "cancel",
+          cancels: [{ a: 0, o: 123 }],
+        },
+        signature: "SIGNATURE_REQUIRED",
+      },
+    });
+  });
+
+  it("builds schedule-cancel drafts with the five-second venue guard", () => {
+    const blocked = buildHyperliquidScheduleCancelDraft({
+      time: 2_000,
+      nonce: 1_000,
+      expiresAfter: 7_000,
+      signedExecutionEnabled: true,
+    });
+
+    expect(blocked).toMatchObject({
+      status: "BLOCKED",
+      blockedReasons: ["scheduleCancel time must be at least 5 seconds after nonce."],
+    });
+
+    const ready = buildHyperliquidScheduleCancelDraft({
+      time: 7_000,
+      nonce: 1_000,
+      expiresAfter: 8_000,
+      signedExecutionEnabled: true,
+    });
+
+    expect(ready).toMatchObject({
+      status: "READY_FOR_SIGNATURE",
+      request: {
+        action: {
+          type: "scheduleCancel",
+          time: 7_000,
+        },
+      },
+    });
   });
 });

@@ -91,6 +91,53 @@ export type HyperliquidUnsignedOrderDraft = {
   };
 };
 
+export type HyperliquidOrderStatusQuery = {
+  status: "BLOCKED" | "READY";
+  network: HyperliquidNetwork;
+  infoEndpoint: string;
+  blockedReasons: string[];
+  body?: {
+    type: "orderStatus";
+    user: string;
+    oid: number | string;
+  };
+};
+
+export type HyperliquidCancelOrderDraft = {
+  status: "BLOCKED" | "READY_FOR_SIGNATURE";
+  network: HyperliquidNetwork;
+  exchangeEndpoint: string;
+  blockedReasons: string[];
+  request?: {
+    action: {
+      type: "cancel";
+      cancels: Array<{
+        a: number;
+        o: number;
+      }>;
+    };
+    nonce: number;
+    expiresAfter: number;
+    signature: "SIGNATURE_REQUIRED";
+  };
+};
+
+export type HyperliquidScheduleCancelDraft = {
+  status: "BLOCKED" | "READY_FOR_SIGNATURE";
+  network: HyperliquidNetwork;
+  exchangeEndpoint: string;
+  blockedReasons: string[];
+  request?: {
+    action: {
+      type: "scheduleCancel";
+      time?: number;
+    };
+    nonce: number;
+    expiresAfter: number;
+    signature: "SIGNATURE_REQUIRED";
+  };
+};
+
 export const DEFAULT_HYPERLIQUID_NETWORK: HyperliquidNetwork = "TESTNET";
 
 export const hyperliquidEndpointConfigs: Record<HyperliquidNetwork, HyperliquidEndpointConfig> = {
@@ -267,6 +314,135 @@ export function buildHyperliquidUnsignedOrderDraft({
   };
 }
 
+export function buildHyperliquidOrderStatusQuery({
+  user,
+  oid,
+  network = DEFAULT_HYPERLIQUID_NETWORK,
+}: {
+  user: string;
+  oid: number | string;
+  network?: HyperliquidNetwork;
+}): HyperliquidOrderStatusQuery {
+  const config = hyperliquidConfig(network);
+  const blockedReasons = [...validateEvmAddress("user", user), ...validateOrderIdentifier(oid)];
+
+  if (blockedReasons.length > 0) {
+    return {
+      status: "BLOCKED",
+      network: config.network,
+      infoEndpoint: config.infoEndpoint,
+      blockedReasons,
+    };
+  }
+
+  return {
+    status: "READY",
+    network: config.network,
+    infoEndpoint: config.infoEndpoint,
+    blockedReasons: [],
+    body: {
+      type: "orderStatus",
+      user,
+      oid,
+    },
+  };
+}
+
+export function buildHyperliquidCancelOrderDraft({
+  assetId,
+  oid,
+  nonce,
+  expiresAfter,
+  network = DEFAULT_HYPERLIQUID_NETWORK,
+  signedExecutionEnabled = false,
+}: {
+  assetId: number;
+  oid: number;
+  nonce: number;
+  expiresAfter: number;
+  network?: HyperliquidNetwork;
+  signedExecutionEnabled?: boolean;
+}): HyperliquidCancelOrderDraft {
+  const config = hyperliquidConfig(network);
+  const blockedReasons = [
+    ...(signedExecutionEnabled ? [] : ["Signed execution feature flag is disabled."]),
+    ...validateNonNegativeInteger("assetId", assetId),
+    ...validatePositiveInteger("oid", oid),
+    ...validateNonceWindow(nonce, expiresAfter),
+  ];
+
+  if (blockedReasons.length > 0) {
+    return {
+      status: "BLOCKED",
+      network: config.network,
+      exchangeEndpoint: config.exchangeEndpoint,
+      blockedReasons,
+    };
+  }
+
+  return {
+    status: "READY_FOR_SIGNATURE",
+    network: config.network,
+    exchangeEndpoint: config.exchangeEndpoint,
+    blockedReasons: [],
+    request: {
+      action: {
+        type: "cancel",
+        cancels: [{ a: assetId, o: oid }],
+      },
+      nonce,
+      expiresAfter,
+      signature: "SIGNATURE_REQUIRED",
+    },
+  };
+}
+
+export function buildHyperliquidScheduleCancelDraft({
+  time,
+  nonce,
+  expiresAfter,
+  network = DEFAULT_HYPERLIQUID_NETWORK,
+  signedExecutionEnabled = false,
+}: {
+  time?: number;
+  nonce: number;
+  expiresAfter: number;
+  network?: HyperliquidNetwork;
+  signedExecutionEnabled?: boolean;
+}): HyperliquidScheduleCancelDraft {
+  const config = hyperliquidConfig(network);
+  const blockedReasons = [
+    ...(signedExecutionEnabled ? [] : ["Signed execution feature flag is disabled."]),
+    ...validateOptionalScheduleCancelTime(time, nonce),
+    ...validateNonceWindow(nonce, expiresAfter),
+  ];
+
+  if (blockedReasons.length > 0) {
+    return {
+      status: "BLOCKED",
+      network: config.network,
+      exchangeEndpoint: config.exchangeEndpoint,
+      blockedReasons,
+    };
+  }
+
+  return {
+    status: "READY_FOR_SIGNATURE",
+    network: config.network,
+    exchangeEndpoint: config.exchangeEndpoint,
+    blockedReasons: [],
+    request: {
+      action: {
+        type: "scheduleCancel",
+        ...(typeof time === "number" ? { time } : {}),
+      },
+      nonce,
+      expiresAfter,
+      signature: "SIGNATURE_REQUIRED",
+    },
+  };
+}
+
 export function hyperliquidExecutionSafeguards(network: HyperliquidNetwork = DEFAULT_HYPERLIQUID_NETWORK) {
   return [
     `Default execution environment is ${network}.`,
@@ -298,5 +474,33 @@ function validateNonceWindow(nonce: number, expiresAfter: number) {
   if (!Number.isInteger(expiresAfter) || expiresAfter <= nonce) {
     return ["expiresAfter must be a millisecond timestamp after nonce."];
   }
+  return [];
+}
+
+function validateOrderIdentifier(oid: number | string) {
+  if (typeof oid === "number") return validatePositiveInteger("oid", oid);
+  if (/^0x[0-9a-fA-F]{32}$/.test(oid)) return [];
+  return ["Order id must be a positive integer or 16-byte client order id hex string."];
+}
+
+function validateEvmAddress(label: string, value: string) {
+  if (/^0x[0-9a-fA-F]{40}$/.test(value)) return [];
+  return [`${label} must be a 42-character EVM address.`];
+}
+
+function validatePositiveInteger(label: string, value: number) {
+  if (Number.isInteger(value) && value > 0) return [];
+  return [`${label} must be a positive integer.`];
+}
+
+function validateNonNegativeInteger(label: string, value: number) {
+  if (Number.isInteger(value) && value >= 0) return [];
+  return [`${label} must be a non-negative integer.`];
+}
+
+function validateOptionalScheduleCancelTime(time: number | undefined, nonce: number) {
+  if (typeof time === "undefined") return [];
+  if (!Number.isInteger(time)) return ["scheduleCancel time must be a millisecond timestamp."];
+  if (time < nonce + 5_000) return ["scheduleCancel time must be at least 5 seconds after nonce."];
   return [];
 }

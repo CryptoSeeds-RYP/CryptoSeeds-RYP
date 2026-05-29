@@ -61,13 +61,20 @@ Unsigned order draft modeling is handled in `src/services/hyperliquidAdapter.ts`
 - outputs `SIGNATURE_REQUIRED` rather than a signature
 - does not broadcast or store signing material
 
+Order controls are modeled before live execution:
+
+- order-status query drafts use the `info` endpoint with `orderStatus`
+- cancel drafts require asset id, order id, nonce, expiry, and signature
+- schedule-cancel drafts enforce Hyperliquid's five-second minimum delay
+- all signed control drafts are still blocked while signed execution is disabled
+
 Live implementation still needs:
 
 - official SDK or signature helper
 - agent-wallet approval UX
 - nonce source and signing UX
-- order status polling
-- cancel/kill-switch flow
+- order status polling UI
+- cancel/kill-switch transaction signing
 - max size, slippage, and position caps
 
 ## Safety Rules
