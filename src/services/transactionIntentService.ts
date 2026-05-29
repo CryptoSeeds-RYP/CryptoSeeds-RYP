@@ -113,7 +113,10 @@ export function advanceTransactionIntent(intent: TransactionIntent): Transaction
 }
 
 export function resetTransactionIntent(intent: TransactionIntent): TransactionIntent {
-  const resetStatus = intent.acknowledgement?.accepted ? "READY" : "DRAFT";
+  const resetStatus =
+    intent.executionMode === "WALLET_APPROVED" && intent.acknowledgement?.accepted !== false
+      ? "READY"
+      : "DRAFT";
 
   return {
     ...intent,
