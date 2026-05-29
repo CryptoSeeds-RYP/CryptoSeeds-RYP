@@ -1,11 +1,16 @@
+import { useState } from "react";
 import { Bot, CheckCircle2, LockKeyhole, ShieldCheck, Signal } from "lucide-react";
 import { ViewHeader } from "../components/ViewHeader";
 import {
   buildSeedBotCapabilities,
   canAccessSeedBotStrategy,
+  performanceForWindow,
   seedBotFeeDisclosure,
   seedBotPerformanceDisclaimer,
+  seedBotPerformanceWindows,
   seedBotStrategies,
+  type SeedBotPerformanceWindow,
+  type SeedBotPerformanceWindowName,
   type SeedBotStrategy,
 } from "../domain/seedbot";
 import type { SeedBotSignal, StakingTier } from "../types";
@@ -27,6 +32,13 @@ export function SeedBotView({
   onPrepareAllocation: (strategy: SeedBotStrategy, mode: "BASKET" | "PER_ASSET") => void;
 }) {
   const capabilities = buildSeedBotCapabilities({ walletConnected, stakingTier: activeTier, rypBalance });
+  const [selectedWindows, setSelectedWindows] = useState<Record<string, SeedBotPerformanceWindowName>>(
+    Object.fromEntries(seedBotStrategies.map((strategy) => [strategy.id, "30D"])),
+  );
+
+  function selectWindow(strategyId: string, window: SeedBotPerformanceWindowName) {
+    setSelectedWindows((current) => ({ ...current, [strategyId]: window }));
+  }
 
   return (
     <div className="location-view seedbot-view">
@@ -75,23 +87,28 @@ export function SeedBotView({
             ))}
           </div>
         </section>
-        <section className="terminal-panel strategy-collection-panel">
+        <section className="strategy-collection-panel">
           <div className="panel-title">
             <Bot size={18} />
             <strong>Public Strategy Collection</strong>
           </div>
           <p className="terminal-disclaimer">{seedBotPerformanceDisclaimer}</p>
-          <div className="strategy-card-list">
-            {seedBotStrategies.map((strategy) => {
+          <div className="strategy-triangle">
+            {seedBotStrategies.map((strategy, index) => {
               const accessible = canAccessSeedBotStrategy({
                 walletConnected,
                 stakingTier: activeTier,
                 rypBalance,
                 strategy,
               });
+              const selectedWindow = selectedWindows[strategy.id] ?? "30D";
+              const selectedPerformance = performanceForWindow(strategy, selectedWindow);
 
               return (
-                <article className={`strategy-card ${accessible ? "enabled" : "locked"}`} key={strategy.id}>
+                <article
+                  className={`strategy-card strategy-card-${index + 1} ${accessible ? "enabled" : "locked"}`}
+                  key={strategy.id}
+                >
                   <div className="strategy-card-header">
                     <div>
                       <strong>{strategy.name}</strong>
@@ -99,14 +116,27 @@ export function SeedBotView({
                     </div>
                     <em>{accessible ? "Unlocked" : `${formatLabel(strategy.minimumAccess)} required`}</em>
                   </div>
-                  <div className="performance-grid">
-                    {strategy.performance.map((item) => (
-                      <div key={`${strategy.id}-${item.window}`}>
-                        <span>{item.window}</span>
-                        <strong>{item.returnPercent > 0 ? "+" : ""}{item.returnPercent}%</strong>
-                      </div>
-                    ))}
+                  <div className="strategy-chart-header">
+                    <div>
+                      <span>{selectedPerformance.window} history</span>
+                      <strong>
+                        {selectedPerformance.returnPercent > 0 ? "+" : ""}
+                        {selectedPerformance.returnPercent}%
+                      </strong>
+                    </div>
+                    <div className="performance-toggle-row" aria-label={`${strategy.name} performance window`}>
+                      {seedBotPerformanceWindows.map((window) => (
+                        <button
+                          className={selectedWindow === window ? "active" : ""}
+                          key={`${strategy.id}-${window}`}
+                          onClick={() => selectWindow(strategy.id, window)}
+                        >
+                          {window}
+                        </button>
+                      ))}
+                    </div>
                   </div>
+                  <StrategyPerformanceGraph performance={selectedPerformance} />
                   <div className="asset-route-list">
                     {strategy.assets.map((asset) => (
                       <span key={`${strategy.id}-${asset.symbol}`}>
@@ -130,5 +160,35 @@ export function SeedBotView({
         </section>
       </div>
     </div>
+  );
+}
+
+function StrategyPerformanceGraph({ performance }: { performance: SeedBotPerformanceWindow }) {
+  const width = 260;
+  const height = 112;
+  const padding = 10;
+  const values = performance.points;
+  const min = Math.min(...values, 0);
+  const max = Math.max(...values, 0);
+  const range = Math.max(1, max - min);
+  const step = values.length > 1 ? (width - padding * 2) / (values.length - 1) : 0;
+  const points = values
+    .map((value, index) => {
+      const x = padding + index * step;
+      const y = height - padding - ((value - min) / range) * (height - padding * 2);
+      return `${x},${y}`;
+    })
+    .join(" ");
+  const zeroY = height - padding - ((0 - min) / range) * (height - padding * 2);
+
+  return (
+    <svg className="strategy-graph" viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`${performance.window} historical performance graph`}>
+      <line className="strategy-graph-zero" x1={padding} x2={width - padding} y1={zeroY} y2={zeroY} />
+      <polyline className="strategy-graph-line" points={points} />
+      {values.map((value, index) => {
+        const [x, y] = points.split(" ")[index].split(",");
+        return <circle className="strategy-graph-point" cx={x} cy={y} r={3} key={`${performance.window}-${index}-${value}`} />;
+      })}
+    </svg>
   );
 }

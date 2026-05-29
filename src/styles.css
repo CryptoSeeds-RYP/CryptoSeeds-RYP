@@ -1091,7 +1091,9 @@ button:disabled {
 }
 
 .strategy-collection-panel {
+  display: grid;
   grid-column: 1 / -1;
+  gap: 12px;
 }
 
 .terminal-disclaimer {
@@ -1100,9 +1102,27 @@ button:disabled {
   font-size: 0.9rem;
 }
 
-.strategy-card-list {
+.strategy-triangle {
   display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-areas:
+    "top top"
+    "left right";
   gap: 12px;
+}
+
+.strategy-card-1 {
+  grid-area: top;
+  justify-self: center;
+  width: min(100%, 620px);
+}
+
+.strategy-card-2 {
+  grid-area: left;
+}
+
+.strategy-card-3 {
+  grid-area: right;
 }
 
 .strategy-card {
@@ -1154,6 +1174,81 @@ button:disabled {
   font-style: normal;
   font-weight: 800;
   text-align: right;
+}
+
+.strategy-chart-header {
+  display: grid;
+  gap: 10px;
+}
+
+.strategy-chart-header > div:first-child {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.strategy-chart-header > div:first-child span {
+  color: #aeb9aa;
+  font-size: 0.82rem;
+}
+
+.strategy-chart-header > div:first-child strong {
+  color: #fff8df;
+  font-size: 1.36rem;
+}
+
+.performance-toggle-row {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.performance-toggle-row button {
+  min-height: 32px;
+  padding: 6px;
+  border: 1px solid rgba(236, 218, 157, 0.14);
+  background: rgba(244, 239, 226, 0.06);
+  color: #d8decf;
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.performance-toggle-row button.active {
+  border-color: rgba(236, 216, 130, 0.5);
+  color: #fff8df;
+  background: rgba(183, 130, 54, 0.28);
+}
+
+.strategy-graph {
+  width: 100%;
+  min-height: 126px;
+  overflow: visible;
+  border: 1px solid rgba(236, 218, 157, 0.1);
+  border-radius: 8px;
+  background:
+    linear-gradient(0deg, rgba(128, 198, 109, 0.1), transparent),
+    rgba(12, 13, 10, 0.3);
+}
+
+.strategy-graph-zero {
+  stroke: rgba(255, 248, 223, 0.24);
+  stroke-dasharray: 4 5;
+  stroke-width: 1;
+}
+
+.strategy-graph-line {
+  fill: none;
+  stroke: #80c66d;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 3;
+}
+
+.strategy-graph-point {
+  fill: #ecd882;
+  stroke: rgba(12, 13, 10, 0.86);
+  stroke-width: 1.5;
 }
 
 .performance-grid {
@@ -1352,6 +1447,18 @@ button:disabled {
 
   .performance-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .strategy-triangle {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "top"
+      "left"
+      "right";
+  }
+
+  .strategy-card-1 {
+    justify-self: stretch;
   }
 
   .strategy-card-header {

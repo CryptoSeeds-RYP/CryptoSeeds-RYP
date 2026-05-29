@@ -64,11 +64,11 @@ describe("transaction intents", () => {
         risk: "MEDIUM",
         minimumAccess: "RYP_HOLDER",
         performance: [
-          { window: "7D", returnPercent: 1 },
-          { window: "30D", returnPercent: 2 },
-          { window: "90D", returnPercent: 3 },
-          { window: "180D", returnPercent: 4 },
-          { window: "1Y", returnPercent: 5 },
+          { window: "7D", returnPercent: 1, points: [0, 1] },
+          { window: "30D", returnPercent: 2, points: [0, 2] },
+          { window: "90D", returnPercent: 3, points: [0, 3] },
+          { window: "180D", returnPercent: 4, points: [0, 4] },
+          { window: "1Y", returnPercent: 5, points: [0, 5] },
         ],
         feeModel: {
           performanceFeeBps: 1200,

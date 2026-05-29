@@ -10,6 +10,7 @@ export type SeedBotCapability = {
 };
 
 export type SeedBotWalletRoute = "PHANTOM" | "METAMASK";
+export type SeedBotPerformanceWindowName = "7D" | "30D" | "90D" | "180D" | "1Y";
 
 export type SeedBotStrategyAsset = {
   symbol: string;
@@ -19,8 +20,9 @@ export type SeedBotStrategyAsset = {
 };
 
 export type SeedBotPerformanceWindow = {
-  window: "7D" | "30D" | "90D" | "180D" | "1Y";
+  window: SeedBotPerformanceWindowName;
   returnPercent: number;
+  points: number[];
 };
 
 export type SeedBotFeeModel = {
@@ -44,6 +46,7 @@ export type SeedBotStrategy = {
 };
 
 export const seedBotPerformanceDisclaimer = "Past performance does not guarantee future results.";
+export const seedBotPerformanceWindows: SeedBotPerformanceWindowName[] = ["7D", "30D", "90D", "180D", "1Y"];
 
 export const seedBotPerformanceFeeModel: SeedBotFeeModel = {
   performanceFeeBps: 1200,
@@ -61,11 +64,11 @@ export const seedBotStrategies: SeedBotStrategy[] = [
     risk: "MEDIUM",
     minimumAccess: "RYP_HOLDER",
     performance: [
-      { window: "7D", returnPercent: 1.2 },
-      { window: "30D", returnPercent: 4.6 },
-      { window: "90D", returnPercent: 9.8 },
-      { window: "180D", returnPercent: 14.1 },
-      { window: "1Y", returnPercent: 22.4 },
+      { window: "7D", returnPercent: 1.2, points: [0, -0.4, 0.2, 0.9, 0.6, 1.4, 1.2] },
+      { window: "30D", returnPercent: 4.6, points: [0, 0.7, 0.2, 1.6, 2.4, 2.1, 3.8, 4.6] },
+      { window: "90D", returnPercent: 9.8, points: [0, 1.1, 2.8, 2.2, 4.7, 6.1, 7.4, 9.8] },
+      { window: "180D", returnPercent: 14.1, points: [0, 2.4, 1.8, 5.6, 7.9, 8.7, 12.4, 14.1] },
+      { window: "1Y", returnPercent: 22.4, points: [0, 3.2, 6.8, 5.1, 11.4, 15.6, 19.8, 22.4] },
     ],
     feeModel: seedBotPerformanceFeeModel,
     allocationModes: ["BASKET", "PER_ASSET"],
@@ -82,11 +85,11 @@ export const seedBotStrategies: SeedBotStrategy[] = [
     risk: "MEDIUM",
     minimumAccess: "SPROUT",
     performance: [
-      { window: "7D", returnPercent: -0.4 },
-      { window: "30D", returnPercent: 2.8 },
-      { window: "90D", returnPercent: 7.2 },
-      { window: "180D", returnPercent: 11.9 },
-      { window: "1Y", returnPercent: 18.6 },
+      { window: "7D", returnPercent: -0.4, points: [0, 0.6, -0.8, -0.2, -0.6, 0.1, -0.4] },
+      { window: "30D", returnPercent: 2.8, points: [0, -0.5, 0.9, 1.4, 0.8, 2.2, 2.8] },
+      { window: "90D", returnPercent: 7.2, points: [0, 1.6, 0.8, 3.7, 4.2, 6.4, 7.2] },
+      { window: "180D", returnPercent: 11.9, points: [0, 1.2, 3.8, 3.1, 7.3, 9.8, 11.9] },
+      { window: "1Y", returnPercent: 18.6, points: [0, 2.1, 5.3, 4.9, 10.4, 14.2, 18.6] },
     ],
     feeModel: seedBotPerformanceFeeModel,
     allocationModes: ["BASKET", "PER_ASSET"],
@@ -103,11 +106,11 @@ export const seedBotStrategies: SeedBotStrategy[] = [
     risk: "LOW",
     minimumAccess: "SAPLING",
     performance: [
-      { window: "7D", returnPercent: 0.3 },
-      { window: "30D", returnPercent: 1.4 },
-      { window: "90D", returnPercent: 3.9 },
-      { window: "180D", returnPercent: 6.7 },
-      { window: "1Y", returnPercent: 9.5 },
+      { window: "7D", returnPercent: 0.3, points: [0, 0.1, 0.2, 0.1, 0.4, 0.2, 0.3] },
+      { window: "30D", returnPercent: 1.4, points: [0, 0.3, 0.5, 0.4, 0.9, 1.1, 1.4] },
+      { window: "90D", returnPercent: 3.9, points: [0, 0.8, 1.2, 1.1, 2.3, 3.2, 3.9] },
+      { window: "180D", returnPercent: 6.7, points: [0, 1.1, 2.0, 2.7, 3.6, 5.4, 6.7] },
+      { window: "1Y", returnPercent: 9.5, points: [0, 1.7, 2.9, 3.8, 5.4, 7.6, 9.5] },
     ],
     feeModel: seedBotPerformanceFeeModel,
     allocationModes: ["BASKET", "PER_ASSET"],
@@ -204,4 +207,8 @@ export function canAccessSeedBotStrategy({
 
 export function seedBotFeeDisclosure(feeModel: SeedBotFeeModel) {
   return `${feeModel.performanceFeeBps / 100}% performance fee on realized positive strategy PnL only, deducted from profit not principal, split ${feeModel.devSharePercent}% dev / ${feeModel.treasurySharePercent}% treasury.`;
+}
+
+export function performanceForWindow(strategy: SeedBotStrategy, window: SeedBotPerformanceWindowName) {
+  return strategy.performance.find((item) => item.window === window) ?? strategy.performance[0];
 }
