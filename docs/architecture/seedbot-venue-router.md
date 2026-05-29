@@ -68,6 +68,16 @@ Order controls are modeled before live execution:
 - schedule-cancel drafts enforce Hyperliquid's five-second minimum delay
 - all signed control drafts are still blocked while signed execution is disabled
 
+Signing is modeled by `src/services/hyperliquidSigningBoundary.ts`:
+
+- never stores or requests private keys
+- keeps read-only status queries signature-free
+- requires the official SDK signing path for L1 actions
+- separates master-wallet agent approval from approved-agent order signing
+- lowercases signer and account addresses in signing intents
+- blocks mainnet signing unless explicitly allowed by code
+- blocks placeholder agent addresses
+
 Live implementation still needs:
 
 - official SDK or signature helper
