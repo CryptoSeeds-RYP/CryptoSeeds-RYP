@@ -8,6 +8,8 @@ interface ImportMetaEnv {
   readonly VITE_CRYPTOSEEDS_PROGRAM_ID?: string;
   readonly VITE_HELIUS_API_KEY?: string;
   readonly VITE_DEMO_MODE?: string;
+  readonly VITE_SEEDBOT_HYPERLIQUID_NETWORK?: "MAINNET" | "TESTNET";
+  readonly VITE_SEEDBOT_SIGNED_EXECUTION?: string;
 }
 
 interface ImportMeta {

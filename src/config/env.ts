@@ -6,6 +6,8 @@ export type AppConfig = {
   protocolProgramId: string;
   heliusApiKey?: string;
   demoMode: boolean;
+  seedBotHyperliquidNetwork: "MAINNET" | "TESTNET";
+  seedBotSignedExecutionEnabled: boolean;
 };
 
 export const appConfig: AppConfig = {
@@ -19,9 +21,16 @@ export const appConfig: AppConfig = {
     "FG6PaFpoGXkYsidMpWxTWqVfbGqmtn8z8DK9HdJrMPfL",
   heliusApiKey: import.meta.env.VITE_HELIUS_API_KEY,
   demoMode: import.meta.env.VITE_DEMO_MODE !== "false",
+  seedBotHyperliquidNetwork: readHyperliquidNetwork(import.meta.env.VITE_SEEDBOT_HYPERLIQUID_NETWORK),
+  seedBotSignedExecutionEnabled: import.meta.env.VITE_SEEDBOT_SIGNED_EXECUTION === "true",
 };
 
 function readCluster(value: string | undefined): AppConfig["cluster"] {
   if (value === "devnet" || value === "mainnet-beta" || value === "localnet") return value;
   return "localnet";
+}
+
+function readHyperliquidNetwork(value: string | undefined): AppConfig["seedBotHyperliquidNetwork"] {
+  if (value === "MAINNET" || value === "TESTNET") return value;
+  return "TESTNET";
 }

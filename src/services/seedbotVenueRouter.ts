@@ -1,3 +1,4 @@
+import { appConfig } from "../config/env";
 import type { SeedBotStrategy, SeedBotStrategyAsset } from "../domain/seedbot";
 import type { SeedBotVenueId } from "../domain/seedbotVenues";
 import { venueById } from "../domain/seedbotVenues";
@@ -112,13 +113,14 @@ function buildHyperliquidRoute({
   assets: SeedBotStrategyAsset[];
   mode: SeedBotExecutionMode;
 }): SeedBotVenueRoute {
-  const config = hyperliquidConfig();
+  const config = hyperliquidConfig(appConfig.seedBotHyperliquidNetwork);
+  const routeMode = appConfig.seedBotSignedExecutionEnabled ? mode : "DRY_RUN";
 
   return {
     venueId,
     venueName,
     walletRoute: "METAMASK",
-    mode,
+    mode: routeMode,
     endpoint: config.exchangeEndpoint,
     executionEnvironment: config.network,
     assets,
@@ -133,7 +135,10 @@ function buildHyperliquidRoute({
       string,
       unknown
     >,
-    safetyChecks: hyperliquidExecutionSafeguards(config.network),
+    safetyChecks: [
+      ...hyperliquidExecutionSafeguards(config.network),
+      ...(appConfig.seedBotSignedExecutionEnabled ? [] : ["Signed execution feature flag is disabled."]),
+    ],
   };
 }
 

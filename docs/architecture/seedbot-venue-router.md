@@ -32,6 +32,8 @@ The Hyperliquid adapter now has an explicit testnet-first boundary in `src/servi
 Current preview configuration:
 
 - default network: `TESTNET`
+- environment key: `VITE_SEEDBOT_HYPERLIQUID_NETWORK`
+- signed execution flag: `VITE_SEEDBOT_SIGNED_EXECUTION=false`
 - testnet exchange endpoint: `https://api.hyperliquid-testnet.xyz/exchange`
 - mainnet exchange endpoint: `https://api.hyperliquid.xyz/exchange`
 - order action draft with pending asset id, price, and size resolution
@@ -42,13 +44,20 @@ Current preview configuration:
 
 The adapter intentionally does not create a fully valid order body yet. Hyperliquid orders require numeric asset ids from the `info/meta` universe, a resolved price, a derived size, a nonce, and a signature. The app must resolve those immediately before signing.
 
+Asset lookup is handled by `src/services/hyperliquidMarketDataService.ts`:
+
+- fetches `info` with `{ "type": "meta" }`
+- parses the `universe` array
+- resolves perp asset ids by array index
+- blocks missing or delisted assets before signing
+- leaves strategy route assets immutable
+
 Live implementation still needs:
 
 - official SDK or signature helper
 - signed testnet order spike
 - agent-wallet approval UX
 - nonce handling
-- info/meta asset-id lookup
 - order status polling
 - cancel/kill-switch flow
 - max size, slippage, and position caps
