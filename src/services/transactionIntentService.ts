@@ -2,6 +2,7 @@ import { appConfig } from "../config/env";
 import type { Project, StakingTier } from "../domain/microverse";
 import { latestRiskDisclosure } from "../domain/projectRegistry";
 import { seedBotFeeDisclosure, type SeedBotStrategy } from "../domain/seedbot";
+import { venueById } from "../domain/seedbotVenues";
 import { effectiveFee, tierRequirements } from "../domain/tiering";
 import type {
   RiskAcknowledgement,
@@ -113,6 +114,8 @@ export function buildSeedBotAllocationIntent({
   walletAddress?: string;
   mode?: "BASKET" | "PER_ASSET";
 }): TransactionIntent {
+  const venue = venueById(strategy.preferredVenueId);
+
   return buildIntent({
     id: `seedbot-allocation-${strategy.id}-${mode.toLowerCase()}`,
     type: "SEEDBOT_ALLOCATE",
@@ -128,8 +131,8 @@ export function buildSeedBotAllocationIntent({
     programs: [
       {
         label: "SeedBot strategy adapter",
-        address: `strategy:${strategy.id}`,
-        role: "Allocation preview only",
+        address: `${strategy.preferredVenueId}:strategy:${strategy.id}`,
+        role: `${venue?.name ?? strategy.preferredVenueId} allocation preview only`,
       },
     ],
     accounts: [
@@ -142,7 +145,7 @@ export function buildSeedBotAllocationIntent({
         writable: false,
       })),
     ],
-    riskSummary: "Historical strategy performance only. Past performance does not guarantee future results.",
+    riskSummary: `Historical strategy performance only. Past performance does not guarantee future results. Preferred venue: ${venue?.name ?? strategy.preferredVenueId}.`,
     expectedResult: "Wallet-approved allocation route is prepared; no funds move until the user signs.",
   });
 }

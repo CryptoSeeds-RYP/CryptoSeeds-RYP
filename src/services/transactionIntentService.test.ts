@@ -63,6 +63,7 @@ describe("transaction intents", () => {
         summary: "Test",
         risk: "MEDIUM",
         minimumAccess: "RYP_HOLDER",
+        preferredVenueId: "HYPERLIQUID",
         performance: [
           { window: "7D", returnPercent: 1, points: [0, 1] },
           { window: "30D", returnPercent: 2, points: [0, 2] },

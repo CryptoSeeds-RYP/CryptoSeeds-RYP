@@ -13,6 +13,7 @@ import {
   type SeedBotPerformanceWindowName,
   type SeedBotStrategy,
 } from "../domain/seedbot";
+import { recommendedSeedBotVenue, venueById } from "../domain/seedbotVenues";
 import type { SeedBotSignal, StakingTier } from "../types";
 import { formatLabel } from "../utils/format";
 
@@ -32,6 +33,7 @@ export function SeedBotView({
   onPrepareAllocation: (strategy: SeedBotStrategy, mode: "BASKET" | "PER_ASSET") => void;
 }) {
   const capabilities = buildSeedBotCapabilities({ walletConnected, stakingTier: activeTier, rypBalance });
+  const recommendedVenue = recommendedSeedBotVenue();
   const [selectedWindows, setSelectedWindows] = useState<Record<string, SeedBotPerformanceWindowName>>(
     Object.fromEntries(seedBotStrategies.map((strategy) => [strategy.id, "30D"])),
   );
@@ -64,6 +66,7 @@ export function SeedBotView({
           </div>
           <div className="risk-control"><span>Private keys</span><strong>Never requested</strong></div>
           <div className="risk-control"><span>Execution</span><strong>Wallet approved</strong></div>
+          <div className="risk-control"><span>Primary venue</span><strong>{recommendedVenue.name}</strong></div>
           <div className="risk-control"><span>Automation</span><strong>Disabled in MVP</strong></div>
           <div className="risk-control"><span>Slippage</span><strong>0.5% demo cap</strong></div>
         </section>
@@ -103,6 +106,7 @@ export function SeedBotView({
               });
               const selectedWindow = selectedWindows[strategy.id] ?? "30D";
               const selectedPerformance = performanceForWindow(strategy, selectedWindow);
+              const venue = venueById(strategy.preferredVenueId);
 
               return (
                 <article
@@ -113,6 +117,7 @@ export function SeedBotView({
                     <div>
                       <strong>{strategy.name}</strong>
                       <span>{strategy.summary}</span>
+                      {venue && <span>{venue.name} / {formatLabel(venue.status)}</span>}
                     </div>
                     <em>{accessible ? "Unlocked" : `${formatLabel(strategy.minimumAccess)} required`}</em>
                   </div>
