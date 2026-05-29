@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { seedBotStrategies } from "../domain/seedbot";
 import type { SeedBotStrategy } from "../domain/seedbot";
 import { seedBotPerformanceFeeModel } from "../domain/seedbot";
+import { buildHyperliquidAgentApprovalPreview, hyperliquidConfig } from "./hyperliquidAdapter";
 import { buildSeedBotRoutePlan } from "./seedbotVenueRouter";
 
 describe("seedbot venue router", () => {
@@ -14,11 +15,48 @@ describe("seedbot venue router", () => {
     expect(plan.routes).toHaveLength(1);
     expect(plan.routes[0]).toMatchObject({
       venueId: "HYPERLIQUID",
-      endpoint: "https://api.hyperliquid.xyz/exchange",
+      endpoint: "https://api.hyperliquid-testnet.xyz/exchange",
+      executionEnvironment: "TESTNET",
       walletRoute: "METAMASK",
     });
     expect(plan.routes[0].orderPreview).toHaveLength(strategy.assets.length);
     expect(plan.routes[0].safetyChecks).toContain("No withdrawal action is generated.");
+    expect(plan.routes[0].authorizationPreview).toMatchObject({
+      network: "TESTNET",
+      actionDraft: { type: "approveAgent", hyperliquidChain: "Testnet" },
+    });
+    expect(plan.routes[0].orderPreview[0].payload).toMatchObject({
+      network: "TESTNET",
+      actionDraft: {
+        type: "order",
+        orders: [{ officialFields: { a: "PENDING_META_ASSET_ID" } }],
+      },
+    });
+  });
+
+  it("keeps Hyperliquid mainnet and testnet endpoint config explicit", () => {
+    expect(hyperliquidConfig("TESTNET")).toMatchObject({
+      exchangeEndpoint: "https://api.hyperliquid-testnet.xyz/exchange",
+      hyperliquidChain: "Testnet",
+    });
+    expect(hyperliquidConfig("MAINNET")).toMatchObject({
+      exchangeEndpoint: "https://api.hyperliquid.xyz/exchange",
+      hyperliquidChain: "Mainnet",
+    });
+  });
+
+  it("builds a wallet-owned Hyperliquid agent approval preview", () => {
+    const approval = buildHyperliquidAgentApprovalPreview({
+      agentAddress: "0x1111111111111111111111111111111111111111",
+    });
+
+    expect(approval.actionDraft).toMatchObject({
+      type: "approveAgent",
+      hyperliquidChain: "Testnet",
+      agentAddress: "0x1111111111111111111111111111111111111111",
+    });
+    expect(approval.signature).toBe("master-wallet-signature-required");
+    expect(approval.safetyChecks).toContain("Agent approval must be initiated by the user's own wallet.");
   });
 
   it("keeps Solana spot routes on Jupiter", () => {

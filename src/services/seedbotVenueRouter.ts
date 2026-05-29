@@ -1,6 +1,12 @@
 import type { SeedBotStrategy, SeedBotStrategyAsset } from "../domain/seedbot";
 import type { SeedBotVenueId } from "../domain/seedbotVenues";
 import { venueById } from "../domain/seedbotVenues";
+import {
+  buildHyperliquidAgentApprovalPreview,
+  buildHyperliquidOrderPreviewPayload,
+  hyperliquidConfig,
+  hyperliquidExecutionSafeguards,
+} from "./hyperliquidAdapter";
 
 export type SeedBotExecutionMode = "DRY_RUN" | "WALLET_SIGNED";
 
@@ -10,8 +16,10 @@ export type SeedBotVenueRoute = {
   walletRoute: SeedBotStrategyAsset["walletRoute"];
   mode: SeedBotExecutionMode;
   endpoint?: string;
+  executionEnvironment?: string;
   assets: SeedBotStrategyAsset[];
   orderPreview: SeedBotOrderPreview[];
+  authorizationPreview?: Record<string, unknown>;
   safetyChecks: string[];
 };
 
@@ -104,41 +112,28 @@ function buildHyperliquidRoute({
   assets: SeedBotStrategyAsset[];
   mode: SeedBotExecutionMode;
 }): SeedBotVenueRoute {
+  const config = hyperliquidConfig();
+
   return {
     venueId,
     venueName,
     walletRoute: "METAMASK",
     mode,
-    endpoint: "https://api.hyperliquid.xyz/exchange",
+    endpoint: config.exchangeEndpoint,
+    executionEnvironment: config.network,
     assets,
     orderPreview: assets.map((asset) => ({
       symbol: asset.symbol,
       targetWeightPercent: asset.targetWeightPercent,
       side: "REBALANCE",
       orderType: "LIMIT_PREVIEW",
-      payload: {
-        action: {
-          type: "order",
-          grouping: "na",
-          orders: [
-            {
-              asset: asset.symbol,
-              isBuy: true,
-              size: `${asset.targetWeightPercent}% allocation`,
-              reduceOnly: false,
-              tif: "Ioc",
-            },
-          ],
-        },
-        signature: "wallet-or-agent-signature-required",
-      },
+      payload: buildHyperliquidOrderPreviewPayload({ asset, network: config.network }),
     })),
-    safetyChecks: [
-      "No withdrawal action is generated.",
-      "Order payload is preview-only until wallet or approved agent signature is present.",
-      "Use expiresAfter on signed actions to limit stale execution.",
-      "Use per-strategy max allocation, max slippage, and position limits before live mode.",
-    ],
+    authorizationPreview: buildHyperliquidAgentApprovalPreview({ network: config.network }) as unknown as Record<
+      string,
+      unknown
+    >,
+    safetyChecks: hyperliquidExecutionSafeguards(config.network),
   };
 }
 

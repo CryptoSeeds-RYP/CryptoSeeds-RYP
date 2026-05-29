@@ -27,20 +27,28 @@ No adapter should send live orders until the user has explicitly approved the ro
 
 ## Hyperliquid Notes
 
-The Hyperliquid adapter currently builds preview payloads shaped around the official exchange endpoint concept:
+The Hyperliquid adapter now has an explicit testnet-first boundary in `src/services/hyperliquidAdapter.ts`.
 
-- endpoint: `https://api.hyperliquid.xyz/exchange`
-- order action preview
-- wallet or approved agent signature required
+Current preview configuration:
+
+- default network: `TESTNET`
+- testnet exchange endpoint: `https://api.hyperliquid-testnet.xyz/exchange`
+- mainnet exchange endpoint: `https://api.hyperliquid.xyz/exchange`
+- order action draft with pending asset id, price, and size resolution
+- wallet or approved agent signature required before any executable request
+- agent approval preview for wallet-owned API/agent authorization
 - no withdrawal action generated
 - stale execution should use an expiry guard when signed
+
+The adapter intentionally does not create a fully valid order body yet. Hyperliquid orders require numeric asset ids from the `info/meta` universe, a resolved price, a derived size, a nonce, and a signature. The app must resolve those immediately before signing.
 
 Live implementation still needs:
 
 - official SDK or signature helper
-- testnet environment
-- agent-wallet approval flow
+- signed testnet order spike
+- agent-wallet approval UX
 - nonce handling
+- info/meta asset-id lookup
 - order status polling
 - cancel/kill-switch flow
 - max size, slippage, and position caps
@@ -54,3 +62,4 @@ Live implementation still needs:
 - Keep venue-specific blocked reasons visible.
 - Keep historical-performance disclaimer visible.
 - Use dry-run mode until venue adapter tests and legal review are complete.
+- Default new execution work to venue testnets before mainnet.
