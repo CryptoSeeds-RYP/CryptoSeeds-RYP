@@ -133,7 +133,7 @@ export function buildSeedBotSwapIntent(walletAddress?: string): TransactionInten
     ],
     accounts: walletAccounts(walletAddress),
     riskSummary: "Self-custodial execution. No private keys, no hidden transaction, no profit claim.",
-    expectedResult: "Wallet signs a prepared swap transaction, then the app broadcasts it.",
+    expectedResult: "Wallet-approved swap route is prepared; broadcast remains a later reviewed boundary.",
   });
 }
 
@@ -194,6 +194,20 @@ export function advanceTransactionIntent(intent: TransactionIntent): Transaction
     ...intent,
     status: nextStatus,
     lifecycle: buildLifecycle(nextStatus),
+  };
+}
+
+export function markSignedBroadcastDisabled(intent: TransactionIntent): TransactionIntent {
+  const signedIntent = advanceTransactionIntent({ ...intent, status: "AWAITING_SIGNATURE" });
+
+  return {
+    ...signedIntent,
+    lifecycle: signedIntent.lifecycle.map((step) => {
+      if (step.id === "broadcast" || step.id === "confirmation") {
+        return { ...step, status: "BLOCKED" as const };
+      }
+      return step;
+    }),
   };
 }
 

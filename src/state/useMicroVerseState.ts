@@ -15,6 +15,7 @@ import {
   buildSeedBotAllocationIntent,
   buildSeedBotSwapIntent,
   buildStakePreviewIntent,
+  markSignedBroadcastDisabled,
   resetTransactionIntent,
 } from "../services/transactionIntentService";
 import {
@@ -171,7 +172,7 @@ export function useMicroVerseState() {
 
       setIntent((current) => {
         if (current.id !== intentAtRequest.id) return current;
-        const signedIntent = advanceTransactionIntent({ ...current, status: "AWAITING_SIGNATURE" });
+        const signedIntent = markSignedBroadcastDisabled(current);
         return {
           ...current,
           solanaSignature: signature,

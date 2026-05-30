@@ -8,6 +8,7 @@ import {
   buildSeedBotSwapIntent,
   buildStakePreviewIntent,
   buildUnstakePreviewIntent,
+  markSignedBroadcastDisabled,
   resetTransactionIntent,
 } from "./transactionIntentService";
 
@@ -124,5 +125,15 @@ describe("transaction intents", () => {
     expect(broadcast.status).toBe("BROADCAST");
     expect(confirmed.status).toBe("CONFIRMED");
     expect(resetTransactionIntent(confirmed).status).toBe("READY");
+  });
+
+  it("marks real signature receipts as signed while keeping broadcast blocked", () => {
+    const readyIntent = buildStakePreviewIntent(walletAddress, "SPROUT");
+    const signed = markSignedBroadcastDisabled(readyIntent);
+
+    expect(signed.status).toBe("SIGNED");
+    expect(signed.lifecycle.find((step) => step.id === "wallet_signature")?.status).toBe("COMPLETE");
+    expect(signed.lifecycle.find((step) => step.id === "broadcast")?.status).toBe("BLOCKED");
+    expect(signed.lifecycle.find((step) => step.id === "confirmation")?.status).toBe("BLOCKED");
   });
 });
