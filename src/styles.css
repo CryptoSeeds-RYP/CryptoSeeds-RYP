@@ -92,7 +92,6 @@ button:disabled {
 .panel-title,
 .view-header > div,
 .metric-tile,
-.map-marker,
 .project-card-top,
 .project-footer,
 .ledger-item,
@@ -254,12 +253,13 @@ button:disabled {
 .location-view {
   display: grid;
   gap: 16px;
+  min-width: 0;
   min-height: calc(100vh - 112px);
 }
 
 .microverse-map {
   position: relative;
-  min-height: 790px;
+  min-height: 840px;
   overflow: hidden;
   border: 1px solid rgba(255, 231, 133, 0.34);
   border-radius: 8px;
@@ -293,7 +293,11 @@ button:disabled {
 }
 
 .microverse-scene.strategy-mode {
-  cursor: default;
+  cursor: grab;
+}
+
+.microverse-scene.strategy-mode:active {
+  cursor: grabbing;
 }
 
 .microverse-scene-fallback {
@@ -382,6 +386,56 @@ button:disabled {
     0 0 24px rgba(255, 214, 107, 0.16);
 }
 
+.map-district-dock {
+  position: absolute;
+  right: 24px;
+  bottom: 24px;
+  z-index: 6;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(124px, 1fr));
+  gap: 8px;
+  width: min(342px, calc(100% - 48px));
+  padding: 8px;
+  border: 1px solid rgba(255, 248, 223, 0.24);
+  border-radius: 8px;
+  background: rgba(8, 21, 23, 0.64);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 248, 223, 0.08),
+    0 18px 42px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(18px);
+}
+
+.map-district-dock button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  min-height: 38px;
+  padding: 8px 10px;
+  border: 1px solid rgba(255, 248, 223, 0.18);
+  border-radius: 7px;
+  color: #d9e7d6;
+  background: rgba(34, 62, 54, 0.36);
+  font-size: 0.78rem;
+  font-weight: 850;
+  transition:
+    background 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+}
+
+.map-district-dock button:hover,
+.map-district-dock button:focus-visible,
+.map-district-dock button.active {
+  color: #fff8df;
+  background: rgba(183, 130, 54, 0.42);
+  border-color: rgba(255, 248, 223, 0.38);
+  box-shadow: 0 0 26px rgba(255, 214, 107, 0.16);
+  outline: 0;
+  transform: translateY(-1px);
+}
+
 .visual-legend {
   position: absolute;
   top: 24px;
@@ -440,57 +494,6 @@ button:disabled {
 .legend-dot.donation {
   color: #d7b1ff;
   background: #d7b1ff;
-}
-
-.map-marker {
-  position: absolute;
-  isolation: isolate;
-  z-index: 4;
-  --marker-edge: 72px;
-  left: clamp(var(--marker-edge), var(--marker-x, 50%), calc(100% - var(--marker-edge)));
-  top: clamp(42px, var(--marker-y, 50%), calc(100% - 42px));
-  transform: translate(-50%, -50%);
-  gap: 8px;
-  min-width: 126px;
-  min-height: 42px;
-  padding: 8px 12px;
-  border: 1px solid rgba(255, 248, 223, 0.34);
-  border-radius: 8px;
-  background: rgba(20, 38, 35, 0.52);
-  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.18);
-  backdrop-filter: blur(14px);
-  transition:
-    background 160ms ease,
-    border-color 160ms ease,
-    box-shadow 160ms ease,
-    transform 160ms ease;
-}
-
-.strategy-navigation .map-marker::before {
-  content: "";
-  position: absolute;
-  z-index: -1;
-  inset: -13px -18px;
-  border: 1px solid rgba(255, 214, 107, 0.34);
-  border-radius: 999px;
-  background: radial-gradient(ellipse, rgba(255, 214, 107, 0.18), rgba(128, 220, 202, 0.06) 52%, transparent 72%);
-  box-shadow: 0 0 30px rgba(255, 214, 107, 0.16);
-}
-
-.map-marker:hover,
-.map-marker:focus-visible {
-  background: rgba(76, 138, 69, 0.76);
-  border-color: rgba(255, 248, 223, 0.58);
-  box-shadow:
-    0 16px 30px rgba(0, 0, 0, 0.24),
-    0 0 28px rgba(255, 214, 107, 0.18);
-  outline: 0;
-  transform: translate(-50%, -50%) scale(1.03);
-}
-
-.map-marker.locked {
-  color: #d9c9aa;
-  background: rgba(82, 72, 63, 0.76);
 }
 
 .world-focus-panel {
@@ -1761,7 +1764,7 @@ button:disabled {
   }
 
   .microverse-map {
-    min-height: 580px;
+    min-height: 640px;
   }
 
   .metric-row,
@@ -1822,13 +1825,18 @@ button:disabled {
     max-width: none;
   }
 
-  .map-marker {
-    --marker-edge: 38px;
-    min-width: 44px;
+  .map-district-dock {
+    right: 18px;
+    top: 18px;
+    bottom: auto;
+    grid-template-columns: repeat(2, minmax(92px, 1fr));
+    width: min(278px, calc(100% - 36px));
   }
 
-  .map-marker span {
-    display: none;
+  .map-district-dock button {
+    min-height: 34px;
+    padding: 7px 8px;
+    font-size: 0.74rem;
   }
 
   .world-focus-panel {
@@ -1881,11 +1889,9 @@ button:disabled {
   }
 
   .microverse-map {
-    min-height: 500px;
-  }
-
-  .map-marker {
-    --marker-edge: 54px;
+    min-height: 560px;
+    width: 100%;
+    max-width: calc(100vw - 24px);
   }
 
   .map-title {
@@ -1896,6 +1902,27 @@ button:disabled {
   .map-mode-toggle {
     top: 92px;
     width: min(244px, calc(100% - 36px));
+  }
+
+  .map-district-dock {
+    top: 146px;
+    left: 18px;
+    right: 18px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: auto;
+  }
+
+  .map-district-dock button {
+    justify-content: center;
+    min-width: 0;
+    padding-right: 6px;
+    padding-left: 6px;
+  }
+
+  .map-district-dock span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .project-filter-bar label,

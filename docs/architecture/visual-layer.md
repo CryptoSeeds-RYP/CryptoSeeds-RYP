@@ -23,7 +23,8 @@ The MVP visual layer now uses a live PixiJS world instead of a static map skin:
 - landmark destination registry in `src/visual/microverseAssets.ts`
 - transparent runtime landmark assets for all MVP world locations
 - transparent runtime project tile assets for open, active, milestone, harvest, completed, and paused states
-- larger world canvas with camera follow
+- larger world canvas with camera follow, drag-to-pan strategy navigation, and wheel zoom
+- camera focus requests for Homestead, Explorer's Map, Governance Hall, Harvest Ledger, and SeedBot Terminal
 - WASD and arrow-key movement
 - click-to-move navigation
 - default strategy-map selection mode with glowing regions
@@ -33,12 +34,13 @@ The MVP visual layer now uses a live PixiJS world instead of a static map skin:
 - paths, islands, groves, dome clusters, lanterns, and windmill details
 - district foundations under every landmark so the world reads as one built MicroVerse
 - state-driven project markers scaled into world coordinates, with bitmap tile assets and procedural fallback symbols
+- hover-zoom feedback on landmark sprites and project field markers
 - React HUD focus panel for landmark and project plot hover/focus state
-- registry-aligned landmark navigation markers with mobile edge clamping
+- registry-aligned district dock for focusing major MicroVerse locations without cluttering the map
 - animated particles, tier atmosphere, and rain/storm effects
 - reduced-motion handling for users who prefer less animation
 
-This creates the first "walkable dashboard" version of the MicroVerse while preserving React for every transaction, disclosure, wallet, and project-review surface.
+This creates the first "walkable dashboard" and strategy-map version of the MicroVerse while preserving React for every transaction, disclosure, wallet, and project-review surface.
 
 ## Visual North Star
 

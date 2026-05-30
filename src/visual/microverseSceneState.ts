@@ -1,4 +1,4 @@
-import type { Project, ProjectParticipation, StakingTier } from "../types";
+import type { LocationKey, Project, ProjectParticipation, StakingTier } from "../types";
 import {
   lifecycleForProjectPlot,
   visualKindForProject,
@@ -30,6 +30,13 @@ export type MicroVerseSceneState = {
 };
 
 export type MicroVerseNavigationMode = "STRATEGY" | "CHARACTER";
+
+export type MicroVerseCameraFocus = "home" | LocationKey;
+
+export type MicroVerseCameraFocusRequest = {
+  target: MicroVerseCameraFocus;
+  nonce: number;
+};
 
 export type MicroVersePlotSummary = {
   lifecycle: ProjectLifecycleVisualState;

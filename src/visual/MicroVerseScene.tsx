@@ -8,7 +8,14 @@ import {
   type MicroVerseLandmark,
 } from "./microverseAssets";
 import type { ProjectLifecycleVisualState } from "./projectVisuals";
-import type { MicroVerseNavigationMode, MicroVersePlot, MicroVerseSceneState } from "./microverseSceneState";
+import type { LocationKey } from "../types";
+import type {
+  MicroVerseCameraFocus,
+  MicroVerseCameraFocusRequest,
+  MicroVerseNavigationMode,
+  MicroVersePlot,
+  MicroVerseSceneState,
+} from "./microverseSceneState";
 
 type Point = { x: number; y: number };
 
@@ -41,6 +48,27 @@ type RainLine = {
   speed: number;
 };
 
+type PlotMarkerRuntime = {
+  container: Container;
+  baseScale: number;
+  hoverScale: number;
+  hovered: boolean;
+  phase: number;
+};
+
+type LandmarkSpriteRuntime = {
+  sprite: Sprite;
+  baseScale: number;
+  hovered: boolean;
+  phase: number;
+};
+
+type MapDragState = {
+  pointerId: number;
+  startClient: Point;
+  cameraStart: Point;
+};
+
 type WorldRuntime = {
   app: Application;
   root: Container;
@@ -48,10 +76,15 @@ type WorldRuntime = {
   player: Container;
   playerGlow: Graphics;
   camera: Point;
+  targetCamera: Point;
+  zoom: number;
+  targetZoom: number;
+  drag: MapDragState | null;
   destination: Point | null;
   keys: Set<string>;
   worldSize: Point;
-  plotMarkers: Container[];
+  plotMarkers: PlotMarkerRuntime[];
+  landmarkSprites: LandmarkSpriteRuntime[];
   lanterns: Lantern[];
   glints: Glint[];
   particles: Particle[];
@@ -62,17 +95,25 @@ type WorldRuntime = {
 };
 
 const CONTROL_KEYS = new Set(["w", "a", "s", "d", "arrowup", "arrowleft", "arrowdown", "arrowright"]);
+const MIN_STRATEGY_ZOOM = 0.74;
+const MAX_STRATEGY_ZOOM = 1.18;
 
 export function MicroVerseScene({
+  cameraFocus,
   navigationMode = "STRATEGY",
   scene,
   onPlotFocus,
   onPlotSelect,
+  onLandmarkFocus,
+  onLandmarkSelect,
 }: {
+  cameraFocus?: MicroVerseCameraFocusRequest;
   navigationMode?: MicroVerseNavigationMode;
   scene: MicroVerseSceneState;
   onPlotFocus?: (plotId: string | null) => void;
   onPlotSelect?: (projectId: string) => void;
+  onLandmarkFocus?: (location: LocationKey | null) => void;
+  onLandmarkSelect?: (location: LocationKey) => void;
 }) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const appRef = useRef<Application | null>(null);
@@ -80,8 +121,11 @@ export function MicroVerseScene({
   const stateRef = useRef(scene);
   const plotFocusRef = useRef(onPlotFocus);
   const plotSelectRef = useRef(onPlotSelect);
+  const landmarkFocusRef = useRef(onLandmarkFocus);
+  const landmarkSelectRef = useRef(onLandmarkSelect);
   const keysRef = useRef<Set<string>>(new Set());
   const navigationModeRef = useRef<MicroVerseNavigationMode>(navigationMode);
+  const cameraFocusRef = useRef<MicroVerseCameraFocusRequest | undefined>(cameraFocus);
   const renderGenerationRef = useRef(0);
   const reduceMotionRef = useRef(false);
 
@@ -99,6 +143,8 @@ export function MicroVerseScene({
       navigationMode,
       onPlotFocus: (plotId) => plotFocusRef.current?.(plotId),
       onPlotSelect: (projectId) => plotSelectRef.current?.(projectId),
+      onLandmarkFocus: (location) => landmarkFocusRef.current?.(location),
+      onLandmarkSelect: (location) => landmarkSelectRef.current?.(location),
       previousRuntime: runtimeRef.current,
       reduceMotion: reduceMotionRef.current,
       scene,
@@ -109,6 +155,7 @@ export function MicroVerseScene({
         }
         runtimeRef.current?.destroy();
         runtimeRef.current = runtime;
+        if (cameraFocusRef.current) focusStrategicCamera(runtime, cameraFocusRef.current.target, true);
       },
     });
   }, [navigationMode, scene]);
@@ -116,7 +163,15 @@ export function MicroVerseScene({
   useEffect(() => {
     plotFocusRef.current = onPlotFocus;
     plotSelectRef.current = onPlotSelect;
-  }, [onPlotFocus, onPlotSelect]);
+    landmarkFocusRef.current = onLandmarkFocus;
+    landmarkSelectRef.current = onLandmarkSelect;
+  }, [onLandmarkFocus, onLandmarkSelect, onPlotFocus, onPlotSelect]);
+
+  useEffect(() => {
+    cameraFocusRef.current = cameraFocus;
+    if (!cameraFocus || !runtimeRef.current) return;
+    focusStrategicCamera(runtimeRef.current, cameraFocus.target);
+  }, [cameraFocus?.nonce, cameraFocus?.target]);
 
   useEffect(() => {
     let disposed = false;
@@ -161,17 +216,61 @@ export function MicroVerseScene({
 
       const handlePointerDown = (event: PointerEvent) => {
         const runtime = runtimeRef.current;
-        if (!runtime || runtime.navigationMode !== "CHARACTER") return;
-        const rect = app.canvas.getBoundingClientRect();
-        const screenX = ((event.clientX - rect.left) / rect.width) * app.screen.width;
-        const screenY = ((event.clientY - rect.top) / rect.height) * app.screen.height;
-        runtime.destination = {
-          x: clamp(screenX - runtime.world.x, 40, runtime.worldSize.x - 40),
-          y: clamp(screenY - runtime.world.y, 40, runtime.worldSize.y - 40),
+        if (!runtime || event.button !== 0) return;
+        if (runtime.navigationMode === "CHARACTER") {
+          const rect = app.canvas.getBoundingClientRect();
+          const screenX = ((event.clientX - rect.left) / rect.width) * app.screen.width;
+          const screenY = ((event.clientY - rect.top) / rect.height) * app.screen.height;
+          runtime.destination = {
+            x: clamp((screenX - runtime.world.x) / runtime.zoom, 40, runtime.worldSize.x - 40),
+            y: clamp((screenY - runtime.world.y) / runtime.zoom, 40, runtime.worldSize.y - 40),
+          };
+          return;
+        }
+
+        runtime.drag = {
+          pointerId: event.pointerId,
+          startClient: { x: event.clientX, y: event.clientY },
+          cameraStart: { ...runtime.targetCamera },
         };
+        app.canvas.setPointerCapture?.(event.pointerId);
+      };
+
+      const handlePointerMove = (event: PointerEvent) => {
+        const runtime = runtimeRef.current;
+        if (!runtime || runtime.navigationMode !== "STRATEGY" || !runtime.drag) return;
+        if (runtime.drag.pointerId !== event.pointerId) return;
+        const rect = app.canvas.getBoundingClientRect();
+        const dx = ((event.clientX - runtime.drag.startClient.x) / Math.max(rect.width, 1)) * app.screen.width;
+        const dy = ((event.clientY - runtime.drag.startClient.y) / Math.max(rect.height, 1)) * app.screen.height;
+        runtime.targetCamera = clampCameraForWorld(app, runtime.worldSize, runtime.targetZoom, {
+          x: runtime.drag.cameraStart.x + dx,
+          y: runtime.drag.cameraStart.y + dy,
+        });
+      };
+
+      const handlePointerUp = (event: PointerEvent) => {
+        const runtime = runtimeRef.current;
+        if (!runtime || !runtime.drag || runtime.drag.pointerId !== event.pointerId) return;
+        runtime.drag = null;
+        app.canvas.releasePointerCapture?.(event.pointerId);
+      };
+
+      const handleWheel = (event: WheelEvent) => {
+        const runtime = runtimeRef.current;
+        if (!runtime || runtime.navigationMode !== "STRATEGY") return;
+        event.preventDefault();
+        const rect = app.canvas.getBoundingClientRect();
+        const screenX = ((event.clientX - rect.left) / Math.max(rect.width, 1)) * app.screen.width;
+        const screenY = ((event.clientY - rect.top) / Math.max(rect.height, 1)) * app.screen.height;
+        zoomStrategicCamera(runtime, event.deltaY < 0 ? 1.08 : 0.92, screenX, screenY);
       };
 
       app.canvas.addEventListener("pointerdown", handlePointerDown);
+      app.canvas.addEventListener("pointermove", handlePointerMove);
+      app.canvas.addEventListener("pointerup", handlePointerUp);
+      app.canvas.addEventListener("pointercancel", handlePointerUp);
+      app.canvas.addEventListener("wheel", handleWheel, { passive: false });
 
       const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
       reduceMotionRef.current = reduceMotion;
@@ -191,6 +290,8 @@ export function MicroVerseScene({
         navigationMode: navigationModeRef.current,
         onPlotFocus: (plotId) => plotFocusRef.current?.(plotId),
         onPlotSelect: (projectId) => plotSelectRef.current?.(projectId),
+        onLandmarkFocus: (location) => landmarkFocusRef.current?.(location),
+        onLandmarkSelect: (location) => landmarkSelectRef.current?.(location),
         previousRuntime: runtimeRef.current,
         reduceMotion,
         scene: stateRef.current,
@@ -201,6 +302,7 @@ export function MicroVerseScene({
           }
           runtimeRef.current?.destroy();
           runtimeRef.current = runtime;
+          if (cameraFocusRef.current) focusStrategicCamera(runtime, cameraFocusRef.current.target, true);
         },
       });
 
@@ -215,6 +317,8 @@ export function MicroVerseScene({
           navigationMode: navigationModeRef.current,
           onPlotFocus: (plotId) => plotFocusRef.current?.(plotId),
           onPlotSelect: (projectId) => plotSelectRef.current?.(projectId),
+          onLandmarkFocus: (location) => landmarkFocusRef.current?.(location),
+          onLandmarkSelect: (location) => landmarkSelectRef.current?.(location),
           previousRuntime: runtimeRef.current,
           reduceMotion,
           scene: stateRef.current,
@@ -225,6 +329,7 @@ export function MicroVerseScene({
             }
             runtimeRef.current?.destroy();
             runtimeRef.current = runtime;
+            if (cameraFocusRef.current) focusStrategicCamera(runtime, cameraFocusRef.current.target, true);
           },
         });
       });
@@ -234,6 +339,10 @@ export function MicroVerseScene({
       const cleanup = () => {
         resizeObserver.disconnect();
         app.canvas.removeEventListener("pointerdown", handlePointerDown);
+        app.canvas.removeEventListener("pointermove", handlePointerMove);
+        app.canvas.removeEventListener("pointerup", handlePointerUp);
+        app.canvas.removeEventListener("pointercancel", handlePointerUp);
+        app.canvas.removeEventListener("wheel", handleWheel);
       };
       hostElement.dataset.microverseCleanup = "ready";
       cleanupRef.current = cleanup;
@@ -266,6 +375,8 @@ async function renderScene({
   isCurrent,
   keys,
   navigationMode,
+  onLandmarkFocus,
+  onLandmarkSelect,
   onPlotFocus,
   onPlotSelect,
   previousRuntime,
@@ -278,6 +389,8 @@ async function renderScene({
   isCurrent: () => boolean;
   keys: Set<string>;
   navigationMode: MicroVerseNavigationMode;
+  onLandmarkFocus: (location: LocationKey | null) => void;
+  onLandmarkSelect: (location: LocationKey) => void;
   onPlotFocus: (plotId: string | null) => void;
   onPlotSelect: (projectId: string) => void;
   previousRuntime: WorldRuntime | null;
@@ -292,6 +405,8 @@ async function renderScene({
     scene,
     keys,
     navigationMode,
+    onLandmarkFocus,
+    onLandmarkSelect,
     onPlotFocus,
     onPlotSelect,
     previousRuntime,
@@ -312,18 +427,21 @@ async function buildWorld(
   scene: MicroVerseSceneState,
   keys: Set<string>,
   navigationMode: MicroVerseNavigationMode,
+  onLandmarkFocus: (location: LocationKey | null) => void,
+  onLandmarkSelect: (location: LocationKey) => void,
   onPlotFocus: (plotId: string | null) => void,
   onPlotSelect: (projectId: string) => void,
   previousRuntime: WorldRuntime | null,
   reduceMotion: boolean,
 ): Promise<WorldRuntime> {
   const worldSize = {
-    x: navigationMode === "STRATEGY" ? Math.max(app.screen.width, 1) : Math.max(1680, app.screen.width * 1.62),
-    y: navigationMode === "STRATEGY" ? Math.max(app.screen.height, 1) : Math.max(1120, app.screen.height * 1.58),
+    x: navigationMode === "STRATEGY" ? Math.max(1960, app.screen.width * 1.74) : Math.max(1960, app.screen.width * 1.82),
+    y: navigationMode === "STRATEGY" ? Math.max(1280, app.screen.height * 1.48) : Math.max(1320, app.screen.height * 1.68),
   };
   const root = new Container();
   const world = new Container();
-  const plotMarkers: Container[] = [];
+  const plotMarkers: PlotMarkerRuntime[] = [];
+  const landmarkSprites: LandmarkSpriteRuntime[] = [];
   const glints: Glint[] = [];
   const lanterns: Lantern[] = [];
   const particles: Particle[] = [];
@@ -345,14 +463,24 @@ async function buildWorld(
   world.addChild(water);
   world.addChild(buildPathLayer(worldSize));
   world.addChild(buildLandmarkDistrictLayer(worldSize, scene));
-  world.addChild(buildArchitectureLayer(worldSize, scene, lanterns, landmarkTextures));
+  world.addChild(
+    buildArchitectureLayer(
+      worldSize,
+      scene,
+      lanterns,
+      landmarkTextures,
+      landmarkSprites,
+      onLandmarkFocus,
+      onLandmarkSelect,
+    ),
+  );
   world.addChild(buildGardenLayer(worldSize));
   if (navigationMode === "STRATEGY") world.addChild(buildStrategicHotspotLayer(worldSize, scene));
 
   const plotLayer = new Container();
   plotLayer.label = "plots";
   scene.plots.forEach((plot) => {
-    const marker = buildPlotMarker(
+    const markerRuntime = buildPlotMarker(
       plot,
       plot.x * worldSize.x,
       plot.y * worldSize.y,
@@ -360,8 +488,8 @@ async function buildWorld(
       onPlotSelect,
       projectTileTextures,
     );
-    plotMarkers.push(marker);
-    plotLayer.addChild(marker);
+    plotMarkers.push(markerRuntime);
+    plotLayer.addChild(markerRuntime.container);
   });
   world.addChild(plotLayer);
 
@@ -384,6 +512,11 @@ async function buildWorld(
   const particleLayer = buildParticleLayer(app, scene, particles, rainLines);
   const atmosphere = buildScreenAtmosphere(app, scene);
   root.addChild(world, playerGlow, particleLayer, atmosphere);
+  const previousStrategyRuntime = previousRuntime?.navigationMode === "STRATEGY" ? previousRuntime : null;
+  const initialZoom = previousStrategyRuntime ? previousStrategyRuntime.zoom : 0.94;
+  const initialCamera = previousStrategyRuntime
+    ? clampCameraForWorld(app, worldSize, initialZoom, previousStrategyRuntime.camera)
+    : { x: 0, y: 0 };
 
   const runtime: WorldRuntime = {
     app,
@@ -391,11 +524,18 @@ async function buildWorld(
     world,
     player,
     playerGlow,
-    camera: previousRuntime?.camera ?? { x: 0, y: 0 },
+    camera: initialCamera,
+    targetCamera: previousStrategyRuntime
+      ? clampCameraForWorld(app, worldSize, initialZoom, previousStrategyRuntime.targetCamera)
+      : initialCamera,
+    zoom: navigationMode === "STRATEGY" ? initialZoom : 1,
+    targetZoom: navigationMode === "STRATEGY" ? previousStrategyRuntime?.targetZoom ?? initialZoom : 1,
+    drag: null,
     destination: null,
     keys,
     worldSize,
     plotMarkers,
+    landmarkSprites,
     lanterns,
     glints,
     particles,
@@ -407,6 +547,8 @@ async function buildWorld(
 
   if (navigationMode === "CHARACTER") {
     updateCamera(runtime, 1);
+  } else if (!previousStrategyRuntime) {
+    focusStrategicCamera(runtime, "home", true);
   } else {
     updateStrategicCamera(runtime);
   }
@@ -446,8 +588,19 @@ function animateScene(runtime: WorldRuntime, deltaSeconds: number, time: number)
   }
   updatePlayerGlow(runtime);
 
-  runtime.plotMarkers.forEach((child, index) => {
-    child.scale.set(1 + Math.sin(time * 1.6 + index * 0.9) * 0.026 * motionScale);
+  runtime.plotMarkers.forEach((marker) => {
+    const pulse = Math.sin(time * 1.6 + marker.phase) * 0.026 * motionScale;
+    const targetScale = marker.hovered ? marker.hoverScale : marker.baseScale + pulse;
+    const nextScale = marker.container.scale.x + (targetScale - marker.container.scale.x) * 0.24;
+    marker.container.scale.set(nextScale);
+  });
+
+  runtime.landmarkSprites.forEach((landmark) => {
+    const pulse = Math.sin(time * 1.45 + landmark.phase) * 0.018 * motionScale;
+    const targetScale = landmark.hovered ? landmark.baseScale * 1.14 : landmark.baseScale * (1 + pulse);
+    const nextScale = landmark.sprite.scale.x + (targetScale - landmark.sprite.scale.x) * 0.2;
+    landmark.sprite.scale.set(nextScale);
+    landmark.sprite.alpha = landmark.hovered ? 1 : 0.95 + Math.sin(time * 1.1 + landmark.phase) * 0.025 * motionScale;
   });
 
   runtime.lanterns.forEach((lantern) => {
@@ -521,6 +674,9 @@ function movePlayer(runtime: WorldRuntime, deltaSeconds: number) {
 }
 
 function updateCamera(runtime: WorldRuntime, ease: number) {
+  runtime.zoom = 1;
+  runtime.targetZoom = 1;
+  runtime.world.scale.set(1);
   const target = {
     x: cameraAxisTarget(runtime.app.screen.width, runtime.worldSize.x, runtime.player.x),
     y: cameraAxisTarget(runtime.app.screen.height, runtime.worldSize.y, runtime.player.y),
@@ -532,10 +688,69 @@ function updateCamera(runtime: WorldRuntime, ease: number) {
 }
 
 function updateStrategicCamera(runtime: WorldRuntime) {
-  runtime.camera.x = 0;
-  runtime.camera.y = 0;
-  runtime.world.x = 0;
-  runtime.world.y = 0;
+  const ease = runtime.reduceMotion ? 0.28 : 0.115;
+  const zoomEase = runtime.reduceMotion ? 0.3 : 0.14;
+  runtime.targetZoom = clamp(runtime.targetZoom, MIN_STRATEGY_ZOOM, MAX_STRATEGY_ZOOM);
+  runtime.zoom += (runtime.targetZoom - runtime.zoom) * zoomEase;
+  runtime.targetCamera = clampCameraForWorld(runtime.app, runtime.worldSize, runtime.zoom, runtime.targetCamera);
+  runtime.camera.x += (runtime.targetCamera.x - runtime.camera.x) * ease;
+  runtime.camera.y += (runtime.targetCamera.y - runtime.camera.y) * ease;
+  const clampedCamera = clampCameraForWorld(runtime.app, runtime.worldSize, runtime.zoom, runtime.camera);
+  runtime.camera.x = clampedCamera.x;
+  runtime.camera.y = clampedCamera.y;
+  runtime.world.scale.set(runtime.zoom);
+  runtime.world.x = runtime.camera.x;
+  runtime.world.y = runtime.camera.y;
+}
+
+function focusStrategicCamera(runtime: WorldRuntime, target: MicroVerseCameraFocus, immediate = false) {
+  if (runtime.navigationMode !== "STRATEGY") return;
+  const landmark =
+    target === "home"
+      ? MICROVERSE_LANDMARKS.find((candidate) => candidate.id === "homestead")
+      : MICROVERSE_LANDMARKS.find((candidate) => candidate.destination === target);
+  if (!landmark) return;
+
+  const zoom = target === "home" || target === "homestead" ? 1.02 : 0.96;
+  const focusPoint = {
+    x: runtime.worldSize.x * landmark.x,
+    y: runtime.worldSize.y * landmark.y + 54 * landmark.scale,
+  };
+  runtime.targetZoom = clamp(zoom, MIN_STRATEGY_ZOOM, MAX_STRATEGY_ZOOM);
+  runtime.targetCamera = clampCameraForWorld(runtime.app, runtime.worldSize, runtime.targetZoom, {
+    x: runtime.app.screen.width * 0.5 - focusPoint.x * runtime.targetZoom,
+    y: runtime.app.screen.height * 0.52 - focusPoint.y * runtime.targetZoom,
+  });
+
+  if (!immediate) return;
+  runtime.zoom = runtime.targetZoom;
+  runtime.camera = { ...runtime.targetCamera };
+  runtime.world.scale.set(runtime.zoom);
+  runtime.world.x = runtime.camera.x;
+  runtime.world.y = runtime.camera.y;
+}
+
+function zoomStrategicCamera(runtime: WorldRuntime, multiplier: number, screenX: number, screenY: number) {
+  const currentZoom = runtime.targetZoom;
+  const nextZoom = clamp(currentZoom * multiplier, MIN_STRATEGY_ZOOM, MAX_STRATEGY_ZOOM);
+  if (Math.abs(nextZoom - currentZoom) < 0.001) return;
+  const worldX = (screenX - runtime.targetCamera.x) / currentZoom;
+  const worldY = (screenY - runtime.targetCamera.y) / currentZoom;
+  runtime.targetZoom = nextZoom;
+  runtime.targetCamera = clampCameraForWorld(runtime.app, runtime.worldSize, nextZoom, {
+    x: screenX - worldX * nextZoom,
+    y: screenY - worldY * nextZoom,
+  });
+}
+
+function clampCameraForWorld(app: Application, worldSize: Point, zoom: number, camera: Point): Point {
+  const scaledWidth = worldSize.x * zoom;
+  const scaledHeight = worldSize.y * zoom;
+  const minX = Math.min(0, app.screen.width - scaledWidth);
+  const minY = Math.min(0, app.screen.height - scaledHeight);
+  const x = scaledWidth <= app.screen.width ? (app.screen.width - scaledWidth) / 2 : clamp(camera.x, minX, 0);
+  const y = scaledHeight <= app.screen.height ? (app.screen.height - scaledHeight) / 2 : clamp(camera.y, minY, 0);
+  return { x, y };
 }
 
 function updatePlayerGlow(runtime: WorldRuntime) {
@@ -712,6 +927,9 @@ function buildArchitectureLayer(
   scene: MicroVerseSceneState,
   lanterns: Lantern[],
   landmarkTextures: Map<string, Texture>,
+  landmarkSprites: LandmarkSpriteRuntime[],
+  onLandmarkFocus: (location: LocationKey | null) => void,
+  onLandmarkSelect: (location: LocationKey) => void,
 ) {
   const layer = new Container();
   const buildings = new Graphics();
@@ -720,7 +938,9 @@ function buildArchitectureLayer(
   MICROVERSE_LANDMARKS.forEach((landmark) => {
     const texture = landmarkTextures.get(landmark.id);
     if (texture) {
-      sprites.addChild(buildLandmarkSprite(landmark, texture, worldSize));
+      const spriteRuntime = buildLandmarkSprite(landmark, texture, worldSize, onLandmarkFocus, onLandmarkSelect);
+      landmarkSprites.push(spriteRuntime);
+      sprites.addChild(spriteRuntime.sprite);
     } else {
       drawLandmark(buildings, landmark, worldSize, scene);
     }
@@ -799,10 +1019,22 @@ function buildStrategicHotspotLayer(worldSize: Point, scene: MicroVerseSceneStat
   return layer;
 }
 
-function buildLandmarkSprite(landmark: MicroVerseLandmark, texture: Texture, worldSize: Point) {
+function buildLandmarkSprite(
+  landmark: MicroVerseLandmark,
+  texture: Texture,
+  worldSize: Point,
+  onLandmarkFocus: (location: LocationKey | null) => void,
+  onLandmarkSelect: (location: LocationKey) => void,
+): LandmarkSpriteRuntime {
   const sprite = new Sprite(texture);
   const targetWidth = landmarkSpriteWidth(landmark);
   const scale = targetWidth / Math.max(texture.width, 1);
+  const runtime: LandmarkSpriteRuntime = {
+    sprite,
+    baseScale: scale,
+    hovered: false,
+    phase: landmark.x * 8 + landmark.y * 13,
+  };
 
   sprite.anchor.set(0.5, 0.86);
   sprite.x = worldSize.x * landmark.x;
@@ -810,20 +1042,40 @@ function buildLandmarkSprite(landmark: MicroVerseLandmark, texture: Texture, wor
   sprite.scale.set(scale);
   sprite.alpha = 0.96;
   sprite.label = landmark.id;
+  sprite.eventMode = "static";
+  sprite.cursor = landmark.destination ? "pointer" : "default";
+  sprite.on("pointerover", () => {
+    runtime.hovered = true;
+    if (landmark.destination) onLandmarkFocus(landmark.destination);
+  });
+  sprite.on("pointerout", () => {
+    runtime.hovered = false;
+    onLandmarkFocus(null);
+  });
+  sprite.on("pointerupoutside", () => {
+    runtime.hovered = false;
+    onLandmarkFocus(null);
+  });
+  if (landmark.destination) {
+    sprite.on("pointertap", (event) => {
+      event.stopPropagation();
+      onLandmarkSelect(landmark.destination!);
+    });
+  }
 
-  return sprite;
+  return runtime;
 }
 
 function landmarkSpriteWidth(landmark: MicroVerseLandmark) {
-  if (landmark.kind === "HOMESTEAD") return 315 * landmark.scale;
-  if (landmark.kind === "GOVERNANCE_HALL") return 295 * landmark.scale;
-  if (landmark.kind === "SEEDBOT_TERMINAL") return 300 * landmark.scale;
-  if (landmark.kind === "EXPLORER_MAP") return 260 * landmark.scale;
-  if (landmark.kind === "HARVEST_LEDGER") return 255 * landmark.scale;
-  if (landmark.kind === "STEWARD_GLADE") return 270 * landmark.scale;
-  if (landmark.kind === "LOREHOUSE") return 250 * landmark.scale;
-  if (landmark.kind === "TREASURY_GROVE") return 255 * landmark.scale;
-  return 220 * landmark.scale;
+  if (landmark.kind === "HOMESTEAD") return 398 * landmark.scale;
+  if (landmark.kind === "GOVERNANCE_HALL") return 374 * landmark.scale;
+  if (landmark.kind === "SEEDBOT_TERMINAL") return 372 * landmark.scale;
+  if (landmark.kind === "EXPLORER_MAP") return 336 * landmark.scale;
+  if (landmark.kind === "HARVEST_LEDGER") return 326 * landmark.scale;
+  if (landmark.kind === "STEWARD_GLADE") return 342 * landmark.scale;
+  if (landmark.kind === "LOREHOUSE") return 320 * landmark.scale;
+  if (landmark.kind === "TREASURY_GROVE") return 326 * landmark.scale;
+  return 286 * landmark.scale;
 }
 
 function buildForegroundLayer(worldSize: Point) {
@@ -926,6 +1178,13 @@ function buildPlotMarker(
   const marker = new Container();
   marker.x = x;
   marker.y = y;
+  const markerRuntime: PlotMarkerRuntime = {
+    container: marker,
+    baseScale: 1,
+    hoverScale: plot.lifecycle === "EMPTY" ? 1.14 : 1.2,
+    hovered: false,
+    phase: plot.slotIndex * 0.9,
+  };
 
   const active = plot.lifecycle !== "EMPTY";
   const colors = colorsForPlot(plot);
@@ -935,9 +1194,18 @@ function buildPlotMarker(
 
   marker.eventMode = "static";
   marker.cursor = plot.projectId ? "pointer" : "default";
-  marker.on("pointerover", () => onPlotFocus(plot.id));
-  marker.on("pointerout", () => onPlotFocus(null));
-  marker.on("pointerupoutside", () => onPlotFocus(null));
+  marker.on("pointerover", () => {
+    markerRuntime.hovered = true;
+    onPlotFocus(plot.id);
+  });
+  marker.on("pointerout", () => {
+    markerRuntime.hovered = false;
+    onPlotFocus(null);
+  });
+  marker.on("pointerupoutside", () => {
+    markerRuntime.hovered = false;
+    onPlotFocus(null);
+  });
 
   if (plot.projectId) {
     marker.on("pointertap", (event) => {
@@ -991,7 +1259,7 @@ function buildPlotMarker(
   } else {
     marker.addChild(base, overlay, label);
   }
-  return marker;
+  return markerRuntime;
 }
 
 function buildProjectTileSprite(plot: MicroVersePlot, texture: Texture) {

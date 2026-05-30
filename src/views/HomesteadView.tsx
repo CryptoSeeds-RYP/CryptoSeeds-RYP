@@ -1,15 +1,15 @@
-import { lazy, Suspense, useMemo, useState, type CSSProperties } from "react";
+import { lazy, Suspense, useMemo, useState } from "react";
 import {
   Bot,
   Coins,
   Footprints,
+  Home,
   KeyRound,
   Leaf,
   LockKeyhole,
   Map,
   MousePointer2,
   ScrollText,
-  Sprout,
   Vote,
   Wheat,
 } from "lucide-react";
@@ -18,7 +18,11 @@ import type { FarmVisualState, LocationKey, Project, ProjectParticipation, Staki
 import { formatLabel, formatRyp } from "../utils/format";
 import { Metric } from "../components/Metric";
 import { buildMicroVerseSceneState, summarizeMicroVersePlots } from "../visual/microverseSceneState";
-import type { MicroVerseNavigationMode } from "../visual/microverseSceneState";
+import type {
+  MicroVerseCameraFocus,
+  MicroVerseCameraFocusRequest,
+  MicroVerseNavigationMode,
+} from "../visual/microverseSceneState";
 import { MICROVERSE_LANDMARKS, type MicroVerseLandmark } from "../visual/microverseAssets";
 
 const MicroVerseScene = lazy(() =>
@@ -58,6 +62,7 @@ export function HomesteadView({
 }) {
   const [navigationMode, setNavigationMode] = useState<MicroVerseNavigationMode>("STRATEGY");
   const [focusedTarget, setFocusedTarget] = useState<WorldFocusTarget | null>(null);
+  const [cameraFocus, setCameraFocus] = useState<MicroVerseCameraFocusRequest>({ target: "home", nonce: 0 });
   const mapMarkers = useMemo(
     () =>
       MICROVERSE_LANDMARKS.filter(
@@ -92,11 +97,22 @@ export function HomesteadView({
     walletConnected,
   });
 
-  function clearFocus(target: WorldFocusTarget) {
-    setFocusedTarget((current) => {
-      if (!current || current.kind !== target.kind || current.id !== target.id) return current;
-      return null;
-    });
+  function focusCamera(target: MicroVerseCameraFocus) {
+    setCameraFocus((current) => ({ target, nonce: current.nonce + 1 }));
+  }
+
+  function focusLandmark(landmark: MicroVerseLandmark & { destination: LocationKey }) {
+    setFocusedTarget({ kind: "landmark", id: landmark.id });
+    focusCamera(landmark.destination);
+  }
+
+  function focusDestination(destination: LocationKey | null) {
+    if (!destination) {
+      setFocusedTarget(null);
+      return;
+    }
+    const landmark = mapMarkers.find((candidate) => candidate.destination === destination);
+    if (landmark) setFocusedTarget({ kind: "landmark", id: landmark.id });
   }
 
   return (
@@ -104,10 +120,16 @@ export function HomesteadView({
       <div className={`microverse-map ${navigationMode.toLowerCase()}-navigation`}>
         <Suspense fallback={<div className="microverse-scene-fallback" aria-hidden="true" />}>
           <MicroVerseScene
+            cameraFocus={cameraFocus}
             navigationMode={navigationMode}
             scene={scene}
             onPlotFocus={(plotId) => setFocusedTarget(plotId ? { kind: "plot", id: plotId } : null)}
             onPlotSelect={onProjectOpen}
+            onLandmarkFocus={focusDestination}
+            onLandmarkSelect={(destination) => {
+              const landmark = mapMarkers.find((candidate) => candidate.destination === destination);
+              if (landmark) focusLandmark(landmark);
+            }}
           />
         </Suspense>
         <div className="map-overlay" />
@@ -133,6 +155,24 @@ export function HomesteadView({
             Walk
           </button>
         </div>
+        <div className="map-district-dock" aria-label="MicroVerse district focus">
+          {mapMarkers.map((landmark) => {
+            const locked = landmark.destination === "seedbot" && !seedBotUnlocked;
+            const Icon = iconForLandmark(landmark, locked);
+            const active = focusedTarget?.kind === "landmark" && focusedTarget.id === landmark.id;
+            return (
+              <button
+                className={active ? "active" : ""}
+                key={`district-${landmark.id}`}
+                onClick={() => focusLandmark(landmark)}
+                title={landmark.label}
+              >
+                <Icon size={16} />
+                <span>{labelForDestination(landmark.destination)}</span>
+              </button>
+            );
+          })}
+        </div>
         <div className="visual-legend" aria-label="MicroVerse plot states">
           <span><i className="legend-dot open" />Open field</span>
           <span><i className="legend-dot active" />Active</span>
@@ -140,26 +180,6 @@ export function HomesteadView({
           <span><i className="legend-dot research" />R&D</span>
           <span><i className="legend-dot donation" />Donation</span>
         </div>
-        {mapMarkers.map((landmark) => {
-          const locked = landmark.destination === "seedbot" && !seedBotUnlocked;
-          const Icon = iconForLandmark(landmark, locked);
-          return (
-            <button
-              className={`map-marker ${landmark.destination}-marker ${locked ? "locked" : ""}`}
-              key={landmark.id}
-              onClick={() => onLocation(landmark.destination)}
-              onBlur={() => clearFocus({ kind: "landmark", id: landmark.id })}
-              onFocus={() => setFocusedTarget({ kind: "landmark", id: landmark.id })}
-              onMouseEnter={() => setFocusedTarget({ kind: "landmark", id: landmark.id })}
-              onMouseLeave={() => clearFocus({ kind: "landmark", id: landmark.id })}
-              style={landmarkMarkerStyle(landmark)}
-              title={landmark.label}
-            >
-              <Icon size={18} />
-              <span>{labelForDestination(landmark.destination)}</span>
-            </button>
-          );
-        })}
         <WorldFocusPanel
           details={focusDetails}
           onAction={() => {
@@ -325,18 +345,9 @@ function landmarkDetail(landmark: MicroVerseLandmark) {
   return "MicroVerse district";
 }
 
-function landmarkMarkerStyle(landmark: MicroVerseLandmark): CSSProperties {
-  const markerX = landmark.x > 0.8 ? 0.78 : landmark.x;
-  const markerY = Math.min(0.86, landmark.y + 0.07 * landmark.scale);
-  return {
-    "--marker-x": `${markerX * 100}%`,
-    "--marker-y": `${markerY * 100}%`,
-  } as CSSProperties;
-}
-
 function iconForLandmark(landmark: MicroVerseLandmark, locked: boolean) {
   if (locked) return LockKeyhole;
-  if (landmark.destination === "homestead") return Sprout;
+  if (landmark.destination === "homestead") return Home;
   if (landmark.destination === "explorer") return Map;
   if (landmark.destination === "harvest") return Wheat;
   if (landmark.destination === "governance") return Vote;
