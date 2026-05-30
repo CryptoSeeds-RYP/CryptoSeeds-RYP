@@ -23,6 +23,8 @@ The MVP visual layer now uses a live PixiJS world instead of a static map skin:
 - large world canvas with camera follow
 - WASD and arrow-key movement
 - click-to-move navigation
+- default strategy-map selection mode with glowing regions
+- optional character navigation mode for personal farm exploration
 - player avatar and glow state
 - river/canal water layer with bridges and glints
 - paths, islands, groves, dome clusters, lanterns, and windmill details
@@ -66,6 +68,7 @@ The visual layer must be driven by domain state:
 - SeedBot unlock state
 - seasonal/weather state
 - movement/camera state
+- navigation mode
 
 No major visual upgrade should be purely decorative. It should correspond to user, project, protocol, reward, or ecosystem state.
 

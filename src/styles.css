@@ -282,7 +282,14 @@ button:disabled {
 .microverse-scene {
   position: absolute;
   inset: 0;
+}
+
+.microverse-scene.character-mode {
   cursor: crosshair;
+}
+
+.microverse-scene.strategy-mode {
+  cursor: default;
 }
 
 .microverse-scene-fallback {
@@ -332,6 +339,43 @@ button:disabled {
   font-size: clamp(1.55rem, 2.45vw, 2.75rem);
   line-height: 1;
   text-shadow: 0 4px 0 rgba(32, 45, 35, 0.48);
+}
+
+.map-mode-toggle {
+  position: absolute;
+  left: 28px;
+  top: 116px;
+  display: inline-grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  width: min(280px, calc(100% - 56px));
+  padding: 5px;
+  border: 1px solid rgba(255, 248, 223, 0.24);
+  border-radius: 8px;
+  background: rgba(8, 21, 23, 0.58);
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.24);
+  backdrop-filter: blur(18px);
+}
+
+.map-mode-toggle button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 34px;
+  border-radius: 7px;
+  color: #d9e7d6;
+  background: transparent;
+  font-size: 0.78rem;
+  font-weight: 850;
+}
+
+.map-mode-toggle button.active {
+  color: #fff8df;
+  background: rgba(183, 130, 54, 0.34);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 248, 223, 0.2),
+    0 0 24px rgba(255, 214, 107, 0.16);
 }
 
 .visual-legend {
@@ -396,6 +440,7 @@ button:disabled {
 
 .map-marker {
   position: absolute;
+  isolation: isolate;
   gap: 8px;
   min-width: 126px;
   min-height: 42px;
@@ -405,6 +450,17 @@ button:disabled {
   background: rgba(20, 38, 35, 0.52);
   box-shadow: 0 12px 24px rgba(0, 0, 0, 0.18);
   backdrop-filter: blur(14px);
+}
+
+.strategy-navigation .map-marker::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: -13px -18px;
+  border: 1px solid rgba(255, 214, 107, 0.34);
+  border-radius: 999px;
+  background: radial-gradient(ellipse, rgba(255, 214, 107, 0.18), rgba(128, 220, 202, 0.06) 52%, transparent 72%);
+  box-shadow: 0 0 30px rgba(255, 214, 107, 0.16);
 }
 
 .map-marker:hover {
@@ -1673,6 +1729,11 @@ button:disabled {
     max-width: 300px;
   }
 
+  .map-mode-toggle {
+    left: 18px;
+    top: 108px;
+  }
+
   .visual-legend {
     left: 18px;
     right: 18px;
@@ -1713,6 +1774,11 @@ button:disabled {
   .map-title {
     left: 18px;
     top: 18px;
+  }
+
+  .map-mode-toggle {
+    top: 92px;
+    width: min(244px, calc(100% - 36px));
   }
 
   .project-filter-bar label,

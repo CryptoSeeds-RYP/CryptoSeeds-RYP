@@ -6,7 +6,7 @@ import {
   MICROVERSE_PALETTE,
   type MicroVerseLandmark,
 } from "./microverseAssets";
-import type { MicroVersePlot, MicroVerseSceneState } from "./microverseSceneState";
+import type { MicroVerseNavigationMode, MicroVersePlot, MicroVerseSceneState } from "./microverseSceneState";
 
 type Point = { x: number; y: number };
 
@@ -54,6 +54,7 @@ type WorldRuntime = {
   glints: Glint[];
   particles: Particle[];
   rainLines: RainLine[];
+  navigationMode: MicroVerseNavigationMode;
   reduceMotion: boolean;
   destroy: () => void;
 };
@@ -61,9 +62,11 @@ type WorldRuntime = {
 const CONTROL_KEYS = new Set(["w", "a", "s", "d", "arrowup", "arrowleft", "arrowdown", "arrowright"]);
 
 export function MicroVerseScene({
+  navigationMode = "STRATEGY",
   scene,
   onPlotSelect,
 }: {
+  navigationMode?: MicroVerseNavigationMode;
   scene: MicroVerseSceneState;
   onPlotSelect?: (projectId: string) => void;
 }) {
@@ -73,11 +76,14 @@ export function MicroVerseScene({
   const stateRef = useRef(scene);
   const plotSelectRef = useRef(onPlotSelect);
   const keysRef = useRef<Set<string>>(new Set());
+  const navigationModeRef = useRef<MicroVerseNavigationMode>(navigationMode);
   const renderGenerationRef = useRef(0);
   const reduceMotionRef = useRef(false);
 
   useEffect(() => {
     stateRef.current = scene;
+    navigationModeRef.current = navigationMode;
+    if (navigationMode !== "CHARACTER") keysRef.current.clear();
     renderGenerationRef.current += 1;
     const generation = renderGenerationRef.current;
     void renderScene({
@@ -85,6 +91,7 @@ export function MicroVerseScene({
       generation,
       isCurrent: () => generation === renderGenerationRef.current,
       keys: keysRef.current,
+      navigationMode,
       onPlotSelect: (projectId) => plotSelectRef.current?.(projectId),
       previousRuntime: runtimeRef.current,
       reduceMotion: reduceMotionRef.current,
@@ -98,7 +105,7 @@ export function MicroVerseScene({
         runtimeRef.current = runtime;
       },
     });
-  }, [scene]);
+  }, [navigationMode, scene]);
 
   useEffect(() => {
     plotSelectRef.current = onPlotSelect;
@@ -111,6 +118,7 @@ export function MicroVerseScene({
     const hostElement: HTMLDivElement = host;
 
     const handleKeyDown = (event: KeyboardEvent) => {
+      if (navigationModeRef.current !== "CHARACTER") return;
       if (isTypingTarget(event.target)) return;
       const key = event.key.toLowerCase();
       if (!CONTROL_KEYS.has(key)) return;
@@ -120,6 +128,7 @@ export function MicroVerseScene({
     };
 
     const handleKeyUp = (event: KeyboardEvent) => {
+      if (navigationModeRef.current !== "CHARACTER") return;
       const key = event.key.toLowerCase();
       if (CONTROL_KEYS.has(key)) keysRef.current.delete(key);
     };
@@ -144,7 +153,7 @@ export function MicroVerseScene({
 
       const handlePointerDown = (event: PointerEvent) => {
         const runtime = runtimeRef.current;
-        if (!runtime) return;
+        if (!runtime || runtime.navigationMode !== "CHARACTER") return;
         const rect = app.canvas.getBoundingClientRect();
         const screenX = ((event.clientX - rect.left) / rect.width) * app.screen.width;
         const screenY = ((event.clientY - rect.top) / rect.height) * app.screen.height;
@@ -171,6 +180,7 @@ export function MicroVerseScene({
         generation,
         isCurrent: () => generation === renderGenerationRef.current && !disposed,
         keys: keysRef.current,
+        navigationMode: navigationModeRef.current,
         onPlotSelect: (projectId) => plotSelectRef.current?.(projectId),
         previousRuntime: runtimeRef.current,
         reduceMotion,
@@ -193,6 +203,7 @@ export function MicroVerseScene({
           generation: resizeGeneration,
           isCurrent: () => resizeGeneration === renderGenerationRef.current && !disposed,
           keys: keysRef.current,
+          navigationMode: navigationModeRef.current,
           onPlotSelect: (projectId) => plotSelectRef.current?.(projectId),
           previousRuntime: runtimeRef.current,
           reduceMotion,
@@ -236,7 +247,7 @@ export function MicroVerseScene({
     };
   }, []);
 
-  return <div className="microverse-scene" ref={hostRef} />;
+  return <div className={`microverse-scene ${navigationMode.toLowerCase()}-mode`} ref={hostRef} />;
 }
 
 async function renderScene({
@@ -244,6 +255,7 @@ async function renderScene({
   generation,
   isCurrent,
   keys,
+  navigationMode,
   onPlotSelect,
   previousRuntime,
   reduceMotion,
@@ -254,6 +266,7 @@ async function renderScene({
   generation: number;
   isCurrent: () => boolean;
   keys: Set<string>;
+  navigationMode: MicroVerseNavigationMode;
   onPlotSelect: (projectId: string) => void;
   previousRuntime: WorldRuntime | null;
   reduceMotion?: boolean;
@@ -262,7 +275,7 @@ async function renderScene({
 }) {
   if (!app) return;
 
-  const runtime = await buildWorld(app, scene, keys, onPlotSelect, previousRuntime, reduceMotion ?? false);
+  const runtime = await buildWorld(app, scene, keys, navigationMode, onPlotSelect, previousRuntime, reduceMotion ?? false);
   if (generation < 0 || !isCurrent()) {
     runtime.destroy();
     return;
@@ -277,13 +290,14 @@ async function buildWorld(
   app: Application,
   scene: MicroVerseSceneState,
   keys: Set<string>,
+  navigationMode: MicroVerseNavigationMode,
   onPlotSelect: (projectId: string) => void,
   previousRuntime: WorldRuntime | null,
   reduceMotion: boolean,
 ): Promise<WorldRuntime> {
   const worldSize = {
-    x: Math.max(1680, app.screen.width * 1.62),
-    y: Math.max(1120, app.screen.height * 1.58),
+    x: navigationMode === "STRATEGY" ? Math.max(app.screen.width, 1) : Math.max(1680, app.screen.width * 1.62),
+    y: navigationMode === "STRATEGY" ? Math.max(app.screen.height, 1) : Math.max(1120, app.screen.height * 1.58),
   };
   const root = new Container();
   const world = new Container();
@@ -308,6 +322,7 @@ async function buildWorld(
   world.addChild(buildPathLayer(worldSize));
   world.addChild(buildArchitectureLayer(worldSize, scene, lanterns));
   world.addChild(buildGardenLayer(worldSize));
+  if (navigationMode === "STRATEGY") world.addChild(buildStrategicHotspotLayer(worldSize, scene));
 
   const plotLayer = new Container();
   plotLayer.label = "plots";
@@ -327,6 +342,7 @@ async function buildWorld(
     : { x: worldSize.x * 0.49, y: worldSize.y * 0.58 };
   player.x = startingPoint.x;
   player.y = startingPoint.y;
+  player.visible = navigationMode === "CHARACTER";
   world.addChild(player);
 
   const foreground = buildForegroundLayer(worldSize);
@@ -352,18 +368,27 @@ async function buildWorld(
     glints,
     particles,
     rainLines,
+    navigationMode,
     reduceMotion,
     destroy: () => root.destroy({ children: true }),
   };
 
-  updateCamera(runtime, 1);
+  if (navigationMode === "CHARACTER") {
+    updateCamera(runtime, 1);
+  } else {
+    updateStrategicCamera(runtime);
+  }
   return runtime;
 }
 
 function animateScene(runtime: WorldRuntime, deltaSeconds: number, time: number) {
   const motionScale = runtime.reduceMotion ? 0.28 : 1;
-  movePlayer(runtime, deltaSeconds * motionScale);
-  updateCamera(runtime, runtime.reduceMotion ? 0.22 : 0.095);
+  if (runtime.navigationMode === "CHARACTER") {
+    movePlayer(runtime, deltaSeconds * motionScale);
+    updateCamera(runtime, runtime.reduceMotion ? 0.22 : 0.095);
+  } else {
+    updateStrategicCamera(runtime);
+  }
   updatePlayerGlow(runtime);
 
   runtime.plotMarkers.forEach((child, index) => {
@@ -451,7 +476,19 @@ function updateCamera(runtime: WorldRuntime, ease: number) {
   runtime.world.y = runtime.camera.y;
 }
 
+function updateStrategicCamera(runtime: WorldRuntime) {
+  runtime.camera.x = 0;
+  runtime.camera.y = 0;
+  runtime.world.x = 0;
+  runtime.world.y = 0;
+}
+
 function updatePlayerGlow(runtime: WorldRuntime) {
+  if (runtime.navigationMode !== "CHARACTER") {
+    runtime.playerGlow.clear();
+    return;
+  }
+
   const playerScreenX = runtime.player.x + runtime.world.x;
   const playerScreenY = runtime.player.y + runtime.world.y;
   runtime.playerGlow.clear();
@@ -608,6 +645,37 @@ function buildGardenLayer(worldSize: Point) {
       const y = worldSize.y * grove.y + Math.sin(angle) * distance * 0.72;
       drawCanopyTree(layer, x, y, 0.72 + (index % 4) * 0.08, index % 3 === 0 ? 0x7fc65d : 0x2f8d5f);
     }
+  });
+
+  return layer;
+}
+
+function buildStrategicHotspotLayer(worldSize: Point, scene: MicroVerseSceneState) {
+  const layer = new Graphics();
+
+  MICROVERSE_LANDMARKS.forEach((landmark) => {
+    const x = worldSize.x * landmark.x;
+    const y = worldSize.y * landmark.y + 22 * landmark.scale;
+    layer.ellipse(x, y, 88 * landmark.scale, 34 * landmark.scale).fill({ color: landmark.accent, alpha: 0.08 });
+    layer.ellipse(x, y, 88 * landmark.scale, 34 * landmark.scale).stroke({
+      color: landmark.accent,
+      alpha: 0.34,
+      width: 3 * landmark.scale,
+    });
+    layer.ellipse(x, y, 54 * landmark.scale, 19 * landmark.scale).stroke({
+      color: MICROVERSE_PALETTE.ivory,
+      alpha: 0.2,
+      width: 1.4 * landmark.scale,
+    });
+  });
+
+  scene.plots.forEach((plot) => {
+    const x = worldSize.x * plot.x;
+    const y = worldSize.y * plot.y + 14;
+    const colors = colorsForPlot(plot);
+    const alpha = plot.lifecycle === "EMPTY" ? 0.2 : 0.42;
+    layer.ellipse(x, y, 58, 22).fill({ color: colors.ring, alpha: alpha * 0.28 });
+    layer.ellipse(x, y, 58, 22).stroke({ color: colors.ring, alpha, width: 3 });
   });
 
   return layer;

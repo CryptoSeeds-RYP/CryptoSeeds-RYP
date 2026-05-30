@@ -56,6 +56,17 @@ The core camera should remain 2.5D/isometric-adjacent:
 
 The current implementation uses PixiJS for the live world and React for controls. This split should remain.
 
+## Navigation Modes
+
+CryptoSeeds should support two visual navigation modes:
+
+| Mode | Purpose |
+| --- | --- |
+| Strategy | Default MicroVerse map mode. Users select glowing regions, project fields, and landmarks like a strategy map. |
+| Walk | Optional personal-farm mode. Users can move an avatar with keyboard or click-to-move for a more intimate farm view. |
+
+Strategy mode should be the default for broad ecosystem browsing. Character navigation should be reserved for the personal farm feeling, not required for normal staking, governance, SeedBot, or project review flows.
+
 ## Landmark Language
 
 | Landmark | Visual Language |

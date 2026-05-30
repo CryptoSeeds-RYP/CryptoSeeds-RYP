@@ -1,10 +1,24 @@
-import { lazy, Suspense, useMemo } from "react";
-import { Bot, Coins, KeyRound, Leaf, LockKeyhole, Map, ScrollText, Sprout, Vote, Wheat } from "lucide-react";
+import { lazy, Suspense, useMemo, useState } from "react";
+import {
+  Bot,
+  Coins,
+  Footprints,
+  KeyRound,
+  Leaf,
+  LockKeyhole,
+  Map,
+  MousePointer2,
+  ScrollText,
+  Sprout,
+  Vote,
+  Wheat,
+} from "lucide-react";
 import { buildProjectSlots } from "../domain/participation";
 import type { FarmVisualState, LocationKey, Project, ProjectParticipation, StakingTier } from "../types";
 import { formatLabel, formatRyp } from "../utils/format";
 import { Metric } from "../components/Metric";
 import { buildMicroVerseSceneState, summarizeMicroVersePlots } from "../visual/microverseSceneState";
+import type { MicroVerseNavigationMode } from "../visual/microverseSceneState";
 
 const MicroVerseScene = lazy(() =>
   import("../visual/MicroVerseScene").then((module) => ({ default: module.MicroVerseScene })),
@@ -37,6 +51,7 @@ export function HomesteadView({
   onLocation: (location: LocationKey) => void;
   onProjectOpen: (projectId: string) => void;
 }) {
+  const [navigationMode, setNavigationMode] = useState<MicroVerseNavigationMode>("STRATEGY");
   const projectSlots = buildProjectSlots({ slotCount: projectSlotsUnlocked, participations, projects });
   const scene = useMemo(
     () =>
@@ -55,14 +70,32 @@ export function HomesteadView({
 
   return (
     <div className="homestead-view">
-      <div className="microverse-map">
+      <div className={`microverse-map ${navigationMode.toLowerCase()}-navigation`}>
         <Suspense fallback={<div className="microverse-scene-fallback" aria-hidden="true" />}>
-          <MicroVerseScene scene={scene} onPlotSelect={onProjectOpen} />
+          <MicroVerseScene navigationMode={navigationMode} scene={scene} onPlotSelect={onProjectOpen} />
         </Suspense>
         <div className="map-overlay" />
         <div className="map-title">
           <span>{activeTier === "NONE" ? "Wild Fields" : `${activeTier} Homestead`}</span>
           <strong>{walletConnected ? "Protocol state active" : "Wallet not connected"}</strong>
+        </div>
+        <div className="map-mode-toggle" aria-label="MicroVerse navigation mode">
+          <button
+            className={navigationMode === "STRATEGY" ? "active" : ""}
+            onClick={() => setNavigationMode("STRATEGY")}
+            title="Use glowing strategy regions"
+          >
+            <MousePointer2 size={16} />
+            Strategy
+          </button>
+          <button
+            className={navigationMode === "CHARACTER" ? "active" : ""}
+            onClick={() => setNavigationMode("CHARACTER")}
+            title="Walk the personal farm"
+          >
+            <Footprints size={16} />
+            Walk
+          </button>
         </div>
         <div className="visual-legend" aria-label="MicroVerse plot states">
           <span><i className="legend-dot open" />Open field</span>

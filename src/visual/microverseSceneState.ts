@@ -29,6 +29,8 @@ export type MicroVerseSceneState = {
   plots: MicroVersePlot[];
 };
 
+export type MicroVerseNavigationMode = "STRATEGY" | "CHARACTER";
+
 export type MicroVersePlotSummary = {
   lifecycle: ProjectLifecycleVisualState;
   label: string;
