@@ -898,12 +898,48 @@ button:disabled {
   line-height: 1.4;
 }
 
+.solana-boundary > span {
+  color: #d8decf;
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+.solana-boundary.simulation_passed {
+  border-color: rgba(128, 198, 109, 0.3);
+}
+
+.solana-boundary.blocked,
+.solana-boundary.simulation_failed {
+  border-color: rgba(255, 189, 136, 0.28);
+}
+
+.simulation-log-list {
+  display: grid;
+  gap: 6px;
+}
+
+.simulation-log-list code {
+  overflow: hidden;
+  color: #c7d7c0;
+  font-size: 0.72rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .acknowledgement-summary > strong {
   color: #fff8df;
 }
 
 .primary-action {
   width: 100%;
+}
+
+.primary-action,
+.secondary-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
 }
 
 .transaction-actions {

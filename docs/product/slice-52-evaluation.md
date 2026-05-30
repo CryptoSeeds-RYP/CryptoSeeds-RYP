@@ -29,4 +29,4 @@ Move the dApp beyond generic wallet previews by adding a Phantom-first Solana pr
 
 ## Follow-Up
 
-The next protocol step should be a signing boundary that turns a prepared plan into a Solana `Transaction` only when a connected Phantom/Solana wallet is available. After that, wire simulation or dry-run validation before any mainnet broadcast path.
+The next protocol step is an explicit wallet signature request that can only be reached after a connected Phantom/Solana wallet passes the boundary and simulation checks. Broadcasting should remain disabled until signature UX, simulation review, and cluster safety controls are reviewed together.

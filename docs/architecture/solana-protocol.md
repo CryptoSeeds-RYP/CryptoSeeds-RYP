@@ -45,6 +45,14 @@ Client preparation now has a TypeScript planning layer at `src/solana/protocolTr
 
 This is still a preparation layer. It does not sign, broadcast, or bypass wallet approval.
 
+The next client boundary is `src/solana/solanaTransactionBoundary.ts`:
+
+- Converts prepared instruction plans into unsigned Solana `Transaction` objects
+- Builds a serialized-message preview for wallet review surfaces
+- Blocks demo/disconnected wallets and fee-payer mismatches before any signature request
+- Runs RPC simulation with `sigVerify: false` and no wallet signature
+- Keeps broadcast disabled until a later explicit signing and send boundary is reviewed
+
 ## Deferred Modules
 
 These should be added after the staking core is reviewed:

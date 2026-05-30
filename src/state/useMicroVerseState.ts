@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useWallet } from "@solana/wallet-adapter-react";
+import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { appConfig } from "../config/env";
 import { DEMO_WALLET_ADDRESS } from "../domain/demo";
 import type { LocationKey, Project, ProtocolSnapshot, StakingTier } from "../domain/microverse";
@@ -17,9 +17,11 @@ import {
   buildStakePreviewIntent,
   resetTransactionIntent,
 } from "../services/transactionIntentService";
+import { simulatePreparedSolanaTransaction } from "../solana/solanaTransactionBoundary";
 
 export function useMicroVerseState() {
-  const { connected, publicKey } = useWallet();
+  const { connection } = useConnection();
+  const { connected, publicKey, signTransaction } = useWallet();
   const [activeLocation, setActiveLocation] = useState<LocationKey>("homestead");
   const [selectedTier, setSelectedTier] = useState<StakingTier>("SPROUT");
   const [demoMode, setDemoMode] = useState(appConfig.demoMode);
@@ -30,6 +32,7 @@ export function useMicroVerseState() {
   );
   const [snapshot, setSnapshot] = useState<ProtocolSnapshot | undefined>();
   const [loading, setLoading] = useState(true);
+  const [transactionBoundaryLoading, setTransactionBoundaryLoading] = useState(false);
 
   useEffect(() => {
     setWalletAddress(connected && publicKey ? publicKey.toBase58() : undefined);
@@ -126,6 +129,27 @@ export function useMicroVerseState() {
     setIntent((current) => resetTransactionIntent(current));
   }
 
+  async function prepareSolanaTransactionBoundary() {
+    const intentAtRequest = intent;
+    setTransactionBoundaryLoading(true);
+
+    const boundary = await simulatePreparedSolanaTransaction({
+      connection,
+      plan: intentAtRequest.preparedSolanaTransaction,
+      walletCanSign: Boolean(signTransaction),
+      walletPublicKey: publicKey?.toBase58(),
+    });
+
+    setIntent((current) => {
+      if (current.id !== intentAtRequest.id) return current;
+      return {
+        ...current,
+        solanaBoundary: boundary,
+      };
+    });
+    setTransactionBoundaryLoading(false);
+  }
+
   function effectiveIntentWalletAddress() {
     return walletAddress ?? (demoMode ? DEMO_WALLET_ADDRESS : undefined);
   }
@@ -146,6 +170,8 @@ export function useMicroVerseState() {
     openProject,
     prepareProjectIntent,
     prepareSeedBotAllocation,
+    prepareSolanaTransactionBoundary,
+    transactionBoundaryLoading,
     advanceIntent,
     resetIntent,
   };

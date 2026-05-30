@@ -205,6 +205,7 @@ export function resetTransactionIntent(intent: TransactionIntent): TransactionIn
 
   return {
     ...intent,
+    solanaBoundary: undefined,
     status: resetStatus,
     lifecycle: buildLifecycle(resetStatus),
   };

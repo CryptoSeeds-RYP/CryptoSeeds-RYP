@@ -18,4 +18,9 @@ export type {
   UserMicroVerseState,
 } from "./domain/microverse";
 export type { GoldenKeyState, StakingPositionSummary, VotingRightsState } from "./domain/staking";
-export type { PreparedSolanaTransactionPlan, TransactionIntent, TransactionIntentType } from "./domain/transactions";
+export type {
+  PreparedSolanaTransactionPlan,
+  SolanaWalletBoundaryPreview,
+  TransactionIntent,
+  TransactionIntentType,
+} from "./domain/transactions";

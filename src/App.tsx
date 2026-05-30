@@ -46,6 +46,8 @@ export default function App() {
     openProject,
     prepareProjectIntent,
     prepareSeedBotAllocation,
+    prepareSolanaTransactionBoundary,
+    transactionBoundaryLoading,
     advanceIntent,
     resetIntent,
   } = useMicroVerseState();
@@ -153,7 +155,13 @@ export default function App() {
               votingRightsNft={user.votingRightsNft}
               onTierChange={setSelectedTier}
             />
-            <TransactionPanel intent={intent} onAdvance={advanceIntent} onReset={resetIntent} />
+            <TransactionPanel
+              intent={intent}
+              onAdvance={advanceIntent}
+              onPrepareSolana={prepareSolanaTransactionBoundary}
+              onReset={resetIntent}
+              preparingSolana={transactionBoundaryLoading}
+            />
             <ProjectSnapshot
               project={selectedProject}
               participation={participations.find((participation) => participation.projectId === selectedProject.id)}

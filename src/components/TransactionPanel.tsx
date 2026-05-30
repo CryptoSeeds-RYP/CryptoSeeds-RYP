@@ -6,11 +6,15 @@ import { StateLine } from "./StateLine";
 export function TransactionPanel({
   intent,
   onAdvance,
+  onPrepareSolana,
   onReset,
+  preparingSolana,
 }: {
   intent: TransactionIntent;
   onAdvance: () => void;
+  onPrepareSolana?: () => void;
   onReset: () => void;
+  preparingSolana?: boolean;
 }) {
   const canAdvance = intent.status !== "DRAFT" && intent.status !== "CONFIRMED" && intent.status !== "FAILED";
   const actionLabel = intent.status === "CONFIRMED" ? "Confirmed" : "Simulate Next Step";
@@ -97,6 +101,33 @@ export function TransactionPanel({
         </section>
       )}
 
+      {intent.solanaBoundary && (
+        <section className={`transaction-subsection solana-boundary ${intent.solanaBoundary.status.toLowerCase()}`}>
+          <div className="panel-title">
+            <ShieldCheck size={16} />
+            <strong>Wallet Boundary</strong>
+          </div>
+          <StateLine label="Boundary" value={formatLabel(intent.solanaBoundary.status)} />
+          {intent.solanaBoundary.recentBlockhash && (
+            <StateLine label="Blockhash" value={shorten(intent.solanaBoundary.recentBlockhash)} />
+          )}
+          <StateLine label="Instructions" value={intent.solanaBoundary.instructionCount.toString()} />
+          <StateLine label="Signers" value={intent.solanaBoundary.requiredSigners.length.toString()} />
+          {intent.solanaBoundary.unitsConsumed && (
+            <StateLine label="Units" value={intent.solanaBoundary.unitsConsumed.toLocaleString()} />
+          )}
+          <span>{intent.solanaBoundary.message}</span>
+          {intent.solanaBoundary.simulationError && <span>{intent.solanaBoundary.simulationError}</span>}
+          {intent.solanaBoundary.simulationLogs.length > 0 && (
+            <div className="simulation-log-list">
+              {intent.solanaBoundary.simulationLogs.slice(-4).map((log) => (
+                <code key={log}>{shorten(log)}</code>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+
       {intent.acknowledgement && (
         <section className="transaction-subsection acknowledgement-summary">
           <div className="panel-title">
@@ -112,6 +143,12 @@ export function TransactionPanel({
       <p>{intent.riskSummary}</p>
       <p>{intent.expectedResult}</p>
       <div className="transaction-actions">
+        {intent.preparedSolanaTransaction && onPrepareSolana && (
+          <button className="secondary-action" disabled={preparingSolana} onClick={onPrepareSolana}>
+            <ShieldCheck size={16} />
+            {preparingSolana ? "Checking Boundary" : "Run Wallet Simulation"}
+          </button>
+        )}
         <button className="primary-action" disabled={!canAdvance} onClick={onAdvance}>
           <Power size={16} />
           {actionLabel}

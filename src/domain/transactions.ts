@@ -67,6 +67,29 @@ export type PreparedSolanaTransactionPlan = {
   warnings: string[];
 };
 
+export type SolanaWalletBoundaryStatus =
+  | "BLOCKED"
+  | "READY_FOR_SIGNATURE"
+  | "SIMULATION_PASSED"
+  | "SIMULATION_FAILED";
+
+export type SolanaWalletBoundaryPreview = {
+  status: SolanaWalletBoundaryStatus;
+  message: string;
+  feePayer?: string;
+  walletAddress?: string;
+  instructionCount: number;
+  requiredSigners: string[];
+  writableAccountCount: number;
+  recentBlockhash?: string;
+  lastValidBlockHeight?: number;
+  serializedMessageBase64?: string;
+  simulationError?: string;
+  simulationLogs: string[];
+  unitsConsumed?: number;
+  warnings: string[];
+};
+
 export type RiskAcknowledgement = {
   id: string;
   label: string;
@@ -93,6 +116,7 @@ export type TransactionIntent = {
   accounts: TransactionAccountReference[];
   acknowledgement?: RiskAcknowledgement;
   preparedSolanaTransaction?: PreparedSolanaTransactionPlan;
+  solanaBoundary?: SolanaWalletBoundaryPreview;
   lifecycle: TransactionLifecycleStep[];
   riskSummary: string;
   expectedResult: string;
