@@ -9,6 +9,7 @@ import { buildSeedBotRoutePlan } from "./seedbotVenueRouter";
 import type {
   RiskAcknowledgement,
   TransactionAccountReference,
+  TransactionChain,
   TransactionIntent,
   TransactionIntentStatus,
   TransactionLifecycleStep,
@@ -158,6 +159,7 @@ export function buildSeedBotAllocationIntent({
     walletAddress,
     inputToken: routeSummary || strategy.assets.map((asset) => asset.symbol).join(" / "),
     amount: mode === "BASKET" ? "Strategy basket preview" : "Per-asset preview",
+    chain: chainForSeedBotRoutePlan(routePlan),
     estimatedFees: seedBotFeeDisclosure(strategy.feeModel),
     slippage: "User-controlled per route",
     status: "DRAFT",
@@ -208,13 +210,20 @@ export function resetTransactionIntent(intent: TransactionIntent): TransactionIn
   };
 }
 
-function buildIntent(intent: Omit<TransactionIntent, "chain" | "network" | "lifecycle">): TransactionIntent {
+function buildIntent(intent: Omit<TransactionIntent, "chain" | "network" | "lifecycle"> & { chain?: TransactionChain }): TransactionIntent {
   return {
     ...intent,
-    chain: "SOLANA",
+    chain: intent.chain ?? "SOLANA",
     network: appConfig.cluster,
     lifecycle: buildLifecycle(intent.status),
   };
+}
+
+function chainForSeedBotRoutePlan(routePlan: ReturnType<typeof buildSeedBotRoutePlan>): TransactionChain {
+  const chains = new Set(routePlan.routes.flatMap((route) => route.assets.map((asset) => asset.chain)));
+  if (chains.size > 1) return "MULTICHAIN";
+  if (chains.has("EVM")) return "EVM";
+  return "SOLANA";
 }
 
 function buildLifecycle(status: TransactionIntentStatus): TransactionLifecycleStep[] {

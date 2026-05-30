@@ -18,7 +18,7 @@ export type TransactionIntentStatus =
   | "CONFIRMED"
   | "FAILED";
 
-export type TransactionChain = "SOLANA" | "EVM";
+export type TransactionChain = "SOLANA" | "EVM" | "MULTICHAIN";
 
 export type TransactionExecutionMode =
   | "PREVIEW_ONLY"

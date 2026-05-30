@@ -40,6 +40,8 @@ Client preparation now has a TypeScript planning layer at `src/solana/protocolTr
 - Derives the protocol RYP vault associated token account owned by the config PDA
 - Builds Anchor instruction data for `stake_ryp`, `unstake_ryp`, and `activate_voting_rights`
 - Exposes account order, signer/writable flags, instruction discriminator, and raw data hex for wallet-preview surfaces
+- Rejects prepared token amounts outside Solana's u64 SPL token amount bounds before instruction data is encoded
+- Installs a browser `Buffer` shim at app startup so Solana wallet and transaction libraries can run in Vite without relying on Node globals
 
 This is still a preparation layer. It does not sign, broadcast, or bypass wallet approval.
 

@@ -91,7 +91,9 @@ export function TransactionPanel({
             label="Data"
             value={intent.preparedSolanaTransaction.instructions[0].dataHex}
           />
-          <span>{intent.preparedSolanaTransaction.warnings[0]}</span>
+          {intent.preparedSolanaTransaction.warnings.map((warning) => (
+            <span key={warning}>{warning}</span>
+          ))}
         </section>
       )}
 

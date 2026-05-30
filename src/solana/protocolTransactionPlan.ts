@@ -19,6 +19,7 @@ const INSTRUCTION_DISCRIMINATORS = {
   unstakeRyp: "ae0b5ccc93d66cdd",
   activateVotingRights: "463cc3194dbcfb73",
 } as const;
+const U64_MAX = 2n ** 64n - 1n;
 
 export type StakePlanInput = {
   ownerAddress: string;
@@ -148,7 +149,9 @@ export function parseRypAmountToBaseUnits(amountUi: number | string, decimals: n
   }
 
   const paddedFraction = fraction.padEnd(decimals, "0");
-  return (BigInt(whole) * 10n ** BigInt(decimals) + BigInt(paddedFraction || "0")).toString();
+  const baseUnits = BigInt(whole) * 10n ** BigInt(decimals) + BigInt(paddedFraction || "0");
+  assertU64(baseUnits);
+  return baseUnits.toString();
 }
 
 function deriveAssociatedTokenAddress({ mint, owner }: { mint: PublicKey; owner: PublicKey }) {
@@ -275,6 +278,7 @@ function textSeed(seed: string) {
 }
 
 function u64LeHex(value: bigint) {
+  assertU64(value);
   const bytes = new Uint8Array(8);
   let cursor = value;
   for (let index = 0; index < bytes.length; index += 1) {
@@ -282,6 +286,12 @@ function u64LeHex(value: bigint) {
     cursor >>= 8n;
   }
   return bytesToHex(bytes);
+}
+
+function assertU64(value: bigint) {
+  if (value < 0 || value > U64_MAX) {
+    throw new Error("RYP amount exceeds Solana u64 token amount bounds");
+  }
 }
 
 function bytesToHex(bytes: Uint8Array) {

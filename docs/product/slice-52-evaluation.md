@@ -16,6 +16,7 @@ Move the dApp beyond generic wallet previews by adding a Phantom-first Solana pr
 - Added a Transaction Preview section showing prepared action, instruction, fee payer, base units, data hex, and safety warning.
 - Replaced the pseudo demo wallet label with a valid demo Solana public key so local demo mode can derive real PDA/ATA previews.
 - Added tests for PDA/ATA derivation, base-unit conversion, instruction data, account ordering, staking intent wiring, and unstaking intent wiring.
+- Added a review hardening pass for u64 token amount bounds, multichain SeedBot route labeling, and multi-warning transaction previews.
 
 ## Guardrails
 
@@ -23,6 +24,7 @@ Move the dApp beyond generic wallet previews by adding a Phantom-first Solana pr
 - No transaction is broadcast.
 - No private keys or seed phrases are requested.
 - The plan assumes the protocol config and RYP vault are initialized on the selected cluster.
+- RYP UI amounts are rejected if their base-unit value exceeds Solana's u64 token amount range.
 - Project participation remains preview-only because the project pool program is still deferred.
 
 ## Follow-Up

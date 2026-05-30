@@ -1,5 +1,6 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
+import "./polyfills";
 import App from "./App";
 import { CryptoSeedsWalletProvider } from "./solana/CryptoSeedsWalletProvider";
 import "./styles.css";

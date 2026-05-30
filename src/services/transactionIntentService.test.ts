@@ -103,6 +103,7 @@ describe("transaction intents", () => {
     });
 
     expect(intent.type).toBe("SEEDBOT_ALLOCATE");
+    expect(intent.chain).toBe("MULTICHAIN");
     expect(intent.executionMode).toBe("PREVIEW_ONLY");
     expect(intent.signaturePolicy).toContain("Phantom or MetaMask approval");
     expect(intent.riskSummary).toContain("Past performance does not guarantee future results");

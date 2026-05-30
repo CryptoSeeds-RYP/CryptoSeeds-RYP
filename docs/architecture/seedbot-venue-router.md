@@ -25,6 +25,8 @@ Future mode:
 
 No adapter should send live orders until the user has explicitly approved the route and the venue-specific signature flow is implemented.
 
+SeedBot allocation transaction previews should label mixed Solana and EVM route sets as `MULTICHAIN` so Phantom-only, MetaMask-only, and combined approval paths are not misrepresented.
+
 ## Hyperliquid Notes
 
 The Hyperliquid adapter now has an explicit testnet-first boundary in `src/services/hyperliquidAdapter.ts`.

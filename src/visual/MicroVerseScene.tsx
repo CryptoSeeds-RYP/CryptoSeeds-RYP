@@ -213,7 +213,9 @@ export function MicroVerseScene({
       const app = new Application();
       await app.init({
         resizeTo: hostElement,
-        backgroundAlpha: 0,
+        backgroundAlpha: 1,
+        backgroundColor: 0x10282d,
+        clearBeforeRender: true,
         antialias: true,
         autoDensity: true,
         preference: "webgl",
