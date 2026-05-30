@@ -68,6 +68,10 @@ type LandmarkSpriteRuntime = {
   phase: number;
 };
 
+type RouteRuntime = {
+  layer: Graphics;
+};
+
 type MapDragState = {
   pointerId: number;
   startClient: Point;
@@ -85,6 +89,7 @@ type WorldRuntime = {
   zoom: number;
   targetZoom: number;
   selectedLocation: LocationKey | null;
+  route: RouteRuntime;
   drag: MapDragState | null;
   destination: Point | null;
   keys: Set<string>;
@@ -448,6 +453,7 @@ async function buildWorld(
   const world = new Container();
   const plotMarkers: PlotMarkerRuntime[] = [];
   const landmarkSprites: LandmarkSpriteRuntime[] = [];
+  const route = buildRouteLayer();
   const glints: Glint[] = [];
   const lanterns: Lantern[] = [];
   const particles: Particle[] = [];
@@ -468,6 +474,7 @@ async function buildWorld(
   const water = buildWaterLayer(worldSize, scene, glints);
   world.addChild(water);
   world.addChild(buildPathLayer(worldSize));
+  world.addChild(route.layer);
   world.addChild(
     buildArchitectureLayer(
       worldSize,
@@ -536,6 +543,7 @@ async function buildWorld(
     zoom: navigationMode === "STRATEGY" ? initialZoom : 1,
     targetZoom: navigationMode === "STRATEGY" ? previousStrategyRuntime?.targetZoom ?? initialZoom : 1,
     selectedLocation: previousStrategyRuntime?.selectedLocation ?? "homestead",
+    route,
     drag: null,
     destination: null,
     keys,
@@ -593,6 +601,7 @@ function animateScene(runtime: WorldRuntime, deltaSeconds: number, time: number)
     updateStrategicCamera(runtime);
   }
   updatePlayerGlow(runtime);
+  drawSelectedRoute(runtime, time, motionScale);
 
   runtime.plotMarkers.forEach((marker) => {
     const pulse = Math.sin(time * 1.6 + marker.phase) * 0.026 * motionScale;
@@ -778,6 +787,95 @@ function updatePlayerGlow(runtime: WorldRuntime) {
   runtime.playerGlow.clear();
   runtime.playerGlow.circle(playerScreenX, playerScreenY, 168).fill({ color: 0xffe39b, alpha: 0.045 });
   runtime.playerGlow.circle(playerScreenX, playerScreenY, 72).fill({ color: 0xffffff, alpha: 0.04 });
+}
+
+function buildRouteLayer(): RouteRuntime {
+  const layer = new Graphics();
+  layer.label = "selected district route";
+  return { layer };
+}
+
+function drawSelectedRoute(runtime: WorldRuntime, time: number, motionScale: number) {
+  const routeLayer = runtime.route.layer;
+  routeLayer.clear();
+  if (runtime.navigationMode !== "STRATEGY" || !runtime.selectedLocation || runtime.selectedLocation === "homestead") return;
+
+  const homestead = MICROVERSE_LANDMARKS.find((landmark) => landmark.destination === "homestead");
+  const destination = MICROVERSE_LANDMARKS.find((landmark) => landmark.destination === runtime.selectedLocation);
+  if (!homestead || !destination) return;
+
+  const points = buildRoutePoints(runtime.worldSize, homestead, destination);
+  const destinationColor = destination.accent;
+  const shimmer = 0.72 + Math.sin(time * 2.1) * 0.18 * motionScale;
+
+  strokePath(routeLayer, points, 30, 0x05110f, 0.34);
+  strokePath(routeLayer, points, 19, destinationColor, 0.12 + shimmer * 0.04);
+  strokePath(routeLayer, points, 7, MICROVERSE_PALETTE.harvestGold, 0.28 + shimmer * 0.1);
+  strokePath(routeLayer, points, 2.4, MICROVERSE_PALETTE.ivory, 0.42);
+
+  drawRouteEndpoint(routeLayer, points[0], MICROVERSE_PALETTE.harvestGold, 0.36);
+  drawRouteEndpoint(routeLayer, points[points.length - 1], destinationColor, 0.48);
+
+  for (let index = 0; index < 5; index += 1) {
+    const progress = (time * 0.08 * motionScale + index / 5) % 1;
+    const point = pointOnPolyline(points, progress);
+    const radius = 5 + Math.sin(time * 3 + index) * 1.4 * motionScale;
+    routeLayer.circle(point.x, point.y, radius + 10).fill({ color: destinationColor, alpha: 0.09 });
+    routeLayer.circle(point.x, point.y, radius).fill({ color: MICROVERSE_PALETTE.ivory, alpha: 0.55 });
+  }
+}
+
+function buildRoutePoints(worldSize: Point, from: MicroVerseLandmark, to: MicroVerseLandmark) {
+  const start = districtRoutePoint(worldSize, from);
+  const end = districtRoutePoint(worldSize, to);
+  const plaza = { x: worldSize.x * 0.51, y: worldSize.y * 0.55 };
+  const bend = {
+    x: (start.x + end.x + plaza.x * 1.8) / 3.8,
+    y: (start.y + end.y + plaza.y * 1.8) / 3.8,
+  };
+  return [start, bend, end];
+}
+
+function districtRoutePoint(worldSize: Point, landmark: MicroVerseLandmark) {
+  return {
+    x: worldSize.x * landmark.x,
+    y: worldSize.y * landmark.y + 72 * landmark.scale,
+  };
+}
+
+function drawRouteEndpoint(layer: Graphics, point: Point, color: number, alpha: number) {
+  layer.circle(point.x, point.y, 28).fill({ color, alpha: alpha * 0.26 });
+  layer.circle(point.x, point.y, 16).stroke({ color, alpha, width: 3 });
+  layer.circle(point.x, point.y, 4.5).fill({ color: MICROVERSE_PALETTE.ivory, alpha: 0.7 });
+}
+
+function pointOnPolyline(points: Point[], progress: number): Point {
+  if (points.length === 0) return { x: 0, y: 0 };
+  if (points.length === 1) return points[0];
+
+  const segments = points.slice(1).map((point, index) => {
+    const previous = points[index];
+    return {
+      from: previous,
+      to: point,
+      length: Math.hypot(point.x - previous.x, point.y - previous.y),
+    };
+  });
+  const totalLength = segments.reduce((sum, segment) => sum + segment.length, 0);
+  let remaining = clamp(progress, 0, 1) * totalLength;
+
+  for (const segment of segments) {
+    if (remaining <= segment.length || segment === segments[segments.length - 1]) {
+      const t = segment.length === 0 ? 0 : remaining / segment.length;
+      return {
+        x: segment.from.x + (segment.to.x - segment.from.x) * t,
+        y: segment.from.y + (segment.to.y - segment.from.y) * t,
+      };
+    }
+    remaining -= segment.length;
+  }
+
+  return points[points.length - 1];
 }
 
 function buildTerrainLayer(worldSize: Point, scene: MicroVerseSceneState) {
@@ -1211,6 +1309,16 @@ function buildScreenAtmosphere(app: Application, scene: MicroVerseSceneState) {
     color: eventColor,
     alpha: walletAlpha * 0.78,
   });
+  layer.rect(0, 0, width, height).fill({ color: 0x06100f, alpha: 0.035 });
+  layer.ellipse(width * 0.5, height * 0.5, width * 0.58, height * 0.4).stroke({
+    color: MICROVERSE_PALETTE.ivory,
+    alpha: 0.05,
+    width: Math.max(1, width * 0.008),
+  });
+  layer.rect(0, 0, width, 72).fill({ color: 0x030807, alpha: 0.2 });
+  layer.rect(0, height - 92, width, 92).fill({ color: 0x030807, alpha: 0.24 });
+  layer.rect(0, 0, 78, height).fill({ color: 0x030807, alpha: 0.18 });
+  layer.rect(width - 92, 0, 92, height).fill({ color: 0x030807, alpha: 0.2 });
   layer.rect(0, 0, width, height).stroke({ color: 0xf8d477, alpha: 0.16, width: 2 });
   layer.rect(0, 0, width, height).fill({ color: 0x082a39, alpha: scene.weather === "STORM" ? 0.12 : 0.01 });
 
