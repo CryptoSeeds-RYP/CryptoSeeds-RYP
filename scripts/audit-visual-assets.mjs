@@ -33,6 +33,10 @@ for (const spec of assetSpecs) {
     );
   }
 
+  if (spec.role === "LANDMARK" && !imageHasAlpha(buffer, spec.path)) {
+    failures.push(`${spec.id}: landmark assets must include an alpha channel`);
+  }
+
   console.log(
     `${spec.id} ${spec.role}: ${dimensions.width}x${dimensions.height}, ${fileStat.size} bytes, productionReady=${spec.productionReady}`,
   );
@@ -45,6 +49,15 @@ if (failures.length > 0) {
 }
 
 console.log("\nVisual asset audit passed.");
+
+function imageHasAlpha(buffer, path) {
+  if (buffer.length >= 26 && buffer.toString("ascii", 1, 4) === "PNG") {
+    const colorType = buffer[25];
+    return colorType === 4 || colorType === 6;
+  }
+
+  return path.endsWith(".webp");
+}
 
 function readImageDimensions(buffer, path) {
   if (buffer.length >= 24 && buffer.toString("ascii", 1, 4) === "PNG") {

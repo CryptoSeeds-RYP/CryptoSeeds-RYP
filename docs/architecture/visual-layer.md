@@ -21,6 +21,7 @@ The MVP visual layer now uses a live PixiJS world instead of a static map skin:
 - generated concept background plate at `public/assets/concepts/microverse-world-plate-v1.png`
 - visual asset registry at `src/visual/microverseAssets.ts`
 - landmark destination registry in `src/visual/microverseAssets.ts`
+- transparent runtime landmark assets for Homestead, Governance Hall, and SeedBot Terminal
 - large world canvas with camera follow
 - WASD and arrow-key movement
 - click-to-move navigation
@@ -79,7 +80,7 @@ Build the visual stack in this order:
 
 1. PixiJS procedural world, navigation, and state-driven markers. Done.
 2. Generated bitmap concept plate and asset registry. Done for the first world plate.
-3. Generated or commissioned bitmap assets for key locations.
+3. Generated transparent runtime assets for key locations. Started with Homestead, Governance Hall, and SeedBot Terminal.
 4. Texture atlas and sprite-sheet pipeline for production assets.
 5. Richer shader-like effects in PixiJS for water, lighting, harvest, and weather.
 6. Selective Three.js rooms for SeedBot Terminal, Governance Hall, and premium project reveals.
@@ -106,6 +107,8 @@ Avoid building the main world as inline SVG. Keep SVG/icon use limited to UI ico
 All runtime visual asset paths, landmark coordinates, and core Pixi colors should be registered in `src/visual/microverseAssets.ts` so production art can replace procedural fallbacks without rewriting scene logic.
 
 Strategy-map buttons, Pixi landmark rings, and future landmark sprites should all read from the same landmark destination registry. Avoid hardcoding separate UI marker lists.
+
+Transparent landmark sprites should load from registered `assetPath` values first. Procedural Pixi drawings must remain as fallback when a sprite is missing or fails to load.
 
 ## Performance Rules
 

@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { Application, Assets, Container, Graphics, Sprite, Text, TextStyle } from "pixi.js";
+import { Application, Assets, Container, Graphics, Sprite, Text, TextStyle, Texture } from "pixi.js";
 import {
   MICROVERSE_ASSETS,
   MICROVERSE_LANDMARKS,
@@ -310,6 +310,7 @@ async function buildWorld(
   const terrain = await Assets.load(MICROVERSE_ASSETS.conceptPlate).catch(() =>
     Assets.load(MICROVERSE_ASSETS.fallbackTerrain),
   );
+  const landmarkTextures = await loadLandmarkTextures();
   const background = new Sprite(terrain);
   background.label = "terrain";
   background.alpha = 0.28;
@@ -320,7 +321,7 @@ async function buildWorld(
   const water = buildWaterLayer(worldSize, scene, glints);
   world.addChild(water);
   world.addChild(buildPathLayer(worldSize));
-  world.addChild(buildArchitectureLayer(worldSize, scene, lanterns));
+  world.addChild(buildArchitectureLayer(worldSize, scene, lanterns, landmarkTextures));
   world.addChild(buildGardenLayer(worldSize));
   if (navigationMode === "STRATEGY") world.addChild(buildStrategicHotspotLayer(worldSize, scene));
 
@@ -379,6 +380,18 @@ async function buildWorld(
     updateStrategicCamera(runtime);
   }
   return runtime;
+}
+
+async function loadLandmarkTextures() {
+  const entries = await Promise.all(
+    MICROVERSE_LANDMARKS.map(async (landmark) => {
+      if (!landmark.assetPath) return null;
+      const texture = await Assets.load(landmark.assetPath).catch(() => null);
+      return texture ? ([landmark.id, texture] as const) : null;
+    }),
+  );
+
+  return new Map(entries.filter((entry): entry is readonly [string, Texture] => Boolean(entry)));
 }
 
 function animateScene(runtime: WorldRuntime, deltaSeconds: number, time: number) {
@@ -602,12 +615,25 @@ function buildPathLayer(worldSize: Point) {
   return layer;
 }
 
-function buildArchitectureLayer(worldSize: Point, scene: MicroVerseSceneState, lanterns: Lantern[]) {
+function buildArchitectureLayer(
+  worldSize: Point,
+  scene: MicroVerseSceneState,
+  lanterns: Lantern[],
+  landmarkTextures: Map<string, Texture>,
+) {
   const layer = new Container();
   const buildings = new Graphics();
+  const sprites = new Container();
 
-  MICROVERSE_LANDMARKS.forEach((landmark) => drawLandmark(buildings, landmark, worldSize, scene));
-  layer.addChild(buildings);
+  MICROVERSE_LANDMARKS.forEach((landmark) => {
+    const texture = landmarkTextures.get(landmark.id);
+    if (texture) {
+      sprites.addChild(buildLandmarkSprite(landmark, texture, worldSize));
+    } else {
+      drawLandmark(buildings, landmark, worldSize, scene);
+    }
+  });
+  layer.addChild(buildings, sprites);
 
   const lanternPositions = [
     { x: worldSize.x * 0.39, y: worldSize.y * 0.56 },
@@ -679,6 +705,28 @@ function buildStrategicHotspotLayer(worldSize: Point, scene: MicroVerseSceneStat
   });
 
   return layer;
+}
+
+function buildLandmarkSprite(landmark: MicroVerseLandmark, texture: Texture, worldSize: Point) {
+  const sprite = new Sprite(texture);
+  const targetWidth = landmarkSpriteWidth(landmark);
+  const scale = targetWidth / Math.max(texture.width, 1);
+
+  sprite.anchor.set(0.5, 0.86);
+  sprite.x = worldSize.x * landmark.x;
+  sprite.y = worldSize.y * landmark.y + 78 * landmark.scale;
+  sprite.scale.set(scale);
+  sprite.alpha = 0.96;
+  sprite.label = landmark.id;
+
+  return sprite;
+}
+
+function landmarkSpriteWidth(landmark: MicroVerseLandmark) {
+  if (landmark.kind === "HOMESTEAD") return 250 * landmark.scale;
+  if (landmark.kind === "GOVERNANCE_HALL") return 230 * landmark.scale;
+  if (landmark.kind === "SEEDBOT_TERMINAL") return 238 * landmark.scale;
+  return 150 * landmark.scale;
 }
 
 function buildForegroundLayer(worldSize: Point) {

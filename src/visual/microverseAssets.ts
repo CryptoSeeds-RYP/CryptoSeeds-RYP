@@ -85,6 +85,7 @@ export const MICROVERSE_LANDMARKS: MicroVerseLandmark[] = [
     y: 0.7,
     scale: 0.72,
     accent: MICROVERSE_PALETTE.harvestGold,
+    assetPath: "/assets/landmarks/homestead-active.png",
     destination: "homestead",
   },
   {
@@ -105,6 +106,7 @@ export const MICROVERSE_LANDMARKS: MicroVerseLandmark[] = [
     y: 0.29,
     scale: 1.08,
     accent: MICROVERSE_PALETTE.greenhouseTeal,
+    assetPath: "/assets/landmarks/governance-hall-active.png",
     destination: "governance",
   },
   {
@@ -125,6 +127,7 @@ export const MICROVERSE_LANDMARKS: MicroVerseLandmark[] = [
     y: 0.66,
     scale: 0.78,
     accent: MICROVERSE_PALETTE.harvestGold,
+    assetPath: "/assets/landmarks/seedbot-terminal-active.png",
     destination: "seedbot",
   },
   {

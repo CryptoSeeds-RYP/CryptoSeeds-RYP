@@ -20,5 +20,38 @@
     "maxBytes": 2200000,
     "productionReady": false,
     "notes": "Legacy fallback terrain retained until production world plate and atlas assets are ready."
+  },
+  {
+    "id": "homestead-active",
+    "role": "LANDMARK",
+    "state": "ACTIVE",
+    "path": "/assets/landmarks/homestead-active.png",
+    "targetWidth": 1536,
+    "targetHeight": 1024,
+    "maxBytes": 2800000,
+    "productionReady": false,
+    "notes": "First transparent runtime landmark pass for Homestead. Keep as MVP art, then convert to atlas/WebP before public launch."
+  },
+  {
+    "id": "governance-hall-active",
+    "role": "LANDMARK",
+    "state": "ACTIVE",
+    "path": "/assets/landmarks/governance-hall-active.png",
+    "targetWidth": 1536,
+    "targetHeight": 1024,
+    "maxBytes": 2400000,
+    "productionReady": false,
+    "notes": "First transparent runtime landmark pass for Governance Hall. Keep as MVP art, then convert to atlas/WebP before public launch."
+  },
+  {
+    "id": "seedbot-terminal-active",
+    "role": "LANDMARK",
+    "state": "ACTIVE",
+    "path": "/assets/landmarks/seedbot-terminal-active.png",
+    "targetWidth": 1536,
+    "targetHeight": 1024,
+    "maxBytes": 2400000,
+    "productionReady": false,
+    "notes": "First transparent runtime landmark pass for SeedBot Terminal. Keep as MVP art, then convert to atlas/WebP before public launch."
   }
 ]
