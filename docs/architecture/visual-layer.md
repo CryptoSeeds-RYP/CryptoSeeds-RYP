@@ -33,6 +33,8 @@ The MVP visual layer now uses a live PixiJS world instead of a static map skin:
 - paths, islands, groves, dome clusters, lanterns, and windmill details
 - district foundations under every landmark so the world reads as one built MicroVerse
 - state-driven project markers scaled into world coordinates, with bitmap tile assets and procedural fallback symbols
+- React HUD focus panel for landmark and project plot hover/focus state
+- registry-aligned landmark navigation markers with mobile edge clamping
 - animated particles, tier atmosphere, and rain/storm effects
 - reduced-motion handling for users who prefer less animation
 

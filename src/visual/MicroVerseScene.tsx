@@ -66,16 +66,19 @@ const CONTROL_KEYS = new Set(["w", "a", "s", "d", "arrowup", "arrowleft", "arrow
 export function MicroVerseScene({
   navigationMode = "STRATEGY",
   scene,
+  onPlotFocus,
   onPlotSelect,
 }: {
   navigationMode?: MicroVerseNavigationMode;
   scene: MicroVerseSceneState;
+  onPlotFocus?: (plotId: string | null) => void;
   onPlotSelect?: (projectId: string) => void;
 }) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const appRef = useRef<Application | null>(null);
   const runtimeRef = useRef<WorldRuntime | null>(null);
   const stateRef = useRef(scene);
+  const plotFocusRef = useRef(onPlotFocus);
   const plotSelectRef = useRef(onPlotSelect);
   const keysRef = useRef<Set<string>>(new Set());
   const navigationModeRef = useRef<MicroVerseNavigationMode>(navigationMode);
@@ -94,6 +97,7 @@ export function MicroVerseScene({
       isCurrent: () => generation === renderGenerationRef.current,
       keys: keysRef.current,
       navigationMode,
+      onPlotFocus: (plotId) => plotFocusRef.current?.(plotId),
       onPlotSelect: (projectId) => plotSelectRef.current?.(projectId),
       previousRuntime: runtimeRef.current,
       reduceMotion: reduceMotionRef.current,
@@ -110,8 +114,9 @@ export function MicroVerseScene({
   }, [navigationMode, scene]);
 
   useEffect(() => {
+    plotFocusRef.current = onPlotFocus;
     plotSelectRef.current = onPlotSelect;
-  }, [onPlotSelect]);
+  }, [onPlotFocus, onPlotSelect]);
 
   useEffect(() => {
     let disposed = false;
@@ -184,6 +189,7 @@ export function MicroVerseScene({
         isCurrent: () => generation === renderGenerationRef.current && !disposed,
         keys: keysRef.current,
         navigationMode: navigationModeRef.current,
+        onPlotFocus: (plotId) => plotFocusRef.current?.(plotId),
         onPlotSelect: (projectId) => plotSelectRef.current?.(projectId),
         previousRuntime: runtimeRef.current,
         reduceMotion,
@@ -207,6 +213,7 @@ export function MicroVerseScene({
           isCurrent: () => resizeGeneration === renderGenerationRef.current && !disposed,
           keys: keysRef.current,
           navigationMode: navigationModeRef.current,
+          onPlotFocus: (plotId) => plotFocusRef.current?.(plotId),
           onPlotSelect: (projectId) => plotSelectRef.current?.(projectId),
           previousRuntime: runtimeRef.current,
           reduceMotion,
@@ -259,6 +266,7 @@ async function renderScene({
   isCurrent,
   keys,
   navigationMode,
+  onPlotFocus,
   onPlotSelect,
   previousRuntime,
   reduceMotion,
@@ -270,6 +278,7 @@ async function renderScene({
   isCurrent: () => boolean;
   keys: Set<string>;
   navigationMode: MicroVerseNavigationMode;
+  onPlotFocus: (plotId: string | null) => void;
   onPlotSelect: (projectId: string) => void;
   previousRuntime: WorldRuntime | null;
   reduceMotion?: boolean;
@@ -278,7 +287,16 @@ async function renderScene({
 }) {
   if (!app) return;
 
-  const runtime = await buildWorld(app, scene, keys, navigationMode, onPlotSelect, previousRuntime, reduceMotion ?? false);
+  const runtime = await buildWorld(
+    app,
+    scene,
+    keys,
+    navigationMode,
+    onPlotFocus,
+    onPlotSelect,
+    previousRuntime,
+    reduceMotion ?? false,
+  );
   if (generation < 0 || !isCurrent()) {
     runtime.destroy();
     return;
@@ -294,6 +312,7 @@ async function buildWorld(
   scene: MicroVerseSceneState,
   keys: Set<string>,
   navigationMode: MicroVerseNavigationMode,
+  onPlotFocus: (plotId: string | null) => void,
   onPlotSelect: (projectId: string) => void,
   previousRuntime: WorldRuntime | null,
   reduceMotion: boolean,
@@ -333,7 +352,14 @@ async function buildWorld(
   const plotLayer = new Container();
   plotLayer.label = "plots";
   scene.plots.forEach((plot) => {
-    const marker = buildPlotMarker(plot, plot.x * worldSize.x, plot.y * worldSize.y, onPlotSelect, projectTileTextures);
+    const marker = buildPlotMarker(
+      plot,
+      plot.x * worldSize.x,
+      plot.y * worldSize.y,
+      onPlotFocus,
+      onPlotSelect,
+      projectTileTextures,
+    );
     plotMarkers.push(marker);
     plotLayer.addChild(marker);
   });
@@ -893,6 +919,7 @@ function buildPlotMarker(
   plot: MicroVersePlot,
   x: number,
   y: number,
+  onPlotFocus: (plotId: string | null) => void,
   onPlotSelect: (projectId: string) => void,
   projectTileTextures: Map<ProjectLifecycleVisualState, Texture>,
 ) {
@@ -906,9 +933,13 @@ function buildPlotMarker(
   const tileTexture = projectTileTextures.get(plot.lifecycle);
   const tileSprite = tileTexture ? buildProjectTileSprite(plot, tileTexture) : null;
 
+  marker.eventMode = "static";
+  marker.cursor = plot.projectId ? "pointer" : "default";
+  marker.on("pointerover", () => onPlotFocus(plot.id));
+  marker.on("pointerout", () => onPlotFocus(null));
+  marker.on("pointerupoutside", () => onPlotFocus(null));
+
   if (plot.projectId) {
-    marker.eventMode = "static";
-    marker.cursor = "pointer";
     marker.on("pointertap", (event) => {
       event.stopPropagation();
       onPlotSelect(plot.projectId!);

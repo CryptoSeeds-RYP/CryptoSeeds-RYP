@@ -445,6 +445,11 @@ button:disabled {
 .map-marker {
   position: absolute;
   isolation: isolate;
+  z-index: 4;
+  --marker-edge: 72px;
+  left: clamp(var(--marker-edge), var(--marker-x, 50%), calc(100% - var(--marker-edge)));
+  top: clamp(42px, var(--marker-y, 50%), calc(100% - 42px));
+  transform: translate(-50%, -50%);
   gap: 8px;
   min-width: 126px;
   min-height: 42px;
@@ -454,6 +459,11 @@ button:disabled {
   background: rgba(20, 38, 35, 0.52);
   box-shadow: 0 12px 24px rgba(0, 0, 0, 0.18);
   backdrop-filter: blur(14px);
+  transition:
+    background 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
 }
 
 .strategy-navigation .map-marker::before {
@@ -467,8 +477,15 @@ button:disabled {
   box-shadow: 0 0 30px rgba(255, 214, 107, 0.16);
 }
 
-.map-marker:hover {
+.map-marker:hover,
+.map-marker:focus-visible {
   background: rgba(76, 138, 69, 0.76);
+  border-color: rgba(255, 248, 223, 0.58);
+  box-shadow:
+    0 16px 30px rgba(0, 0, 0, 0.24),
+    0 0 28px rgba(255, 214, 107, 0.18);
+  outline: 0;
+  transform: translate(-50%, -50%) scale(1.03);
 }
 
 .map-marker.locked {
@@ -476,29 +493,87 @@ button:disabled {
   background: rgba(82, 72, 63, 0.76);
 }
 
-.homestead-marker {
-  left: 18%;
-  bottom: 28%;
+.world-focus-panel {
+  position: absolute;
+  z-index: 5;
+  left: 24px;
+  bottom: 24px;
+  display: grid;
+  gap: 8px;
+  width: min(350px, calc(100% - 48px));
+  padding: 14px;
+  border: 1px solid rgba(255, 248, 223, 0.22);
+  border-radius: 8px;
+  background: rgba(12, 24, 22, 0.78);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 248, 223, 0.08),
+    0 22px 50px rgba(0, 0, 0, 0.32);
+  backdrop-filter: blur(18px);
 }
 
-.explorer-marker {
-  left: 42%;
-  top: 38%;
+.world-focus-panel::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  z-index: -1;
+  border-radius: inherit;
+  background: linear-gradient(135deg, rgba(255, 214, 107, 0.2), transparent 42%, rgba(128, 220, 202, 0.16));
+  opacity: 0.76;
 }
 
-.harvest-marker {
-  right: 18%;
-  bottom: 22%;
+.world-focus-panel span {
+  color: #ecd882;
+  font-size: 0.72rem;
+  font-weight: 850;
+  letter-spacing: 0;
+  text-transform: uppercase;
 }
 
-.governance-marker {
-  right: 22%;
-  top: 24%;
+.world-focus-panel strong {
+  color: #fff8df;
+  font-size: 1.08rem;
+  line-height: 1.1;
 }
 
-.seedbot-marker {
-  left: 57%;
-  bottom: 42%;
+.world-focus-panel p {
+  margin: 0;
+  color: #d7dfcf;
+  font-size: 0.88rem;
+  line-height: 1.4;
+}
+
+.world-focus-panel > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.world-focus-panel em {
+  color: #bfe9c1;
+  font-size: 0.78rem;
+  font-style: normal;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.world-focus-panel button {
+  min-height: 34px;
+  padding: 7px 11px;
+  border: 1px solid rgba(255, 248, 223, 0.22);
+  border-radius: 7px;
+  color: #fff8df;
+  background: rgba(183, 130, 54, 0.42);
+  font-size: 0.8rem;
+  font-weight: 850;
+}
+
+.world-focus-panel.plot {
+  border-color: rgba(128, 198, 109, 0.34);
+}
+
+.world-focus-panel.locked em {
+  color: #ffd2b8;
 }
 
 .metric-row {
@@ -1748,17 +1823,51 @@ button:disabled {
   }
 
   .map-marker {
+    --marker-edge: 38px;
     min-width: 44px;
   }
 
   .map-marker span {
     display: none;
   }
+
+  .world-focus-panel {
+    left: 18px;
+    right: 18px;
+    bottom: 74px;
+    width: auto;
+  }
 }
 
 @media (max-width: 560px) {
   .brand-lockup {
     min-width: 0;
+  }
+
+  .topbar {
+    gap: 12px;
+    padding: 12px;
+  }
+
+  .network-strip,
+  .wallet-dock {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+    gap: 8px;
+  }
+
+  .network-strip span,
+  .wallet-button,
+  .wallet-dock .wallet-adapter-button {
+    width: 100%;
+    min-width: 0;
+    padding-right: 9px;
+    padding-left: 9px;
+    overflow: hidden;
+    font-size: 0.78rem;
+    white-space: nowrap;
+    text-overflow: ellipsis;
   }
 
   .nav-rail {
@@ -1773,6 +1882,10 @@ button:disabled {
 
   .microverse-map {
     min-height: 500px;
+  }
+
+  .map-marker {
+    --marker-edge: 54px;
   }
 
   .map-title {
@@ -1790,29 +1903,8 @@ button:disabled {
     width: 100%;
   }
 
-  .homestead-marker {
-    left: 12%;
-    bottom: 24%;
-  }
-
-  .explorer-marker {
-    left: 45%;
-    top: 44%;
-  }
-
-  .harvest-marker {
-    right: 12%;
-    bottom: 22%;
-  }
-
-  .governance-marker {
-    right: 16%;
-    top: 28%;
-  }
-
-  .seedbot-marker {
-    left: 55%;
-    bottom: 48%;
+  .world-focus-panel {
+    display: none;
   }
 
   .ledger-item {

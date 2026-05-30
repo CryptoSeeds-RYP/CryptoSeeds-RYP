@@ -1,4 +1,4 @@
-import { lazy, Suspense, useMemo, useState } from "react";
+import { lazy, Suspense, useMemo, useState, type CSSProperties } from "react";
 import {
   Bot,
   Coins,
@@ -24,6 +24,10 @@ import { MICROVERSE_LANDMARKS, type MicroVerseLandmark } from "../visual/microve
 const MicroVerseScene = lazy(() =>
   import("../visual/MicroVerseScene").then((module) => ({ default: module.MicroVerseScene })),
 );
+
+type WorldFocusTarget =
+  | { kind: "landmark"; id: string }
+  | { kind: "plot"; id: string };
 
 export function HomesteadView({
   activeTier,
@@ -53,6 +57,7 @@ export function HomesteadView({
   onProjectOpen: (projectId: string) => void;
 }) {
   const [navigationMode, setNavigationMode] = useState<MicroVerseNavigationMode>("STRATEGY");
+  const [focusedTarget, setFocusedTarget] = useState<WorldFocusTarget | null>(null);
   const mapMarkers = useMemo(
     () =>
       MICROVERSE_LANDMARKS.filter(
@@ -75,12 +80,35 @@ export function HomesteadView({
   );
   const plotSummary = useMemo(() => summarizeMicroVersePlots(scene.plots), [scene]);
   const harvestReady = plotSummary.some((summary) => summary.lifecycle === "HARVEST");
+  const focusedLandmark =
+    focusedTarget?.kind === "landmark" ? MICROVERSE_LANDMARKS.find((landmark) => landmark.id === focusedTarget.id) : undefined;
+  const focusedPlot = focusedTarget?.kind === "plot" ? scene.plots.find((plot) => plot.id === focusedTarget.id) : undefined;
+  const focusDetails = worldFocusDetails({
+    activeTier,
+    focusedLandmark,
+    focusedPlot,
+    projectSlotsUnlocked,
+    seedBotUnlocked,
+    walletConnected,
+  });
+
+  function clearFocus(target: WorldFocusTarget) {
+    setFocusedTarget((current) => {
+      if (!current || current.kind !== target.kind || current.id !== target.id) return current;
+      return null;
+    });
+  }
 
   return (
     <div className="homestead-view">
       <div className={`microverse-map ${navigationMode.toLowerCase()}-navigation`}>
         <Suspense fallback={<div className="microverse-scene-fallback" aria-hidden="true" />}>
-          <MicroVerseScene navigationMode={navigationMode} scene={scene} onPlotSelect={onProjectOpen} />
+          <MicroVerseScene
+            navigationMode={navigationMode}
+            scene={scene}
+            onPlotFocus={(plotId) => setFocusedTarget(plotId ? { kind: "plot", id: plotId } : null)}
+            onPlotSelect={onProjectOpen}
+          />
         </Suspense>
         <div className="map-overlay" />
         <div className="map-title">
@@ -120,6 +148,11 @@ export function HomesteadView({
               className={`map-marker ${landmark.destination}-marker ${locked ? "locked" : ""}`}
               key={landmark.id}
               onClick={() => onLocation(landmark.destination)}
+              onBlur={() => clearFocus({ kind: "landmark", id: landmark.id })}
+              onFocus={() => setFocusedTarget({ kind: "landmark", id: landmark.id })}
+              onMouseEnter={() => setFocusedTarget({ kind: "landmark", id: landmark.id })}
+              onMouseLeave={() => clearFocus({ kind: "landmark", id: landmark.id })}
+              style={landmarkMarkerStyle(landmark)}
               title={landmark.label}
             >
               <Icon size={18} />
@@ -127,6 +160,20 @@ export function HomesteadView({
             </button>
           );
         })}
+        <WorldFocusPanel
+          details={focusDetails}
+          onAction={() => {
+            if (focusDetails.kind === "plot") {
+              if (focusDetails.projectId) {
+                onProjectOpen(focusDetails.projectId);
+              } else {
+                onLocation("explorer");
+              }
+              return;
+            }
+            if (focusDetails.destination) onLocation(focusDetails.destination);
+          }}
+        />
       </div>
 
       <div className="metric-row">
@@ -185,6 +232,106 @@ export function HomesteadView({
       </section>
     </div>
   );
+}
+
+function WorldFocusPanel({
+  details,
+  onAction,
+}: {
+  details: ReturnType<typeof worldFocusDetails>;
+  onAction: () => void;
+}) {
+  return (
+    <aside className={`world-focus-panel ${details.kind} ${details.locked ? "locked" : ""}`} aria-live="polite">
+      <span>{details.eyebrow}</span>
+      <strong>{details.title}</strong>
+      <p>{details.detail}</p>
+      <div>
+        <em>{details.status}</em>
+        <button onClick={onAction}>{details.actionLabel}</button>
+      </div>
+    </aside>
+  );
+}
+
+function worldFocusDetails({
+  activeTier,
+  focusedLandmark,
+  focusedPlot,
+  projectSlotsUnlocked,
+  seedBotUnlocked,
+  walletConnected,
+}: {
+  activeTier: StakingTier;
+  focusedLandmark?: MicroVerseLandmark;
+  focusedPlot?: ReturnType<typeof buildMicroVerseSceneState>["plots"][number];
+  projectSlotsUnlocked: number;
+  seedBotUnlocked: boolean;
+  walletConnected: boolean;
+}) {
+  if (focusedPlot) {
+    const hasProject = Boolean(focusedPlot.projectId);
+    const lifecycle = formatLabel(focusedPlot.lifecycle);
+    const risk = focusedPlot.riskLevel ? `${formatLabel(focusedPlot.riskLevel)} risk` : "Open slot";
+    return {
+      kind: "plot" as const,
+      actionLabel: hasProject ? "Review Project" : "Browse Projects",
+      detail: hasProject
+        ? `${focusedPlot.category}, ${focusedPlot.progress}% progress, ${risk}`
+        : "Ready for vetted project discovery",
+      eyebrow: `Field ${focusedPlot.slotIndex + 1}`,
+      projectId: focusedPlot.projectId,
+      status: hasProject ? lifecycle : "Available",
+      title: focusedPlot.label,
+    };
+  }
+
+  if (focusedLandmark) {
+    const destination = focusedLandmark.destination;
+    const locked = destination === "seedbot" && !seedBotUnlocked;
+    return {
+      kind: "landmark" as const,
+      actionLabel: locked ? "View Access" : "Enter",
+      destination,
+      detail: landmarkDetail(focusedLandmark),
+      eyebrow: "MicroVerse Landmark",
+      locked,
+      status: locked ? "Locked" : "Ready",
+      title: focusedLandmark.label,
+    };
+  }
+
+  return {
+    kind: "world" as const,
+    actionLabel: walletConnected ? "Open Explorer" : "Browse Projects",
+    destination: "explorer" as LocationKey,
+    detail: `${projectSlotsUnlocked} project fields unlocked, ${walletConnected ? "wallet connected" : "wallet offline"}`,
+    eyebrow: activeTier === "NONE" ? "Wild Fields" : `${formatLabel(activeTier)} Homestead`,
+    locked: false,
+    status: walletConnected ? "Protocol State Active" : "Wallet Not Connected",
+    title: "CryptoSeeds MicroVerse",
+  };
+}
+
+function landmarkDetail(landmark: MicroVerseLandmark) {
+  if (landmark.destination === "homestead") return "Staking state, Golden Key, field signals";
+  if (landmark.destination === "explorer") return "Vetted project discovery and participation review";
+  if (landmark.destination === "governance") return "Proposals, project approvals, one-wallet voting";
+  if (landmark.destination === "harvest") return "Rewards, reports, claims, and history";
+  if (landmark.destination === "seedbot") return "Self-custodial strategy tools and route previews";
+  if (landmark.kind === "STEWARD_GLADE") return "Donation and impact participation";
+  if (landmark.kind === "LOREHOUSE") return "Education, documents, protocol context";
+  if (landmark.kind === "TREASURY_GROVE") return "Treasury transparency and allocation signals";
+  return "MicroVerse district";
+}
+
+function landmarkMarkerStyle(landmark: MicroVerseLandmark): CSSProperties {
+  const markerX = landmark.x > 0.8 ? 0.78 : landmark.x;
+  const markerY = Math.min(0.86, landmark.y + 0.07 * landmark.scale);
+  return {
+    "--marker-x": `${markerX * 100}%`,
+    "--marker-y": `${markerY * 100}%`,
+  } as CSSProperties;
 }
 
 function iconForLandmark(landmark: MicroVerseLandmark, locked: boolean) {
