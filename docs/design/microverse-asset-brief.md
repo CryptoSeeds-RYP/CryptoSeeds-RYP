@@ -18,16 +18,19 @@ Style targets:
 
 ## MVP Asset Set
 
-The first asset pack should be a compact sprite atlas, not a full 3D environment.
+The first asset pack should support the navigable PixiJS world. It should be a compact sprite atlas plus background plates, not a full 3D environment.
 
 Required terrain:
 
 - wild field base
 - activated homestead base
+- large 2.5D world plate
 - river or water edge
 - path network
+- bridges
 - empty project plot
 - locked project plot
+- foreground vegetation masks
 
 Required project tiles:
 
@@ -49,6 +52,7 @@ Required states per project tile:
 
 Required UI objects:
 
+- user avatar marker
 - Golden Key pedestal
 - Voting Scroll pedestal
 - Harvest Ledger marker
@@ -58,6 +62,16 @@ Required UI objects:
 - milestone scroll
 - impact report ledger
 
+Required landmark objects:
+
+- nature-tech dome cluster
+- SeedBot greenhouse command center
+- Governance Hall facade
+- Lorehouse structure
+- Steward's Glade shrine
+- RYP treasury grove marker
+- lanterns and energy posts
+
 ## Technical Requirements
 
 - Use PNG or WebP for raster assets.
@@ -66,14 +80,19 @@ Required UI objects:
 - Produce a texture atlas once the asset count grows.
 - Keep the current PixiJS procedural markers as fallback.
 - Name assets by category and state, for example `plot-grove-active.webp`.
+- Keep important silhouettes readable at small dashboard sizes and mobile widths.
+- Avoid text inside the art assets. React should render labels and disclosures.
 
 ## Initial Dimensions
 
 Recommended starting sizes:
 
-- terrain background: 1920x1080
+- world background plate: 2560x1440
+- terrain detail plates: 1920x1080
 - plot tiles: 256x256
 - location markers: 160x160
+- avatar marker: 128x128
+- landmark buildings: 384x384
 - UI objects: 128x128
 - particle sprites: 64x64
 
@@ -84,6 +103,10 @@ Use prompts that describe a real dashboard asset, not a vague fantasy scene.
 Example:
 
 `Premium isometric regenerative agriculture project tile, chestnut grove, futuristic nature-tech irrigation, subtle golden milestone glow, transparent background, readable silhouette, serious Web3 strategy dashboard style, not cartoonish, no text.`
+
+Navigation concept example:
+
+`Premium 2.5D regenerative Web3 strategy world background, river delta with bridges, glowing greenhouse landmarks, cultivated islands, mystical Arcane-inspired lighting, Civilization-style map readability, nature-tech materials, serious immersive dashboard, no characters in foreground, no text, not cartoonish.`
 
 ## Approval Rules
 
