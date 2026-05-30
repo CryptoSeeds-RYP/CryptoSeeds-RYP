@@ -4,7 +4,9 @@ import {
   MICROVERSE_ASSET_SPECS,
   MICROVERSE_LANDMARKS,
   MICROVERSE_PALETTE,
+  MICROVERSE_PROJECT_TILE_ASSETS,
 } from "./microverseAssets";
+import type { ProjectLifecycleVisualState } from "./projectVisuals";
 
 describe("microverse visual asset registry", () => {
   it("keeps core asset paths rooted in the public assets directory", () => {
@@ -37,6 +39,28 @@ describe("microverse visual asset registry", () => {
   it("maps MVP landmarks to app destinations", () => {
     const destinations = MICROVERSE_LANDMARKS.flatMap((landmark) => landmark.destination ?? []);
     expect(destinations).toEqual(["homestead", "explorer", "governance", "harvest", "seedbot"]);
+  });
+
+  it("maps every project lifecycle state to a runtime tile asset", () => {
+    const lifecycleStates: ProjectLifecycleVisualState[] = [
+      "EMPTY",
+      "PREPARING",
+      "ACTIVE",
+      "MILESTONE",
+      "HARVEST",
+      "COMPLETED",
+      "PAUSED",
+    ];
+
+    expect(Object.keys(MICROVERSE_PROJECT_TILE_ASSETS).sort()).toEqual([...lifecycleStates].sort());
+
+    lifecycleStates.forEach((state) => {
+      const asset = MICROVERSE_PROJECT_TILE_ASSETS[state];
+      expect(asset.lifecycle).toBe(state);
+      expect(asset.assetPath).toMatch(/^\/assets\/project-tiles\//);
+      expect(asset.targetWidth).toBeGreaterThan(80);
+      expect(asset.targetWidth).toBeLessThanOrEqual(140);
+    });
   });
 
   it("keeps palette values as Pixi-compatible numeric colors", () => {

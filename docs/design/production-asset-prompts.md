@@ -9,6 +9,8 @@ Use these prompts for the first production landmark and project tile batch. Save
 Every generated asset should follow:
 
 - premium regenerative Web3 strategy game style
+- ornate old-world monumentality translated into original CryptoSeeds architecture
+- cel-shaded adventure readability without copying existing characters, maps, UI, or compositions
 - soft 2.5D/isometric perspective
 - Arcane-inspired lighting
 - Civilization-style readability
@@ -20,6 +22,8 @@ Every generated asset should follow:
 - not a casino
 - not a mobile farming clone
 - readable silhouette at small dashboard size
+
+Use direct entertainment references only as internal shorthand. Final prompts and production briefs should describe the original qualities we want: monumental civic geometry, expressive silhouette clarity, painterly teal-gold lighting, and strategy-map legibility.
 
 For cutout-style runtime assets, generate on a flat chroma-key background first and remove the background locally before use.
 

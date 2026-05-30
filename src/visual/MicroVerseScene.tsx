@@ -4,8 +4,10 @@ import {
   MICROVERSE_ASSETS,
   MICROVERSE_LANDMARKS,
   MICROVERSE_PALETTE,
+  MICROVERSE_PROJECT_TILE_ASSETS,
   type MicroVerseLandmark,
 } from "./microverseAssets";
+import type { ProjectLifecycleVisualState } from "./projectVisuals";
 import type { MicroVerseNavigationMode, MicroVersePlot, MicroVerseSceneState } from "./microverseSceneState";
 
 type Point = { x: number; y: number };
@@ -307,10 +309,11 @@ async function buildWorld(
   const particles: Particle[] = [];
   const rainLines: RainLine[] = [];
 
-  const terrain = await Assets.load(MICROVERSE_ASSETS.conceptPlate).catch(() =>
-    Assets.load(MICROVERSE_ASSETS.fallbackTerrain),
-  );
-  const landmarkTextures = await loadLandmarkTextures();
+  const [terrain, landmarkTextures, projectTileTextures] = await Promise.all([
+    Assets.load(MICROVERSE_ASSETS.conceptPlate).catch(() => Assets.load(MICROVERSE_ASSETS.fallbackTerrain)),
+    loadLandmarkTextures(),
+    loadProjectTileTextures(),
+  ]);
   const background = new Sprite(terrain);
   background.label = "terrain";
   background.alpha = 0.28;
@@ -328,7 +331,7 @@ async function buildWorld(
   const plotLayer = new Container();
   plotLayer.label = "plots";
   scene.plots.forEach((plot) => {
-    const marker = buildPlotMarker(plot, plot.x * worldSize.x, plot.y * worldSize.y, onPlotSelect);
+    const marker = buildPlotMarker(plot, plot.x * worldSize.x, plot.y * worldSize.y, onPlotSelect, projectTileTextures);
     plotMarkers.push(marker);
     plotLayer.addChild(marker);
   });
@@ -392,6 +395,17 @@ async function loadLandmarkTextures() {
   );
 
   return new Map(entries.filter((entry): entry is readonly [string, Texture] => Boolean(entry)));
+}
+
+async function loadProjectTileTextures() {
+  const entries = await Promise.all(
+    Object.entries(MICROVERSE_PROJECT_TILE_ASSETS).map(async ([lifecycle, asset]) => {
+      const texture = await Assets.load(asset.assetPath).catch(() => null);
+      return texture ? ([lifecycle as ProjectLifecycleVisualState, texture] as const) : null;
+    }),
+  );
+
+  return new Map(entries.filter((entry): entry is readonly [ProjectLifecycleVisualState, Texture] => Boolean(entry)));
 }
 
 function animateScene(runtime: WorldRuntime, deltaSeconds: number, time: number) {
@@ -818,7 +832,13 @@ function buildPlayer() {
   return player;
 }
 
-function buildPlotMarker(plot: MicroVersePlot, x: number, y: number, onPlotSelect: (projectId: string) => void) {
+function buildPlotMarker(
+  plot: MicroVersePlot,
+  x: number,
+  y: number,
+  onPlotSelect: (projectId: string) => void,
+  projectTileTextures: Map<ProjectLifecycleVisualState, Texture>,
+) {
   const marker = new Container();
   marker.x = x;
   marker.y = y;
@@ -826,6 +846,8 @@ function buildPlotMarker(plot: MicroVersePlot, x: number, y: number, onPlotSelec
   const active = plot.lifecycle !== "EMPTY";
   const colors = colorsForPlot(plot);
   const radius = active ? 28 : 22;
+  const tileTexture = projectTileTextures.get(plot.lifecycle);
+  const tileSprite = tileTexture ? buildProjectTileSprite(plot, tileTexture) : null;
 
   if (plot.projectId) {
     marker.eventMode = "static";
@@ -837,16 +859,24 @@ function buildPlotMarker(plot: MicroVersePlot, x: number, y: number, onPlotSelec
   }
 
   const base = new Graphics();
-  base.ellipse(0, 12, radius * 1.9, radius * 0.76).fill({ color: 0x050805, alpha: 0.62 });
+  base.ellipse(0, 18, radius * 2.15, radius * 0.76).fill({ color: 0x050805, alpha: 0.54 });
   base.circle(0, 0, radius + 12).fill({ color: colors.ring, alpha: active ? 0.12 : 0.07 });
   base.circle(0, 0, radius).fill({ color: colors.fill, alpha: active ? 0.36 : 0.2 });
-  base.circle(0, 0, radius).stroke({ color: colors.ring, alpha: 0.88, width: 2 });
-  drawPlotSymbol(base, plot, colors, radius);
+  if (!tileSprite) {
+    base.circle(0, 0, radius).stroke({ color: colors.ring, alpha: 0.88, width: 2 });
+    drawPlotSymbol(base, plot, colors, radius);
+  }
+
+  const overlay = new Graphics();
+  if (tileSprite) {
+    overlay.ellipse(0, 18, radius * 2.02, radius * 0.72).stroke({ color: colors.ring, alpha: 0.62, width: 2 });
+    overlay.circle(0, 0, radius + 11).stroke({ color: MICROVERSE_PALETTE.ivory, alpha: 0.16, width: 1.4 });
+  }
   if (plot.lifecycle === "HARVEST" || plot.lifecycle === "MILESTONE") {
-    base.circle(0, 0, radius + 8).stroke({ color: 0xfff1a3, alpha: 0.42, width: 3 });
+    overlay.circle(0, 0, radius + 8).stroke({ color: 0xfff1a3, alpha: 0.42, width: 3 });
   }
   if (plot.lifecycle === "PAUSED") {
-    base.moveTo(-radius + 6, -radius + 6).lineTo(radius - 6, radius - 6).stroke({
+    overlay.moveTo(-radius + 6, -radius + 6).lineTo(radius - 6, radius - 6).stroke({
       color: 0xffc7a3,
       alpha: 0.86,
       width: 3,
@@ -866,10 +896,28 @@ function buildPlotMarker(plot: MicroVersePlot, x: number, y: number, onPlotSelec
     }),
   });
   label.anchor.set(0.5, 0);
-  label.y = radius + 12;
+  label.y = tileSprite ? radius + 30 : radius + 12;
 
-  marker.addChild(base, label);
+  if (tileSprite) {
+    marker.addChild(base, tileSprite, overlay, label);
+  } else {
+    marker.addChild(base, overlay, label);
+  }
   return marker;
+}
+
+function buildProjectTileSprite(plot: MicroVersePlot, texture: Texture) {
+  const asset = MICROVERSE_PROJECT_TILE_ASSETS[plot.lifecycle];
+  const sprite = new Sprite(texture);
+  const scale = asset.targetWidth / Math.max(texture.width, 1);
+
+  sprite.anchor.set(0.5, 0.78);
+  sprite.y = 18;
+  sprite.scale.set(scale);
+  sprite.alpha = plot.lifecycle === "PAUSED" ? 0.84 : 0.98;
+  sprite.label = `${plot.lifecycle.toLowerCase()} project tile`;
+
+  return sprite;
 }
 
 function drawIsland(

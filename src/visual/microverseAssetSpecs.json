@@ -53,5 +53,71 @@
     "maxBytes": 2400000,
     "productionReady": false,
     "notes": "First transparent runtime landmark pass for SeedBot Terminal. Keep as MVP art, then convert to atlas/WebP before public launch."
+  },
+  {
+    "id": "project-open",
+    "role": "PROJECT_TILE",
+    "state": "OPEN",
+    "path": "/assets/project-tiles/project-open.png",
+    "targetWidth": 1536,
+    "targetHeight": 1024,
+    "maxBytes": 2200000,
+    "productionReady": false,
+    "notes": "Transparent runtime project tile for open or empty project plots. Keep as MVP art, then atlas/compress before public launch."
+  },
+  {
+    "id": "project-active",
+    "role": "PROJECT_TILE",
+    "state": "ACTIVE",
+    "path": "/assets/project-tiles/project-active.png",
+    "targetWidth": 1536,
+    "targetHeight": 1024,
+    "maxBytes": 2300000,
+    "productionReady": false,
+    "notes": "Transparent runtime project tile for prepared and active project plots. Keep as MVP art, then atlas/compress before public launch."
+  },
+  {
+    "id": "project-milestone",
+    "role": "PROJECT_TILE",
+    "state": "MILESTONE",
+    "path": "/assets/project-tiles/project-milestone.png",
+    "targetWidth": 1536,
+    "targetHeight": 1024,
+    "maxBytes": 2800000,
+    "productionReady": false,
+    "notes": "Transparent runtime project tile for milestone-reached project plots. Keep as MVP art, then atlas/compress before public launch."
+  },
+  {
+    "id": "project-harvest",
+    "role": "PROJECT_TILE",
+    "state": "HARVEST",
+    "path": "/assets/project-tiles/project-harvest.png",
+    "targetWidth": 1536,
+    "targetHeight": 1024,
+    "maxBytes": 2200000,
+    "productionReady": false,
+    "notes": "Transparent runtime project tile for harvest-available project plots. Keep as MVP art, then atlas/compress before public launch."
+  },
+  {
+    "id": "project-completed",
+    "role": "PROJECT_TILE",
+    "state": "COMPLETED",
+    "path": "/assets/project-tiles/project-completed.png",
+    "targetWidth": 1536,
+    "targetHeight": 1024,
+    "maxBytes": 2500000,
+    "productionReady": false,
+    "notes": "Transparent runtime project tile for completed project plots. Keep as MVP art, then atlas/compress before public launch."
+  },
+  {
+    "id": "project-paused",
+    "role": "PROJECT_TILE",
+    "state": "PAUSED",
+    "path": "/assets/project-tiles/project-paused.png",
+    "targetWidth": 1536,
+    "targetHeight": 1024,
+    "maxBytes": 2500000,
+    "productionReady": false,
+    "notes": "Transparent runtime project tile for paused project plots. Keep as MVP art, then atlas/compress before public launch."
   }
 ]

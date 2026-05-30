@@ -33,8 +33,8 @@ for (const spec of assetSpecs) {
     );
   }
 
-  if (spec.role === "LANDMARK" && !imageHasAlpha(buffer, spec.path)) {
-    failures.push(`${spec.id}: landmark assets must include an alpha channel`);
+  if ((spec.role === "LANDMARK" || spec.role === "PROJECT_TILE") && !imageHasAlpha(buffer, spec.path)) {
+    failures.push(`${spec.id}: ${spec.role.toLowerCase()} assets must include an alpha channel`);
   }
 
   console.log(

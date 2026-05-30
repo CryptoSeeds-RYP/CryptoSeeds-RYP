@@ -1,5 +1,6 @@
 import assetSpecs from "./microverseAssetSpecs.json";
 import type { LocationKey } from "../types";
+import type { ProjectLifecycleVisualState } from "./projectVisuals";
 
 export type MicroVerseLandmarkKind =
   | "HOMESTEAD"
@@ -35,8 +36,10 @@ export type MicroVerseAssetState =
   | "CONCEPT"
   | "LOCKED"
   | "IDLE"
+  | "OPEN"
   | "ACTIVE"
   | "ATTENTION"
+  | "MILESTONE"
   | "HARVEST"
   | "COMPLETED"
   | "PAUSED";
@@ -51,6 +54,13 @@ export type MicroVerseAssetSpec = {
   maxBytes: number;
   productionReady: boolean;
   notes: string;
+};
+
+export type MicroVerseProjectTileAsset = {
+  lifecycle: ProjectLifecycleVisualState;
+  state: MicroVerseAssetState;
+  assetPath: string;
+  targetWidth: number;
 };
 
 export const MICROVERSE_ASSETS = {
@@ -158,5 +168,50 @@ export const MICROVERSE_LANDMARKS: MicroVerseLandmark[] = [
     accent: MICROVERSE_PALETTE.harvestGold,
   },
 ];
+
+export const MICROVERSE_PROJECT_TILE_ASSETS: Record<ProjectLifecycleVisualState, MicroVerseProjectTileAsset> = {
+  EMPTY: {
+    lifecycle: "EMPTY",
+    state: "OPEN",
+    assetPath: "/assets/project-tiles/project-open.png",
+    targetWidth: 104,
+  },
+  PREPARING: {
+    lifecycle: "PREPARING",
+    state: "ACTIVE",
+    assetPath: "/assets/project-tiles/project-active.png",
+    targetWidth: 112,
+  },
+  ACTIVE: {
+    lifecycle: "ACTIVE",
+    state: "ACTIVE",
+    assetPath: "/assets/project-tiles/project-active.png",
+    targetWidth: 112,
+  },
+  MILESTONE: {
+    lifecycle: "MILESTONE",
+    state: "MILESTONE",
+    assetPath: "/assets/project-tiles/project-milestone.png",
+    targetWidth: 116,
+  },
+  HARVEST: {
+    lifecycle: "HARVEST",
+    state: "HARVEST",
+    assetPath: "/assets/project-tiles/project-harvest.png",
+    targetWidth: 118,
+  },
+  COMPLETED: {
+    lifecycle: "COMPLETED",
+    state: "COMPLETED",
+    assetPath: "/assets/project-tiles/project-completed.png",
+    targetWidth: 112,
+  },
+  PAUSED: {
+    lifecycle: "PAUSED",
+    state: "PAUSED",
+    assetPath: "/assets/project-tiles/project-paused.png",
+    targetWidth: 112,
+  },
+};
 
 export const MICROVERSE_ASSET_SPECS = assetSpecs as MicroVerseAssetSpec[];

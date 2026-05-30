@@ -22,6 +22,7 @@ The MVP visual layer now uses a live PixiJS world instead of a static map skin:
 - visual asset registry at `src/visual/microverseAssets.ts`
 - landmark destination registry in `src/visual/microverseAssets.ts`
 - transparent runtime landmark assets for Homestead, Governance Hall, and SeedBot Terminal
+- transparent runtime project tile assets for open, active, milestone, harvest, completed, and paused states
 - large world canvas with camera follow
 - WASD and arrow-key movement
 - click-to-move navigation
@@ -30,7 +31,7 @@ The MVP visual layer now uses a live PixiJS world instead of a static map skin:
 - player avatar and glow state
 - river/canal water layer with bridges and glints
 - paths, islands, groves, dome clusters, lanterns, and windmill details
-- state-driven project markers scaled into world coordinates
+- state-driven project markers scaled into world coordinates, with bitmap tile assets and procedural fallback symbols
 - animated particles, tier atmosphere, and rain/storm effects
 - reduced-motion handling for users who prefer less animation
 
@@ -80,7 +81,7 @@ Build the visual stack in this order:
 
 1. PixiJS procedural world, navigation, and state-driven markers. Done.
 2. Generated bitmap concept plate and asset registry. Done for the first world plate.
-3. Generated transparent runtime assets for key locations. Started with Homestead, Governance Hall, and SeedBot Terminal.
+3. Generated transparent runtime assets for key locations and project states. Started with Homestead, Governance Hall, SeedBot Terminal, and the MVP project lifecycle tiles.
 4. Texture atlas and sprite-sheet pipeline for production assets.
 5. Richer shader-like effects in PixiJS for water, lighting, harvest, and weather.
 6. Selective Three.js rooms for SeedBot Terminal, Governance Hall, and premium project reveals.
@@ -108,7 +109,9 @@ All runtime visual asset paths, landmark coordinates, and core Pixi colors shoul
 
 Strategy-map buttons, Pixi landmark rings, and future landmark sprites should all read from the same landmark destination registry. Avoid hardcoding separate UI marker lists.
 
-Transparent landmark sprites should load from registered `assetPath` values first. Procedural Pixi drawings must remain as fallback when a sprite is missing or fails to load.
+Transparent landmark and project tile sprites should load from registered `assetPath` values first. Procedural Pixi drawings must remain as fallback when a sprite is missing or fails to load.
+
+Project tile assets should map to lifecycle state, not individual hardcoded cards. The current runtime mapping lives in `MICROVERSE_PROJECT_TILE_ASSETS` and covers `EMPTY`, `PREPARING`, `ACTIVE`, `MILESTONE`, `HARVEST`, `COMPLETED`, and `PAUSED`.
 
 ## Performance Rules
 

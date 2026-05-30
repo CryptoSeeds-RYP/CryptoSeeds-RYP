@@ -21,9 +21,13 @@ The visual layer is not decoration. It is the user's living map of protocol stat
 | --- | --- |
 | Strategy readability | Civilization-style map clarity, visible landmarks, understandable project state |
 | Premium atmosphere | Arcane-inspired light, layered dusk, teal shadows, warm gold signal points |
+| Old-world monumentality | ornate civic structures, brass filigree, observatory domes, monumental terraces, never direct historical-copy pastiche |
+| Adventure clarity | cel-shaded silhouette readability, playful navigation affordances, approachable shapes without childish tone |
 | Regenerative technology | glass greenhouses, water systems, cultivated land, clean energy, nature-tech materials |
 | Web3 seriousness | no casino energy, no meme-token styling, no childish farming clone tone |
 | Stateful beauty | every visual upgrade should correspond to staking, project, reward, governance, donation, or SeedBot state |
+
+The external art references should be translated into an original CryptoSeeds language: ornate old-world architecture, expressive cel-shaded readability, painterly cinematic lighting, and strategy-map clarity. Do not copy recognizable characters, locations, UI, logos, or exact compositions from existing games or shows.
 
 ## Palette
 
@@ -89,6 +93,21 @@ Every landmark should eventually have:
 
 MVP map landmarks and their app destinations are registered in `src/visual/microverseAssets.ts`. The React marker layer and Pixi strategic hotspot layer should use this shared registry.
 
+## Project Tile Language
+
+Project tiles are the small visual record of vetted project participation inside the user's MicroVerse. They should read clearly at dashboard size and support fast status scanning.
+
+| State | Visual Language |
+| --- | --- |
+| Open | quiet prepared land, soft gold access signal, invitation without pressure |
+| Active | visible cultivation/work systems, water channels, warm operating lights |
+| Milestone | ceremonial glow, activated ring, upgraded infrastructure |
+| Harvest | golden claim-ready signal, glowing crop/report energy, no money imagery |
+| Completed | mature landscape, calm finished cycle, stable pathing |
+| Paused | muted warm caution, dimmed activity, no panic styling |
+
+Runtime tile assets currently live under `public/assets/project-tiles/` and are registered through `MICROVERSE_PROJECT_TILE_ASSETS`.
+
 ## Asset Pipeline
 
 Use this production sequence:
@@ -114,6 +133,8 @@ Every runtime or concept asset should have:
 - byte budget
 - production readiness flag
 - short notes explaining how it should be used
+
+Transparent landmark and project tile assets must pass `npm run visual:audit`, including alpha-channel validation.
 
 ## Motion And Effects
 
