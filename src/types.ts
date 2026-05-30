@@ -20,6 +20,7 @@ export type {
 export type { GoldenKeyState, StakingPositionSummary, VotingRightsState } from "./domain/staking";
 export type {
   PreparedSolanaTransactionPlan,
+  SolanaWalletSignatureReceipt,
   SolanaWalletBoundaryPreview,
   TransactionIntent,
   TransactionIntentType,

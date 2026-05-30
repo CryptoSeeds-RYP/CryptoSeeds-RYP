@@ -47,7 +47,9 @@ export default function App() {
     prepareProjectIntent,
     prepareSeedBotAllocation,
     prepareSolanaTransactionBoundary,
+    requestSolanaTransactionSignature,
     transactionBoundaryLoading,
+    transactionSignatureLoading,
     advanceIntent,
     resetIntent,
   } = useMicroVerseState();
@@ -160,7 +162,9 @@ export default function App() {
               onAdvance={advanceIntent}
               onPrepareSolana={prepareSolanaTransactionBoundary}
               onReset={resetIntent}
+              onSignSolana={requestSolanaTransactionSignature}
               preparingSolana={transactionBoundaryLoading}
+              signingSolana={transactionSignatureLoading}
             />
             <ProjectSnapshot
               project={selectedProject}

@@ -17,7 +17,10 @@ import {
   buildStakePreviewIntent,
   resetTransactionIntent,
 } from "../services/transactionIntentService";
-import { simulatePreparedSolanaTransaction } from "../solana/solanaTransactionBoundary";
+import {
+  requestPreparedSolanaSignature,
+  simulatePreparedSolanaTransaction,
+} from "../solana/solanaTransactionBoundary";
 
 export function useMicroVerseState() {
   const { connection } = useConnection();
@@ -33,6 +36,7 @@ export function useMicroVerseState() {
   const [snapshot, setSnapshot] = useState<ProtocolSnapshot | undefined>();
   const [loading, setLoading] = useState(true);
   const [transactionBoundaryLoading, setTransactionBoundaryLoading] = useState(false);
+  const [transactionSignatureLoading, setTransactionSignatureLoading] = useState(false);
 
   useEffect(() => {
     setWalletAddress(connected && publicKey ? publicKey.toBase58() : undefined);
@@ -133,21 +137,51 @@ export function useMicroVerseState() {
     const intentAtRequest = intent;
     setTransactionBoundaryLoading(true);
 
-    const boundary = await simulatePreparedSolanaTransaction({
-      connection,
-      plan: intentAtRequest.preparedSolanaTransaction,
-      walletCanSign: Boolean(signTransaction),
-      walletPublicKey: publicKey?.toBase58(),
-    });
+    try {
+      const boundary = await simulatePreparedSolanaTransaction({
+        connection,
+        plan: intentAtRequest.preparedSolanaTransaction,
+        walletCanSign: Boolean(signTransaction),
+        walletPublicKey: publicKey?.toBase58(),
+      });
 
-    setIntent((current) => {
-      if (current.id !== intentAtRequest.id) return current;
-      return {
-        ...current,
-        solanaBoundary: boundary,
-      };
-    });
-    setTransactionBoundaryLoading(false);
+      setIntent((current) => {
+        if (current.id !== intentAtRequest.id) return current;
+        return {
+          ...current,
+          solanaBoundary: boundary,
+        };
+      });
+    } finally {
+      setTransactionBoundaryLoading(false);
+    }
+  }
+
+  async function requestSolanaTransactionSignature() {
+    const intentAtRequest = intent;
+    setTransactionSignatureLoading(true);
+
+    try {
+      const signature = await requestPreparedSolanaSignature({
+        boundary: intentAtRequest.solanaBoundary,
+        plan: intentAtRequest.preparedSolanaTransaction,
+        signTransaction,
+        walletPublicKey: publicKey?.toBase58(),
+      });
+
+      setIntent((current) => {
+        if (current.id !== intentAtRequest.id) return current;
+        const signedIntent = advanceTransactionIntent({ ...current, status: "AWAITING_SIGNATURE" });
+        return {
+          ...current,
+          solanaSignature: signature,
+          status: signature.status === "SIGNED" ? signedIntent.status : current.status,
+          lifecycle: signature.status === "SIGNED" ? signedIntent.lifecycle : current.lifecycle,
+        };
+      });
+    } finally {
+      setTransactionSignatureLoading(false);
+    }
   }
 
   function effectiveIntentWalletAddress() {
@@ -171,7 +205,9 @@ export function useMicroVerseState() {
     prepareProjectIntent,
     prepareSeedBotAllocation,
     prepareSolanaTransactionBoundary,
+    requestSolanaTransactionSignature,
     transactionBoundaryLoading,
+    transactionSignatureLoading,
     advanceIntent,
     resetIntent,
   };

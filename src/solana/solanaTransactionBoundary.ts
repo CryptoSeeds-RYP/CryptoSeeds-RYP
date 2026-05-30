@@ -12,6 +12,7 @@ import type {
   PreparedInstructionPlan,
   PreparedSolanaTransactionPlan,
   SolanaWalletBoundaryPreview,
+  SolanaWalletSignatureReceipt,
 } from "../domain/transactions";
 
 type BoundaryInput = {
@@ -27,6 +28,13 @@ type SimulationInput = {
   plan?: PreparedSolanaTransactionPlan;
   walletPublicKey?: string;
   walletCanSign: boolean;
+};
+
+type SignatureInput = {
+  boundary?: SolanaWalletBoundaryPreview;
+  plan?: PreparedSolanaTransactionPlan;
+  signTransaction?: (transaction: Transaction) => Promise<Transaction>;
+  walletPublicKey?: string;
 };
 
 export async function simulatePreparedSolanaTransaction({
@@ -132,6 +140,87 @@ export function buildSolanaWalletBoundaryPreview({
   };
 }
 
+export async function requestPreparedSolanaSignature({
+  boundary,
+  plan,
+  signTransaction,
+  walletPublicKey,
+}: SignatureInput): Promise<SolanaWalletSignatureReceipt> {
+  const blockedReasons = validateSignatureBoundary({ boundary, plan, signTransaction, walletPublicKey });
+  if (blockedReasons.length > 0 || !boundary || !plan || !signTransaction) {
+    return blockedSignatureReceipt({
+      boundary,
+      message: blockedReasons[0] ?? "Solana wallet signature is not available.",
+      reasons: blockedReasons,
+      walletPublicKey,
+    });
+  }
+  const recentBlockhash = boundary.recentBlockhash;
+  if (!recentBlockhash || !walletPublicKey) {
+    return blockedSignatureReceipt({
+      boundary,
+      message: "Solana wallet signature boundary is missing required signing context.",
+      reasons: ["Simulation boundary is missing a recent blockhash or wallet signer."],
+      walletPublicKey,
+    });
+  }
+
+  try {
+    const transaction = createSolanaTransactionFromPlan({
+      lastValidBlockHeight: boundary.lastValidBlockHeight,
+      plan,
+      recentBlockhash,
+    });
+    const signedTransaction = await signTransaction(transaction);
+    const signer = signedTransaction.signatures.find((signaturePair) =>
+      signaturePair.publicKey.equals(new PublicKey(walletPublicKey)),
+    );
+
+    if (!signer?.signature) {
+      return {
+        feePayer: plan.feePayer,
+        message: "Wallet returned without the required signer signature.",
+        signatureVerified: false,
+        status: "FAILED",
+        walletAddress: walletPublicKey,
+        warnings: [
+          "No signed transaction was stored or broadcast.",
+          "Retry only after confirming the wallet approval screen shows the expected action.",
+        ],
+      };
+    }
+
+    const messageFingerprint = await createMessageFingerprint(signedTransaction.serializeMessage());
+
+    return {
+      feePayer: plan.feePayer,
+      message: "Wallet signature collected. Broadcast remains disabled for this integration stage.",
+      messageFingerprint,
+      signatureBase64: Buffer.from(signer.signature).toString("base64"),
+      signatureVerified: signedTransaction.verifySignatures(true),
+      signedAt: new Date().toISOString(),
+      status: "SIGNED",
+      walletAddress: walletPublicKey,
+      warnings: [
+        "Signed transaction bytes are not stored by the app.",
+        "Broadcast remains disabled until cluster and program safety checks are reviewed.",
+      ],
+    };
+  } catch (error) {
+    return {
+      feePayer: plan.feePayer,
+      message: "Wallet signature request failed or was rejected. No transaction was broadcast.",
+      signatureVerified: false,
+      status: "FAILED",
+      walletAddress: walletPublicKey,
+      warnings: [
+        stringifyUnknownError(error),
+        "No signed transaction was stored or broadcast.",
+      ],
+    };
+  }
+}
+
 export function createSolanaTransactionFromPlan({
   lastValidBlockHeight,
   plan,
@@ -192,6 +281,62 @@ function validateBoundary({ plan, walletCanSign, walletPublicKey }: BoundaryInpu
   }
 
   return reasons;
+}
+
+function validateSignatureBoundary({
+  boundary,
+  plan,
+  signTransaction,
+  walletPublicKey,
+}: SignatureInput) {
+  const reasons: string[] = [];
+  if (!plan) reasons.push("No prepared Solana transaction plan is available.");
+  if (!boundary) reasons.push("Run wallet simulation before requesting a signature.");
+  if (boundary && boundary.status !== "SIMULATION_PASSED") {
+    reasons.push("Wallet signature requires a passed simulation boundary.");
+  }
+  if (!boundary?.recentBlockhash) reasons.push("Simulation boundary is missing a recent blockhash.");
+  if (!walletPublicKey) reasons.push("Connect a real Solana wallet before requesting a signature.");
+  if (!signTransaction) reasons.push("Connected wallet does not expose Solana transaction signing.");
+  if (plan && walletPublicKey && plan.feePayer !== walletPublicKey) {
+    reasons.push("Connected wallet does not match the prepared transaction fee payer.");
+  }
+  if (plan && walletPublicKey && !requiredSignerAddresses(plan).includes(walletPublicKey)) {
+    reasons.push("Connected wallet is not listed as a required signer.");
+  }
+
+  return reasons;
+}
+
+function blockedSignatureReceipt({
+  boundary,
+  message,
+  reasons,
+  walletPublicKey,
+}: {
+  boundary?: SolanaWalletBoundaryPreview;
+  message: string;
+  reasons: string[];
+  walletPublicKey?: string;
+}): SolanaWalletSignatureReceipt {
+  return {
+    feePayer: boundary?.feePayer,
+    message,
+    signatureVerified: false,
+    status: "BLOCKED",
+    walletAddress: walletPublicKey,
+    warnings: [
+      ...reasons,
+      "No wallet signature is requested while this signature boundary is blocked.",
+    ],
+  };
+}
+
+async function createMessageFingerprint(messageBytes: Uint8Array) {
+  const digestInput = new Uint8Array(messageBytes.byteLength);
+  digestInput.set(messageBytes);
+  const digest = await globalThis.crypto.subtle.digest("SHA-256", digestInput);
+  return `sha256:${Buffer.from(digest).toString("hex")}`;
 }
 
 function blockedBoundaryPreview({

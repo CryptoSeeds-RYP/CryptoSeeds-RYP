@@ -8,16 +8,27 @@ export function TransactionPanel({
   onAdvance,
   onPrepareSolana,
   onReset,
+  onSignSolana,
   preparingSolana,
+  signingSolana,
 }: {
   intent: TransactionIntent;
   onAdvance: () => void;
   onPrepareSolana?: () => void;
   onReset: () => void;
+  onSignSolana?: () => void;
   preparingSolana?: boolean;
+  signingSolana?: boolean;
 }) {
-  const canAdvance = intent.status !== "DRAFT" && intent.status !== "CONFIRMED" && intent.status !== "FAILED";
-  const actionLabel = intent.status === "CONFIRMED" ? "Confirmed" : "Simulate Next Step";
+  const signatureCollected = intent.solanaSignature?.status === "SIGNED";
+  const canAdvance =
+    !signatureCollected && intent.status !== "DRAFT" && intent.status !== "CONFIRMED" && intent.status !== "FAILED";
+  const actionLabel = signatureCollected
+    ? "Broadcast Disabled"
+    : intent.status === "CONFIRMED"
+      ? "Confirmed"
+      : "Simulate Next Step";
+  const canRequestSolanaSignature = intent.solanaBoundary?.status === "SIMULATION_PASSED" && !intent.solanaSignature;
 
   return (
     <section className="side-panel transaction-panel">
@@ -128,6 +139,27 @@ export function TransactionPanel({
         </section>
       )}
 
+      {intent.solanaSignature && (
+        <section className={`transaction-subsection solana-signature ${intent.solanaSignature.status.toLowerCase()}`}>
+          <div className="panel-title">
+            <KeyRound size={16} />
+            <strong>Signature Receipt</strong>
+          </div>
+          <StateLine label="Signature" value={formatLabel(intent.solanaSignature.status)} />
+          <StateLine label="Verified" value={intent.solanaSignature.signatureVerified ? "Yes" : "No"} />
+          {intent.solanaSignature.signatureBase64 && (
+            <StateLine label="Receipt" value={shorten(intent.solanaSignature.signatureBase64)} />
+          )}
+          {intent.solanaSignature.messageFingerprint && (
+            <StateLine label="Message" value={shorten(intent.solanaSignature.messageFingerprint)} />
+          )}
+          <span>{intent.solanaSignature.message}</span>
+          {intent.solanaSignature.warnings.map((warning) => (
+            <span key={warning}>{warning}</span>
+          ))}
+        </section>
+      )}
+
       {intent.acknowledgement && (
         <section className="transaction-subsection acknowledgement-summary">
           <div className="panel-title">
@@ -147,6 +179,12 @@ export function TransactionPanel({
           <button className="secondary-action" disabled={preparingSolana} onClick={onPrepareSolana}>
             <ShieldCheck size={16} />
             {preparingSolana ? "Checking Boundary" : "Run Wallet Simulation"}
+          </button>
+        )}
+        {intent.preparedSolanaTransaction && onSignSolana && (
+          <button className="secondary-action" disabled={!canRequestSolanaSignature || signingSolana} onClick={onSignSolana}>
+            <KeyRound size={16} />
+            {signingSolana ? "Awaiting Wallet" : "Request Wallet Signature"}
           </button>
         )}
         <button className="primary-action" disabled={!canAdvance} onClick={onAdvance}>

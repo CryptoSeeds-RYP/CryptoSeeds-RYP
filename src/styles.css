@@ -904,12 +904,24 @@ button:disabled {
   line-height: 1.4;
 }
 
+.solana-signature > span {
+  color: #d8decf;
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
 .solana-boundary.simulation_passed {
   border-color: rgba(128, 198, 109, 0.3);
 }
 
+.solana-signature.signed {
+  border-color: rgba(128, 198, 109, 0.3);
+}
+
 .solana-boundary.blocked,
-.solana-boundary.simulation_failed {
+.solana-boundary.simulation_failed,
+.solana-signature.blocked,
+.solana-signature.failed {
   border-color: rgba(255, 189, 136, 0.28);
 }
 

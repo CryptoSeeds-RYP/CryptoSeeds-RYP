@@ -51,6 +51,7 @@ The next client boundary is `src/solana/solanaTransactionBoundary.ts`:
 - Builds a serialized-message preview for wallet review surfaces
 - Blocks demo/disconnected wallets and fee-payer mismatches before any signature request
 - Runs RPC simulation with `sigVerify: false` and no wallet signature
+- Requests a wallet signature only after simulation passes, then stores a receipt rather than signed transaction bytes
 - Keeps broadcast disabled until a later explicit signing and send boundary is reviewed
 
 ## Deferred Modules

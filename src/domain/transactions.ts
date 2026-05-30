@@ -90,6 +90,20 @@ export type SolanaWalletBoundaryPreview = {
   warnings: string[];
 };
 
+export type SolanaWalletSignatureStatus = "BLOCKED" | "SIGNED" | "FAILED";
+
+export type SolanaWalletSignatureReceipt = {
+  status: SolanaWalletSignatureStatus;
+  message: string;
+  walletAddress?: string;
+  feePayer?: string;
+  signatureBase64?: string;
+  messageFingerprint?: string;
+  signatureVerified: boolean;
+  signedAt?: string;
+  warnings: string[];
+};
+
 export type RiskAcknowledgement = {
   id: string;
   label: string;
@@ -117,6 +131,7 @@ export type TransactionIntent = {
   acknowledgement?: RiskAcknowledgement;
   preparedSolanaTransaction?: PreparedSolanaTransactionPlan;
   solanaBoundary?: SolanaWalletBoundaryPreview;
+  solanaSignature?: SolanaWalletSignatureReceipt;
   lifecycle: TransactionLifecycleStep[];
   riskSummary: string;
   expectedResult: string;

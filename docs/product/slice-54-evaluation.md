@@ -25,4 +25,4 @@ Move from static Solana protocol previews toward wallet-approved execution by ad
 
 ## Follow-Up
 
-The next step is a signature-only UX path behind this boundary. It should request `signTransaction` only after simulation review, then keep broadcast as a separate disabled/reviewed stage until cluster and program deployment checks are complete.
+The next step is a broadcast-disabled signature receipt path behind this boundary. It should request `signTransaction` only after simulation review, then keep broadcast as a separate disabled/reviewed stage until cluster and program deployment checks are complete.
