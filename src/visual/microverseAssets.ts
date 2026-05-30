@@ -1,3 +1,5 @@
+import assetSpecs from "./microverseAssetSpecs.json";
+
 export type MicroVerseLandmarkKind =
   | "HOMESTEAD"
   | "EXPLORER_MAP"
@@ -16,6 +18,36 @@ export type MicroVerseLandmark = {
   scale: number;
   accent: number;
   assetPath?: string;
+};
+
+export type MicroVerseAssetRole =
+  | "CONCEPT_PLATE"
+  | "WORLD_PLATE"
+  | "LANDMARK"
+  | "PROJECT_TILE"
+  | "UI_OBJECT"
+  | "PARTICLE";
+
+export type MicroVerseAssetState =
+  | "CONCEPT"
+  | "LOCKED"
+  | "IDLE"
+  | "ACTIVE"
+  | "ATTENTION"
+  | "HARVEST"
+  | "COMPLETED"
+  | "PAUSED";
+
+export type MicroVerseAssetSpec = {
+  id: string;
+  role: MicroVerseAssetRole;
+  state: MicroVerseAssetState;
+  path: string;
+  targetWidth: number;
+  targetHeight: number;
+  maxBytes: number;
+  productionReady: boolean;
+  notes: string;
 };
 
 export const MICROVERSE_ASSETS = {
@@ -106,3 +138,5 @@ export const MICROVERSE_LANDMARKS: MicroVerseLandmark[] = [
     accent: MICROVERSE_PALETTE.harvestGold,
   },
 ];
+
+export const MICROVERSE_ASSET_SPECS = assetSpecs as MicroVerseAssetSpec[];

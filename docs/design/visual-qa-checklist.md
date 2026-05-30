@@ -40,6 +40,7 @@ Check at minimum:
 ## Performance
 
 - Production build passes.
+- `npm run visual:audit` passes.
 - MicroVerse chunk size is reviewed after new art imports.
 - Large concept assets are compressed before release use.
 - Real sprites should be converted to WebP or atlas format before public launch.

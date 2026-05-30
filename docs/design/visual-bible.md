@@ -85,11 +85,22 @@ Use this production sequence:
 3. Export WebP or PNG at 2x scale.
 4. Build a texture atlas when the asset count grows.
 5. Register all assets in `src/visual/microverseAssets.ts`.
-6. Keep procedural Pixi graphics as fallback.
+6. Run `npm run visual:audit`.
+7. Keep procedural Pixi graphics as fallback.
 
 The current first concept plate is saved at:
 
 `public/assets/concepts/microverse-world-plate-v1.png`
+
+Every runtime or concept asset should have:
+
+- explicit role
+- state
+- path
+- target dimensions
+- byte budget
+- production readiness flag
+- short notes explaining how it should be used
 
 ## Motion And Effects
 

@@ -10,7 +10,8 @@
     "test": "vitest run",
     "protocol:build": "anchor build",
     "protocol:test": "anchor test",
-    "token:check": "node scripts/check-ryp-mint.mjs"
+    "token:check": "node scripts/check-ryp-mint.mjs",
+    "visual:audit": "node scripts/audit-visual-assets.mjs"
   },
   "dependencies": {
     "@solana/wallet-adapter-base": "^0.9.27",

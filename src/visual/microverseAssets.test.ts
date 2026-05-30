@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { MICROVERSE_ASSETS, MICROVERSE_LANDMARKS, MICROVERSE_PALETTE } from "./microverseAssets";
+import {
+  MICROVERSE_ASSETS,
+  MICROVERSE_ASSET_SPECS,
+  MICROVERSE_LANDMARKS,
+  MICROVERSE_PALETTE,
+} from "./microverseAssets";
 
 describe("microverse visual asset registry", () => {
   it("keeps core asset paths rooted in the public assets directory", () => {
@@ -33,6 +38,19 @@ describe("microverse visual asset registry", () => {
       expect(Number.isInteger(color)).toBe(true);
       expect(color).toBeGreaterThanOrEqual(0x000000);
       expect(color).toBeLessThanOrEqual(0xffffff);
+    });
+  });
+
+  it("registers runtime and concept assets with explicit quality gates", () => {
+    expect(MICROVERSE_ASSET_SPECS.length).toBeGreaterThanOrEqual(2);
+
+    MICROVERSE_ASSET_SPECS.forEach((asset) => {
+      expect(asset.id).toMatch(/^[a-z0-9-]+$/);
+      expect(asset.path).toMatch(/^\/assets\//);
+      expect(asset.targetWidth).toBeGreaterThan(0);
+      expect(asset.targetHeight).toBeGreaterThan(0);
+      expect(asset.maxBytes).toBeGreaterThan(0);
+      expect(asset.notes.length).toBeGreaterThan(12);
     });
   });
 });
