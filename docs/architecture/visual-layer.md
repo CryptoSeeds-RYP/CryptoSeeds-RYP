@@ -20,6 +20,7 @@ The MVP visual layer now uses a live PixiJS world instead of a static map skin:
 
 - generated concept background plate at `public/assets/concepts/microverse-world-plate-v1.png`
 - visual asset registry at `src/visual/microverseAssets.ts`
+- landmark destination registry in `src/visual/microverseAssets.ts`
 - large world canvas with camera follow
 - WASD and arrow-key movement
 - click-to-move navigation
@@ -103,6 +104,8 @@ Use generated or commissioned bitmap assets for:
 Avoid building the main world as inline SVG. Keep SVG/icon use limited to UI icons via Lucide.
 
 All runtime visual asset paths, landmark coordinates, and core Pixi colors should be registered in `src/visual/microverseAssets.ts` so production art can replace procedural fallbacks without rewriting scene logic.
+
+Strategy-map buttons, Pixi landmark rings, and future landmark sprites should all read from the same landmark destination registry. Avoid hardcoding separate UI marker lists.
 
 ## Performance Rules
 

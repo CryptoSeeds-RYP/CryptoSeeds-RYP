@@ -18,6 +18,7 @@ describe("microverse visual asset registry", () => {
       "HOMESTEAD",
       "EXPLORER_MAP",
       "GOVERNANCE_HALL",
+      "HARVEST_LEDGER",
       "SEEDBOT_TERMINAL",
       "STEWARD_GLADE",
       "LOREHOUSE",
@@ -31,6 +32,11 @@ describe("microverse visual asset registry", () => {
       expect(landmark.y).toBeLessThan(1);
       expect(landmark.scale).toBeGreaterThan(0);
     });
+  });
+
+  it("maps MVP landmarks to app destinations", () => {
+    const destinations = MICROVERSE_LANDMARKS.flatMap((landmark) => landmark.destination ?? []);
+    expect(destinations).toEqual(["homestead", "explorer", "governance", "harvest", "seedbot"]);
   });
 
   it("keeps palette values as Pixi-compatible numeric colors", () => {

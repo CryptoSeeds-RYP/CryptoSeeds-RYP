@@ -87,6 +87,8 @@ Every landmark should eventually have:
 - notification state
 - milestone or reward-ready state where relevant
 
+MVP map landmarks and their app destinations are registered in `src/visual/microverseAssets.ts`. The React marker layer and Pixi strategic hotspot layer should use this shared registry.
+
 ## Asset Pipeline
 
 Use this production sequence:

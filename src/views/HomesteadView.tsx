@@ -19,6 +19,7 @@ import { formatLabel, formatRyp } from "../utils/format";
 import { Metric } from "../components/Metric";
 import { buildMicroVerseSceneState, summarizeMicroVersePlots } from "../visual/microverseSceneState";
 import type { MicroVerseNavigationMode } from "../visual/microverseSceneState";
+import { MICROVERSE_LANDMARKS, type MicroVerseLandmark } from "../visual/microverseAssets";
 
 const MicroVerseScene = lazy(() =>
   import("../visual/MicroVerseScene").then((module) => ({ default: module.MicroVerseScene })),
@@ -52,6 +53,13 @@ export function HomesteadView({
   onProjectOpen: (projectId: string) => void;
 }) {
   const [navigationMode, setNavigationMode] = useState<MicroVerseNavigationMode>("STRATEGY");
+  const mapMarkers = useMemo(
+    () =>
+      MICROVERSE_LANDMARKS.filter(
+        (landmark): landmark is MicroVerseLandmark & { destination: LocationKey } => Boolean(landmark.destination),
+      ),
+    [],
+  );
   const projectSlots = buildProjectSlots({ slotCount: projectSlotsUnlocked, participations, projects });
   const scene = useMemo(
     () =>
@@ -104,26 +112,21 @@ export function HomesteadView({
           <span><i className="legend-dot research" />R&D</span>
           <span><i className="legend-dot donation" />Donation</span>
         </div>
-        <button className="map-marker homestead-marker" onClick={() => onLocation("homestead")} title="Homestead">
-          <Sprout size={18} />
-          <span>Homestead</span>
-        </button>
-        <button className="map-marker explorer-marker" onClick={() => onLocation("explorer")} title="Explorer's Map">
-          <Map size={18} />
-          <span>Explorer</span>
-        </button>
-        <button className="map-marker harvest-marker" onClick={() => onLocation("harvest")} title="Harvest Ledger">
-          <Wheat size={18} />
-          <span>Harvest</span>
-        </button>
-        <button className="map-marker governance-marker" onClick={() => onLocation("governance")} title="Governance Hall">
-          <Vote size={18} />
-          <span>Governance</span>
-        </button>
-        <button className={`map-marker seedbot-marker ${seedBotUnlocked ? "" : "locked"}`} onClick={() => onLocation("seedbot")} title="SeedBot Terminal">
-          {seedBotUnlocked ? <Bot size={18} /> : <LockKeyhole size={18} />}
-          <span>SeedBot</span>
-        </button>
+        {mapMarkers.map((landmark) => {
+          const locked = landmark.destination === "seedbot" && !seedBotUnlocked;
+          const Icon = iconForLandmark(landmark, locked);
+          return (
+            <button
+              className={`map-marker ${landmark.destination}-marker ${locked ? "locked" : ""}`}
+              key={landmark.id}
+              onClick={() => onLocation(landmark.destination)}
+              title={landmark.label}
+            >
+              <Icon size={18} />
+              <span>{labelForDestination(landmark.destination)}</span>
+            </button>
+          );
+        })}
       </div>
 
       <div className="metric-row">
@@ -182,4 +185,25 @@ export function HomesteadView({
       </section>
     </div>
   );
+}
+
+function iconForLandmark(landmark: MicroVerseLandmark, locked: boolean) {
+  if (locked) return LockKeyhole;
+  if (landmark.destination === "homestead") return Sprout;
+  if (landmark.destination === "explorer") return Map;
+  if (landmark.destination === "harvest") return Wheat;
+  if (landmark.destination === "governance") return Vote;
+  return Bot;
+}
+
+function labelForDestination(destination: LocationKey) {
+  const labels: Record<LocationKey, string> = {
+    homestead: "Homestead",
+    explorer: "Explorer",
+    harvest: "Harvest",
+    governance: "Governance",
+    seedbot: "SeedBot",
+  };
+
+  return labels[destination];
 }

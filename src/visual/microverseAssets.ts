@@ -1,9 +1,11 @@
 import assetSpecs from "./microverseAssetSpecs.json";
+import type { LocationKey } from "../types";
 
 export type MicroVerseLandmarkKind =
   | "HOMESTEAD"
   | "EXPLORER_MAP"
   | "GOVERNANCE_HALL"
+  | "HARVEST_LEDGER"
   | "SEEDBOT_TERMINAL"
   | "STEWARD_GLADE"
   | "LOREHOUSE"
@@ -18,6 +20,7 @@ export type MicroVerseLandmark = {
   scale: number;
   accent: number;
   assetPath?: string;
+  destination?: LocationKey;
 };
 
 export type MicroVerseAssetRole =
@@ -82,6 +85,7 @@ export const MICROVERSE_LANDMARKS: MicroVerseLandmark[] = [
     y: 0.7,
     scale: 0.72,
     accent: MICROVERSE_PALETTE.harvestGold,
+    destination: "homestead",
   },
   {
     id: "explorer-map",
@@ -91,6 +95,7 @@ export const MICROVERSE_LANDMARKS: MicroVerseLandmark[] = [
     y: 0.36,
     scale: 0.78,
     accent: MICROVERSE_PALETTE.researchBlue,
+    destination: "explorer",
   },
   {
     id: "governance-hall",
@@ -100,6 +105,17 @@ export const MICROVERSE_LANDMARKS: MicroVerseLandmark[] = [
     y: 0.29,
     scale: 1.08,
     accent: MICROVERSE_PALETTE.greenhouseTeal,
+    destination: "governance",
+  },
+  {
+    id: "harvest-ledger",
+    label: "Harvest Ledger",
+    kind: "HARVEST_LEDGER",
+    x: 0.66,
+    y: 0.64,
+    scale: 0.68,
+    accent: MICROVERSE_PALETTE.harvestGold,
+    destination: "harvest",
   },
   {
     id: "seedbot-terminal",
@@ -109,6 +125,7 @@ export const MICROVERSE_LANDMARKS: MicroVerseLandmark[] = [
     y: 0.66,
     scale: 0.78,
     accent: MICROVERSE_PALETTE.harvestGold,
+    destination: "seedbot",
   },
   {
     id: "stewards-glade",

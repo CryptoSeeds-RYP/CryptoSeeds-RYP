@@ -906,6 +906,11 @@ function drawLandmark(
     return;
   }
 
+  if (landmark.kind === "HARVEST_LEDGER") {
+    drawHarvestLedger(layer, x, y, landmark.scale, accent);
+    return;
+  }
+
   if (landmark.kind === "STEWARD_GLADE") {
     drawStewardGlade(layer, x, y, landmark.scale, accent);
     return;
@@ -922,6 +927,22 @@ function drawLandmark(
   }
 
   drawDomeCluster(layer, x, y, landmark.scale, accent);
+}
+
+function drawHarvestLedger(layer: Graphics, x: number, y: number, scale: number, accent: number) {
+  layer.ellipse(x, y + 40 * scale, 78 * scale, 25 * scale).fill({ color: 0x14271f, alpha: 0.42 });
+  drawOutlinedRect(layer, x - 42 * scale, y - 2 * scale, 84 * scale, 58 * scale, 0x6b4d25, 0.92, 0xf1cc74, 0.7, 4 * scale);
+  layer.rect(x - 31 * scale, y + 8 * scale, 62 * scale, 10 * scale).fill({ color: 0xfff1ba, alpha: 0.3 });
+  layer.rect(x - 31 * scale, y + 25 * scale, 62 * scale, 8 * scale).fill({ color: 0xfff1ba, alpha: 0.24 });
+  layer.circle(x, y - 7 * scale, 24 * scale).fill({ color: accent, alpha: 0.2 });
+  layer.circle(x, y - 7 * scale, 24 * scale).stroke({ color: accent, alpha: 0.58, width: 3 * scale });
+  layer.moveTo(x - 14 * scale, y - 6 * scale).lineTo(x, y + 9 * scale).lineTo(x + 18 * scale, y - 13 * scale).stroke({
+    color: 0xfff8df,
+    alpha: 0.78,
+    width: 4 * scale,
+    cap: "round",
+    join: "round",
+  });
 }
 
 function drawSeedBotGreenhouse(layer: Graphics, x: number, y: number, scale: number, accent: number) {
