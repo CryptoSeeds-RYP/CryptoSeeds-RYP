@@ -21,9 +21,9 @@ The MVP visual layer now uses a live PixiJS world instead of a static map skin:
 - generated concept background plate at `public/assets/concepts/microverse-world-plate-v1.png`
 - visual asset registry at `src/visual/microverseAssets.ts`
 - landmark destination registry in `src/visual/microverseAssets.ts`
-- transparent runtime landmark assets for Homestead, Governance Hall, and SeedBot Terminal
+- transparent runtime landmark assets for all MVP world locations
 - transparent runtime project tile assets for open, active, milestone, harvest, completed, and paused states
-- large world canvas with camera follow
+- larger world canvas with camera follow
 - WASD and arrow-key movement
 - click-to-move navigation
 - default strategy-map selection mode with glowing regions
@@ -31,6 +31,7 @@ The MVP visual layer now uses a live PixiJS world instead of a static map skin:
 - player avatar and glow state
 - river/canal water layer with bridges and glints
 - paths, islands, groves, dome clusters, lanterns, and windmill details
+- district foundations under every landmark so the world reads as one built MicroVerse
 - state-driven project markers scaled into world coordinates, with bitmap tile assets and procedural fallback symbols
 - animated particles, tier atmosphere, and rain/storm effects
 - reduced-motion handling for users who prefer less animation
@@ -81,7 +82,7 @@ Build the visual stack in this order:
 
 1. PixiJS procedural world, navigation, and state-driven markers. Done.
 2. Generated bitmap concept plate and asset registry. Done for the first world plate.
-3. Generated transparent runtime assets for key locations and project states. Started with Homestead, Governance Hall, SeedBot Terminal, and the MVP project lifecycle tiles.
+3. Generated transparent runtime assets for key locations and project states. Done for the MVP landmark set and first project lifecycle tiles.
 4. Texture atlas and sprite-sheet pipeline for production assets.
 5. Richer shader-like effects in PixiJS for water, lighting, harvest, and weather.
 6. Selective Three.js rooms for SeedBot Terminal, Governance Hall, and premium project reveals.

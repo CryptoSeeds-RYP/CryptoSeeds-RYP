@@ -142,6 +142,7 @@ export function MicroVerseScene({
         backgroundAlpha: 0,
         antialias: true,
         autoDensity: true,
+        preference: "webgl",
         resolution: Math.min(window.devicePixelRatio || 1, 2),
       });
 
@@ -324,6 +325,7 @@ async function buildWorld(
   const water = buildWaterLayer(worldSize, scene, glints);
   world.addChild(water);
   world.addChild(buildPathLayer(worldSize));
+  world.addChild(buildLandmarkDistrictLayer(worldSize, scene));
   world.addChild(buildArchitectureLayer(worldSize, scene, lanterns, landmarkTextures));
   world.addChild(buildGardenLayer(worldSize));
   if (navigationMode === "STRATEGY") world.addChild(buildStrategicHotspotLayer(worldSize, scene));
@@ -629,6 +631,56 @@ function buildPathLayer(worldSize: Point) {
   return layer;
 }
 
+function buildLandmarkDistrictLayer(worldSize: Point, scene: MicroVerseSceneState) {
+  const layer = new Graphics();
+  const walletActive = scene.walletConnected ? 1 : 0.72;
+
+  MICROVERSE_LANDMARKS.forEach((landmark, index) => {
+    const x = worldSize.x * landmark.x;
+    const y = worldSize.y * landmark.y + 64 * landmark.scale;
+    const districtWidth = (landmark.kind === "GOVERNANCE_HALL" ? 142 : 118) * landmark.scale;
+    const districtHeight = (landmark.kind === "GOVERNANCE_HALL" ? 48 : 40) * landmark.scale;
+    const alpha = (landmark.destination ? 0.42 : 0.3) * walletActive;
+
+    layer.ellipse(x, y + 14 * landmark.scale, districtWidth + 22 * landmark.scale, districtHeight + 10 * landmark.scale).fill({
+      color: 0x07100d,
+      alpha: 0.24,
+    });
+    layer.ellipse(x, y, districtWidth, districtHeight).fill({
+      color: index % 2 === 0 ? 0x31533f : 0x244b4e,
+      alpha,
+    });
+    layer.ellipse(x, y, districtWidth, districtHeight).stroke({
+      color: landmark.accent,
+      alpha: landmark.destination ? 0.44 : 0.28,
+      width: Math.max(2, 3 * landmark.scale),
+    });
+    layer.ellipse(x, y, districtWidth * 0.68, districtHeight * 0.62).stroke({
+      color: MICROVERSE_PALETTE.ivory,
+      alpha: 0.16,
+      width: Math.max(1, 1.5 * landmark.scale),
+    });
+
+    const spokeCount = landmark.kind === "TREASURY_GROVE" || landmark.kind === "STEWARD_GLADE" ? 8 : 6;
+    for (let spoke = 0; spoke < spokeCount; spoke += 1) {
+      const angle = (Math.PI * 2 * spoke) / spokeCount + index * 0.18;
+      const inner = districtWidth * 0.34;
+      const outer = districtWidth * 0.56;
+      layer
+        .moveTo(x + Math.cos(angle) * inner, y + Math.sin(angle) * districtHeight * 0.26)
+        .lineTo(x + Math.cos(angle) * outer, y + Math.sin(angle) * districtHeight * 0.42)
+        .stroke({
+          color: landmark.accent,
+          alpha: 0.2,
+          width: Math.max(1, 1.2 * landmark.scale),
+          cap: "round",
+        });
+    }
+  });
+
+  return layer;
+}
+
 function buildArchitectureLayer(
   worldSize: Point,
   scene: MicroVerseSceneState,
@@ -696,13 +748,13 @@ function buildStrategicHotspotLayer(worldSize: Point, scene: MicroVerseSceneStat
   MICROVERSE_LANDMARKS.forEach((landmark) => {
     const x = worldSize.x * landmark.x;
     const y = worldSize.y * landmark.y + 22 * landmark.scale;
-    layer.ellipse(x, y, 88 * landmark.scale, 34 * landmark.scale).fill({ color: landmark.accent, alpha: 0.08 });
-    layer.ellipse(x, y, 88 * landmark.scale, 34 * landmark.scale).stroke({
+    layer.ellipse(x, y, 116 * landmark.scale, 43 * landmark.scale).fill({ color: landmark.accent, alpha: 0.08 });
+    layer.ellipse(x, y, 116 * landmark.scale, 43 * landmark.scale).stroke({
       color: landmark.accent,
       alpha: 0.34,
       width: 3 * landmark.scale,
     });
-    layer.ellipse(x, y, 54 * landmark.scale, 19 * landmark.scale).stroke({
+    layer.ellipse(x, y, 72 * landmark.scale, 25 * landmark.scale).stroke({
       color: MICROVERSE_PALETTE.ivory,
       alpha: 0.2,
       width: 1.4 * landmark.scale,
@@ -714,8 +766,8 @@ function buildStrategicHotspotLayer(worldSize: Point, scene: MicroVerseSceneStat
     const y = worldSize.y * plot.y + 14;
     const colors = colorsForPlot(plot);
     const alpha = plot.lifecycle === "EMPTY" ? 0.2 : 0.42;
-    layer.ellipse(x, y, 58, 22).fill({ color: colors.ring, alpha: alpha * 0.28 });
-    layer.ellipse(x, y, 58, 22).stroke({ color: colors.ring, alpha, width: 3 });
+    layer.ellipse(x, y, 78, 28).fill({ color: colors.ring, alpha: alpha * 0.28 });
+    layer.ellipse(x, y, 78, 28).stroke({ color: colors.ring, alpha, width: 3 });
   });
 
   return layer;
@@ -737,10 +789,15 @@ function buildLandmarkSprite(landmark: MicroVerseLandmark, texture: Texture, wor
 }
 
 function landmarkSpriteWidth(landmark: MicroVerseLandmark) {
-  if (landmark.kind === "HOMESTEAD") return 250 * landmark.scale;
-  if (landmark.kind === "GOVERNANCE_HALL") return 230 * landmark.scale;
-  if (landmark.kind === "SEEDBOT_TERMINAL") return 238 * landmark.scale;
-  return 150 * landmark.scale;
+  if (landmark.kind === "HOMESTEAD") return 315 * landmark.scale;
+  if (landmark.kind === "GOVERNANCE_HALL") return 295 * landmark.scale;
+  if (landmark.kind === "SEEDBOT_TERMINAL") return 300 * landmark.scale;
+  if (landmark.kind === "EXPLORER_MAP") return 260 * landmark.scale;
+  if (landmark.kind === "HARVEST_LEDGER") return 255 * landmark.scale;
+  if (landmark.kind === "STEWARD_GLADE") return 270 * landmark.scale;
+  if (landmark.kind === "LOREHOUSE") return 250 * landmark.scale;
+  if (landmark.kind === "TREASURY_GROVE") return 255 * landmark.scale;
+  return 220 * landmark.scale;
 }
 
 function buildForegroundLayer(worldSize: Point) {
@@ -845,7 +902,7 @@ function buildPlotMarker(
 
   const active = plot.lifecycle !== "EMPTY";
   const colors = colorsForPlot(plot);
-  const radius = active ? 28 : 22;
+  const radius = active ? 36 : 30;
   const tileTexture = projectTileTextures.get(plot.lifecycle);
   const tileSprite = tileTexture ? buildProjectTileSprite(plot, tileTexture) : null;
 
@@ -896,7 +953,7 @@ function buildPlotMarker(
     }),
   });
   label.anchor.set(0.5, 0);
-  label.y = tileSprite ? radius + 30 : radius + 12;
+  label.y = tileSprite ? radius + 42 : radius + 14;
 
   if (tileSprite) {
     marker.addChild(base, tileSprite, overlay, label);

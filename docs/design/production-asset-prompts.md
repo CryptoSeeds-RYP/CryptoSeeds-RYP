@@ -63,6 +63,66 @@ Lighting/mood: focused, powerful, safe, analytical, warm gold signal lights with
 Constraints: no profit language, no charts with numbers, no text, no logo, no casino feel.
 ```
 
+## Explorer's Map
+
+```text
+Use case: stylized-concept
+Asset type: 2.5D game landmark cutout
+Primary request: CryptoSeeds Explorer's Map landmark, ornate observatory-map pavilion with brass armillary rings, carved stone terraces, glowing cartography table, glass research dome, living vines, and blue-gold discovery beacons.
+Style/medium: high-end stylized 2.5D/isometric game asset, original old-world monumental regenerative nature-tech, cel-shaded readable silhouette, painterly teal-gold lighting.
+Composition/framing: centered landmark cutout with generous padding, readable silhouette, no foreground character.
+Lighting/mood: curious, strategic, premium, discovery-focused.
+Constraints: no text, no logo, no watermark, no copied game/show/film location or UI.
+```
+
+## Harvest Ledger
+
+```text
+Use case: stylized-concept
+Asset type: 2.5D game landmark cutout
+Primary request: CryptoSeeds Harvest Ledger landmark, ceremonial archive-and-claim pavilion with golden crop ledgers, glass counters, brass vault details, glowing harvest sigil, orderly crates of reports, and regenerative farm motifs.
+Style/medium: high-end stylized 2.5D/isometric game asset, original old-world monumental regenerative nature-tech, cel-shaded readable silhouette, painterly teal-gold lighting.
+Composition/framing: centered landmark cutout with generous padding, readable silhouette, no foreground character.
+Lighting/mood: clear, trustworthy, claim-ready, no money imagery.
+Constraints: no text, no logo, no watermark, no casino feel.
+```
+
+## Steward's Glade
+
+```text
+Use case: stylized-concept
+Asset type: 2.5D game landmark cutout
+Primary request: CryptoSeeds Steward's Glade landmark, impact donation grove with an ancient living tree altar, glass water channels, violet-gold stewardship lights, stone offering circles, regenerative flowers, and protected woodland architecture.
+Style/medium: high-end stylized 2.5D/isometric game asset, original old-world monumental regenerative nature-tech, cel-shaded readable silhouette, painterly teal-violet-gold lighting.
+Composition/framing: centered landmark cutout with generous padding, readable silhouette, no foreground character.
+Lighting/mood: calm, generous, protected, serious.
+Constraints: no text, no logo, no watermark, no money imagery, no copied game/show/film location or UI.
+```
+
+## Lorehouse
+
+```text
+Use case: stylized-concept
+Asset type: 2.5D game landmark cutout
+Primary request: CryptoSeeds Lorehouse landmark, archive tower and knowledge hall with wind-and-scroll motifs, brass observatory fins, glass reading dome, stacked stone library terraces, glowing ivory archive light, vines, and clean water channels.
+Style/medium: high-end stylized 2.5D/isometric game asset, original old-world monumental regenerative nature-tech, cel-shaded readable silhouette, painterly teal-ivory-gold lighting.
+Composition/framing: centered landmark cutout with generous padding, readable silhouette, no foreground character.
+Lighting/mood: wise, premium, educational, calm.
+Constraints: no text, no logo, no watermark, no copied game/show/film location or UI.
+```
+
+## Treasury Grove
+
+```text
+Use case: stylized-concept
+Asset type: 2.5D game landmark cutout
+Primary request: CryptoSeeds Treasury Grove landmark, protected transparent treasury garden with gold-lit elder trees, crystal allocation wells, brass vault roots, glass budget channels, stone terraces, and clear public-allocation symbolism.
+Style/medium: high-end stylized 2.5D/isometric game asset, original old-world monumental regenerative nature-tech, cel-shaded readable silhouette, painterly teal-gold lighting.
+Composition/framing: centered landmark cutout with generous padding, readable silhouette, no foreground character.
+Lighting/mood: transparent, protected, premium, accountable.
+Constraints: no text, no logo, no watermark, no cash piles, no casino feel.
+```
+
 ## Project Tile States
 
 Generate each project category with these states:

@@ -259,7 +259,7 @@ button:disabled {
 
 .microverse-map {
   position: relative;
-  min-height: 720px;
+  min-height: 790px;
   overflow: hidden;
   border: 1px solid rgba(255, 231, 133, 0.34);
   border-radius: 8px;
@@ -282,6 +282,10 @@ button:disabled {
 .microverse-scene {
   position: absolute;
   inset: 0;
+  background:
+    linear-gradient(90deg, rgba(9, 28, 33, 0.28), rgba(9, 28, 33, 0.06) 48%, rgba(9, 28, 33, 0.22)),
+    url("/assets/concepts/microverse-world-plate-v1.png") center / cover,
+    url("/assets/microverse-river-delta.jpg") center / cover;
 }
 
 .microverse-scene.character-mode {
@@ -1682,7 +1686,7 @@ button:disabled {
   }
 
   .microverse-map {
-    min-height: 520px;
+    min-height: 580px;
   }
 
   .metric-row,
@@ -1768,7 +1772,7 @@ button:disabled {
   }
 
   .microverse-map {
-    min-height: 440px;
+    min-height: 500px;
   }
 
   .map-title {

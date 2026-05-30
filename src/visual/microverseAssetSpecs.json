@@ -55,6 +55,61 @@
     "notes": "First transparent runtime landmark pass for SeedBot Terminal. Keep as MVP art, then convert to atlas/WebP before public launch."
   },
   {
+    "id": "explorer-map-active",
+    "role": "LANDMARK",
+    "state": "ACTIVE",
+    "path": "/assets/landmarks/explorer-map-active.png",
+    "targetWidth": 1375,
+    "targetHeight": 1144,
+    "maxBytes": 2300000,
+    "productionReady": false,
+    "notes": "Transparent runtime landmark for Explorer's Map. Keep as MVP art, then normalize dimensions and convert to atlas/WebP before public launch."
+  },
+  {
+    "id": "harvest-ledger-active",
+    "role": "LANDMARK",
+    "state": "ACTIVE",
+    "path": "/assets/landmarks/harvest-ledger-active.png",
+    "targetWidth": 1501,
+    "targetHeight": 1048,
+    "maxBytes": 2200000,
+    "productionReady": false,
+    "notes": "Transparent runtime landmark for Harvest Ledger. Keep as MVP art, then normalize dimensions and convert to atlas/WebP before public launch."
+  },
+  {
+    "id": "stewards-glade-active",
+    "role": "LANDMARK",
+    "state": "ACTIVE",
+    "path": "/assets/landmarks/stewards-glade-active.png",
+    "targetWidth": 1731,
+    "targetHeight": 909,
+    "maxBytes": 2400000,
+    "productionReady": false,
+    "notes": "Transparent runtime landmark for Steward's Glade. Keep as MVP art, then normalize dimensions and convert to atlas/WebP before public launch."
+  },
+  {
+    "id": "lorehouse-active",
+    "role": "LANDMARK",
+    "state": "ACTIVE",
+    "path": "/assets/landmarks/lorehouse-active.png",
+    "targetWidth": 1448,
+    "targetHeight": 1086,
+    "maxBytes": 2200000,
+    "productionReady": false,
+    "notes": "Transparent runtime landmark for Lorehouse. Keep as MVP art, then normalize dimensions and convert to atlas/WebP before public launch."
+  },
+  {
+    "id": "treasury-grove-active",
+    "role": "LANDMARK",
+    "state": "ACTIVE",
+    "path": "/assets/landmarks/treasury-grove-active.png",
+    "targetWidth": 1536,
+    "targetHeight": 1024,
+    "maxBytes": 2300000,
+    "productionReady": false,
+    "notes": "Transparent runtime landmark for Treasury Grove. Keep as MVP art, then convert to atlas/WebP before public launch."
+  },
+  {
     "id": "project-open",
     "role": "PROJECT_TILE",
     "state": "OPEN",

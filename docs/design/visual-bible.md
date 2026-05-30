@@ -93,6 +93,17 @@ Every landmark should eventually have:
 
 MVP map landmarks and their app destinations are registered in `src/visual/microverseAssets.ts`. The React marker layer and Pixi strategic hotspot layer should use this shared registry.
 
+Current MVP runtime landmark assets:
+
+- `public/assets/landmarks/homestead-active.png`
+- `public/assets/landmarks/explorer-map-active.png`
+- `public/assets/landmarks/governance-hall-active.png`
+- `public/assets/landmarks/harvest-ledger-active.png`
+- `public/assets/landmarks/seedbot-terminal-active.png`
+- `public/assets/landmarks/stewards-glade-active.png`
+- `public/assets/landmarks/lorehouse-active.png`
+- `public/assets/landmarks/treasury-grove-active.png`
+
 ## Project Tile Language
 
 Project tiles are the small visual record of vetted project participation inside the user's MicroVerse. They should read clearly at dashboard size and support fast status scanning.

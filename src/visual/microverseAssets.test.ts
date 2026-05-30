@@ -33,6 +33,7 @@ describe("microverse visual asset registry", () => {
       expect(landmark.y).toBeGreaterThan(0);
       expect(landmark.y).toBeLessThan(1);
       expect(landmark.scale).toBeGreaterThan(0);
+      expect(landmark.assetPath).toMatch(/^\/assets\/landmarks\//);
     });
   });
 
@@ -58,8 +59,8 @@ describe("microverse visual asset registry", () => {
       const asset = MICROVERSE_PROJECT_TILE_ASSETS[state];
       expect(asset.lifecycle).toBe(state);
       expect(asset.assetPath).toMatch(/^\/assets\/project-tiles\//);
-      expect(asset.targetWidth).toBeGreaterThan(80);
-      expect(asset.targetWidth).toBeLessThanOrEqual(140);
+      expect(asset.targetWidth).toBeGreaterThanOrEqual(140);
+      expect(asset.targetWidth).toBeLessThanOrEqual(180);
     });
   });
 
