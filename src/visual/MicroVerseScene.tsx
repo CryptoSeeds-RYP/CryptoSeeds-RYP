@@ -57,8 +57,13 @@ type PlotMarkerRuntime = {
 };
 
 type LandmarkSpriteRuntime = {
-  sprite: Sprite;
+  container: Container;
+  glow: Graphics;
+  ring: Graphics;
+  label: Text;
+  sprite?: Sprite;
   baseScale: number;
+  destination?: LocationKey;
   hovered: boolean;
   phase: number;
 };
@@ -79,6 +84,7 @@ type WorldRuntime = {
   targetCamera: Point;
   zoom: number;
   targetZoom: number;
+  selectedLocation: LocationKey | null;
   drag: MapDragState | null;
   destination: Point | null;
   keys: Set<string>;
@@ -454,7 +460,7 @@ async function buildWorld(
   ]);
   const background = new Sprite(terrain);
   background.label = "terrain";
-  background.alpha = 0.28;
+  background.alpha = 1;
   fitSprite(background, worldSize.x, worldSize.y);
   world.addChild(background);
 
@@ -462,7 +468,6 @@ async function buildWorld(
   const water = buildWaterLayer(worldSize, scene, glints);
   world.addChild(water);
   world.addChild(buildPathLayer(worldSize));
-  world.addChild(buildLandmarkDistrictLayer(worldSize, scene));
   world.addChild(
     buildArchitectureLayer(
       worldSize,
@@ -530,6 +535,7 @@ async function buildWorld(
       : initialCamera,
     zoom: navigationMode === "STRATEGY" ? initialZoom : 1,
     targetZoom: navigationMode === "STRATEGY" ? previousStrategyRuntime?.targetZoom ?? initialZoom : 1,
+    selectedLocation: previousStrategyRuntime?.selectedLocation ?? "homestead",
     drag: null,
     destination: null,
     keys,
@@ -597,10 +603,17 @@ function animateScene(runtime: WorldRuntime, deltaSeconds: number, time: number)
 
   runtime.landmarkSprites.forEach((landmark) => {
     const pulse = Math.sin(time * 1.45 + landmark.phase) * 0.018 * motionScale;
-    const targetScale = landmark.hovered ? landmark.baseScale * 1.14 : landmark.baseScale * (1 + pulse);
-    const nextScale = landmark.sprite.scale.x + (targetScale - landmark.sprite.scale.x) * 0.2;
-    landmark.sprite.scale.set(nextScale);
-    landmark.sprite.alpha = landmark.hovered ? 1 : 0.95 + Math.sin(time * 1.1 + landmark.phase) * 0.025 * motionScale;
+    const selected = Boolean(landmark.destination && landmark.destination === runtime.selectedLocation);
+    const active = landmark.hovered || selected;
+    const targetScale = active ? landmark.baseScale * 1.075 : landmark.baseScale * (1 + pulse);
+    const nextScale = landmark.container.scale.x + (targetScale - landmark.container.scale.x) * 0.18;
+    landmark.container.scale.set(nextScale);
+    landmark.glow.alpha = active ? 0.3 : 0.13 + Math.sin(time * 1.2 + landmark.phase) * 0.025 * motionScale;
+    landmark.ring.alpha = active ? 0.74 : 0.32;
+    landmark.label.alpha = active ? 1 : 0.78;
+    if (landmark.sprite) {
+      landmark.sprite.alpha = active ? 0.84 : 0.52 + Math.sin(time * 1.1 + landmark.phase) * 0.025 * motionScale;
+    }
   });
 
   runtime.lanterns.forEach((lantern) => {
@@ -710,6 +723,7 @@ function focusStrategicCamera(runtime: WorldRuntime, target: MicroVerseCameraFoc
       ? MICROVERSE_LANDMARKS.find((candidate) => candidate.id === "homestead")
       : MICROVERSE_LANDMARKS.find((candidate) => candidate.destination === target);
   if (!landmark) return;
+  runtime.selectedLocation = landmark.destination ?? null;
 
   const zoom = target === "home" || target === "homestead" ? 1.02 : 0.96;
   const focusPoint = {
@@ -770,17 +784,17 @@ function buildTerrainLayer(worldSize: Point, scene: MicroVerseSceneState) {
   const layer = new Graphics();
   const tierGlow = scene.tier === "FRUIT" || scene.tier === "TREE" ? 0xffc857 : MICROVERSE_PALETTE.greenhouseTeal;
 
-  layer.rect(0, 0, worldSize.x, worldSize.y).fill({ color: MICROVERSE_PALETTE.terrainBase, alpha: 1 });
-  layer.rect(0, 0, worldSize.x, worldSize.y).fill({ color: MICROVERSE_PALETTE.terrainWash, alpha: 0.3 });
+  layer.rect(0, 0, worldSize.x, worldSize.y).fill({ color: 0x061317, alpha: 0.18 });
+  layer.rect(0, 0, worldSize.x, worldSize.y).fill({ color: MICROVERSE_PALETTE.terrainWash, alpha: 0.08 });
 
-  for (let index = 0; index < 56; index += 1) {
+  for (let index = 0; index < 38; index += 1) {
     const x = (index * 97) % worldSize.x;
     const y = (index * 53) % worldSize.y;
     const length = 34 + (index % 5) * 14;
     const color = index % 3 === 0 ? 0xe2fff4 : 0x1c7884;
     layer.moveTo(x, y).lineTo(x + length, y + Math.sin(index) * 5).stroke({
       color,
-      alpha: index % 3 === 0 ? 0.34 : 0.2,
+      alpha: index % 3 === 0 ? 0.12 : 0.08,
       cap: "round",
       width: index % 3 === 0 ? 4 : 6,
     });
@@ -792,11 +806,11 @@ function buildTerrainLayer(worldSize: Point, scene: MicroVerseSceneState) {
   drawIsland(layer, worldSize.x * 0.83, worldSize.y * 0.73, 190, 118, 0x438f61, 0xdca8ff);
   drawIsland(layer, worldSize.x * 0.27, worldSize.y * 0.31, 190, 105, 0x69b766, 0xffd45f);
 
-  for (let index = 0; index < 120; index += 1) {
+  for (let index = 0; index < 80; index += 1) {
     const x = (index * 131) % worldSize.x;
     const y = (index * 89) % worldSize.y;
     const color = index % 7 === 0 ? 0xe48ca6 : index % 5 === 0 ? 0xffdf78 : 0xd8ef9a;
-    layer.circle(x, y, 2 + (index % 3)).fill({ color, alpha: 0.42 });
+    layer.circle(x, y, 2 + (index % 3)).fill({ color, alpha: 0.16 });
   }
 
   return layer;
@@ -804,6 +818,7 @@ function buildTerrainLayer(worldSize: Point, scene: MicroVerseSceneState) {
 
 function buildWaterLayer(worldSize: Point, scene: MicroVerseSceneState, glints: Glint[]) {
   const layer = new Container();
+  layer.alpha = 0.36;
   const water = new Graphics();
   const canal = [
     { x: -80, y: worldSize.y * 0.58 },
@@ -843,6 +858,7 @@ function buildWaterLayer(worldSize: Point, scene: MicroVerseSceneState, glints: 
 
 function buildPathLayer(worldSize: Point) {
   const layer = new Graphics();
+  layer.alpha = 0.42;
   const plaza = { x: worldSize.x * 0.51, y: worldSize.y * 0.55 };
   const pathColor = MICROVERSE_PALETTE.soilGold;
   const shadow = MICROVERSE_PALETTE.pathShadow;
@@ -940,7 +956,7 @@ function buildArchitectureLayer(
     if (texture) {
       const spriteRuntime = buildLandmarkSprite(landmark, texture, worldSize, onLandmarkFocus, onLandmarkSelect);
       landmarkSprites.push(spriteRuntime);
-      sprites.addChild(spriteRuntime.sprite);
+      sprites.addChild(spriteRuntime.container);
     } else {
       drawLandmark(buildings, landmark, worldSize, scene);
     }
@@ -968,6 +984,7 @@ function buildArchitectureLayer(
 
 function buildGardenLayer(worldSize: Point) {
   const layer = new Graphics();
+  layer.alpha = 0.38;
   const groves = [
     { x: 0.17, y: 0.43, count: 24 },
     { x: 0.26, y: 0.8, count: 18 },
@@ -991,22 +1008,6 @@ function buildGardenLayer(worldSize: Point) {
 function buildStrategicHotspotLayer(worldSize: Point, scene: MicroVerseSceneState) {
   const layer = new Graphics();
 
-  MICROVERSE_LANDMARKS.forEach((landmark) => {
-    const x = worldSize.x * landmark.x;
-    const y = worldSize.y * landmark.y + 22 * landmark.scale;
-    layer.ellipse(x, y, 116 * landmark.scale, 43 * landmark.scale).fill({ color: landmark.accent, alpha: 0.08 });
-    layer.ellipse(x, y, 116 * landmark.scale, 43 * landmark.scale).stroke({
-      color: landmark.accent,
-      alpha: 0.34,
-      width: 3 * landmark.scale,
-    });
-    layer.ellipse(x, y, 72 * landmark.scale, 25 * landmark.scale).stroke({
-      color: MICROVERSE_PALETTE.ivory,
-      alpha: 0.2,
-      width: 1.4 * landmark.scale,
-    });
-  });
-
   scene.plots.forEach((plot) => {
     const x = worldSize.x * plot.x;
     const y = worldSize.y * plot.y + 14;
@@ -1026,38 +1027,89 @@ function buildLandmarkSprite(
   onLandmarkFocus: (location: LocationKey | null) => void,
   onLandmarkSelect: (location: LocationKey) => void,
 ): LandmarkSpriteRuntime {
+  const container = new Container();
   const sprite = new Sprite(texture);
   const targetWidth = landmarkSpriteWidth(landmark);
-  const scale = targetWidth / Math.max(texture.width, 1);
+  const spriteScale = targetWidth / Math.max(texture.width, 1);
+  const districtWidth = districtZoneWidth(landmark);
+  const districtHeight = districtZoneHeight(landmark);
+  const glow = new Graphics();
+  const ring = new Graphics();
+  const hitArea = new Graphics();
+  const label = new Text({
+    text: landmark.label,
+    style: new TextStyle({
+      align: "center",
+      fill: 0xfff8df,
+      fontFamily: "Inter, Arial, sans-serif",
+      fontSize: 14,
+      fontWeight: "800",
+      wordWrap: true,
+      wordWrapWidth: districtWidth * 0.82,
+    }),
+  });
   const runtime: LandmarkSpriteRuntime = {
+    container,
+    glow,
+    ring,
+    label,
     sprite,
-    baseScale: scale,
+    baseScale: 1,
+    destination: landmark.destination,
     hovered: false,
     phase: landmark.x * 8 + landmark.y * 13,
   };
 
-  sprite.anchor.set(0.5, 0.86);
-  sprite.x = worldSize.x * landmark.x;
-  sprite.y = worldSize.y * landmark.y + 78 * landmark.scale;
-  sprite.scale.set(scale);
-  sprite.alpha = 0.96;
+  container.x = worldSize.x * landmark.x;
+  container.y = worldSize.y * landmark.y + 72 * landmark.scale;
+  container.label = `${landmark.id} district`;
+  container.eventMode = "static";
+  container.cursor = landmark.destination ? "pointer" : "default";
+
+  hitArea.ellipse(0, 0, districtWidth, districtHeight).fill({ color: 0xffffff, alpha: 0.001 });
+  glow.ellipse(0, 8 * landmark.scale, districtWidth * 1.16, districtHeight * 1.28).fill({
+    color: landmark.accent,
+    alpha: 0.16,
+  });
+  glow.ellipse(0, 10 * landmark.scale, districtWidth * 0.72, districtHeight * 0.72).fill({
+    color: 0xffffff,
+    alpha: 0.035,
+  });
+  ring.ellipse(0, 0, districtWidth, districtHeight).stroke({
+    color: landmark.accent,
+    alpha: 0.38,
+    width: Math.max(2, 3.4 * landmark.scale),
+  });
+  ring.ellipse(0, 0, districtWidth * 0.66, districtHeight * 0.6).stroke({
+    color: MICROVERSE_PALETTE.ivory,
+    alpha: 0.18,
+    width: Math.max(1, 1.4 * landmark.scale),
+  });
+
+  sprite.anchor.set(0.5, 0.82);
+  sprite.y = -districtHeight * 0.18;
+  sprite.scale.set(spriteScale);
+  sprite.alpha = 0.58;
   sprite.label = landmark.id;
-  sprite.eventMode = "static";
-  sprite.cursor = landmark.destination ? "pointer" : "default";
-  sprite.on("pointerover", () => {
+  label.anchor.set(0.5, 0);
+  label.y = districtHeight * 0.28;
+  label.alpha = 0.78;
+
+  container.addChild(hitArea, glow, sprite, ring, label);
+  container.on("pointerover", () => {
     runtime.hovered = true;
     if (landmark.destination) onLandmarkFocus(landmark.destination);
   });
-  sprite.on("pointerout", () => {
+  container.on("pointerout", () => {
     runtime.hovered = false;
     onLandmarkFocus(null);
   });
-  sprite.on("pointerupoutside", () => {
+  container.on("pointerupoutside", () => {
     runtime.hovered = false;
     onLandmarkFocus(null);
   });
   if (landmark.destination) {
-    sprite.on("pointertap", (event) => {
+    container.on("pointertap", (event) => {
       event.stopPropagation();
       onLandmarkSelect(landmark.destination!);
     });
@@ -1067,19 +1119,34 @@ function buildLandmarkSprite(
 }
 
 function landmarkSpriteWidth(landmark: MicroVerseLandmark) {
-  if (landmark.kind === "HOMESTEAD") return 398 * landmark.scale;
-  if (landmark.kind === "GOVERNANCE_HALL") return 374 * landmark.scale;
-  if (landmark.kind === "SEEDBOT_TERMINAL") return 372 * landmark.scale;
-  if (landmark.kind === "EXPLORER_MAP") return 336 * landmark.scale;
-  if (landmark.kind === "HARVEST_LEDGER") return 326 * landmark.scale;
-  if (landmark.kind === "STEWARD_GLADE") return 342 * landmark.scale;
-  if (landmark.kind === "LOREHOUSE") return 320 * landmark.scale;
-  if (landmark.kind === "TREASURY_GROVE") return 326 * landmark.scale;
-  return 286 * landmark.scale;
+  if (landmark.kind === "HOMESTEAD") return 235 * landmark.scale;
+  if (landmark.kind === "GOVERNANCE_HALL") return 228 * landmark.scale;
+  if (landmark.kind === "SEEDBOT_TERMINAL") return 224 * landmark.scale;
+  if (landmark.kind === "EXPLORER_MAP") return 210 * landmark.scale;
+  if (landmark.kind === "HARVEST_LEDGER") return 206 * landmark.scale;
+  if (landmark.kind === "STEWARD_GLADE") return 206 * landmark.scale;
+  if (landmark.kind === "LOREHOUSE") return 200 * landmark.scale;
+  if (landmark.kind === "TREASURY_GROVE") return 202 * landmark.scale;
+  return 186 * landmark.scale;
+}
+
+function districtZoneWidth(landmark: MicroVerseLandmark) {
+  if (landmark.kind === "GOVERNANCE_HALL") return 250 * landmark.scale;
+  if (landmark.kind === "SEEDBOT_TERMINAL") return 236 * landmark.scale;
+  if (landmark.kind === "HOMESTEAD") return 230 * landmark.scale;
+  return 216 * landmark.scale;
+}
+
+function districtZoneHeight(landmark: MicroVerseLandmark) {
+  if (landmark.kind === "GOVERNANCE_HALL") return 94 * landmark.scale;
+  if (landmark.kind === "SEEDBOT_TERMINAL") return 88 * landmark.scale;
+  if (landmark.kind === "HOMESTEAD") return 86 * landmark.scale;
+  return 78 * landmark.scale;
 }
 
 function buildForegroundLayer(worldSize: Point) {
   const layer = new Graphics();
+  layer.alpha = 0.38;
   for (let index = 0; index < 18; index += 1) {
     const x = (index * 257) % worldSize.x;
     const y = index % 2 === 0 ? worldSize.y - 40 - (index % 5) * 12 : 28 + (index % 4) * 18;
