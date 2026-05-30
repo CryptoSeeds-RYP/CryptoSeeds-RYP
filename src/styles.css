@@ -196,6 +196,27 @@ button:disabled {
   background: linear-gradient(135deg, #5da153, #c39146);
 }
 
+.wallet-button span,
+.wallet-button em {
+  min-width: 0;
+}
+
+.wallet-button span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wallet-button em {
+  padding: 3px 6px;
+  border-radius: 8px;
+  background: rgba(10, 15, 13, 0.22);
+  color: rgba(255, 248, 223, 0.78);
+  font-size: 0.7rem;
+  font-style: normal;
+  font-weight: 850;
+}
+
 .metamask-button {
   background: linear-gradient(135deg, #d7752f, #8f5cd3);
 }
@@ -1899,6 +1920,10 @@ button:disabled {
     font-size: 0.78rem;
     white-space: nowrap;
     text-overflow: ellipsis;
+  }
+
+  .wallet-button em {
+    display: none;
   }
 
   .nav-rail {

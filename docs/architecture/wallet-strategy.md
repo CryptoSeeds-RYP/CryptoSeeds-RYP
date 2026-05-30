@@ -12,6 +12,7 @@ Initial implementation:
 - Wallet Standard adapters
 - Phantom-first UX
 - Compatible with Wallet Standard wallets that expose Solana capabilities
+- `@solana/wallet-standard-wallet-adapter-react` is a direct dependency, not a transitive assumption
 
 This route controls real CryptoSeeds protocol actions.
 
@@ -30,6 +31,8 @@ Initial implementation:
 
 This route should not be used for Solana RYP staking unless MetaMask exposes compatible Solana support in the browser and we explicitly integrate that path.
 
+MetaMask's current developer direction includes MetaMask Connect with EVM, Solana, and multichain packages. For now CryptoSeeds should keep the existing `window.ethereum` route as an EVM/SeedBot identity and routing surface. If we add MetaMask Solana support later, evaluate `@metamask/connect-solana` or `@metamask/connect-multichain` as a separate integration rather than blurring it with the Phantom/Solana Wallet Standard route.
+
 ## UX Rule
 
 Do not blur the two wallet responsibilities.
@@ -41,6 +44,7 @@ If future bridging or multichain access is added, the transaction preview must c
 
 ## Sources
 
-- Phantom supports Wallet Standard for Solana dApp interactions.
-- MetaMask exposes an Ethereum provider API via `window.ethereum`, aligned with EIP-1193.
-
+- Phantom Wallet Standard documentation: https://docs.phantom.com/developer-powertools/wallet-standard
+- Phantom Solana integration documentation: https://docs.phantom.com/solana/integrating-phantom
+- Phantom Solana token display guidance: https://docs.phantom.com/best-practices/tokens/token-display
+- MetaMask Connect documentation: https://docs.metamask.io/metamask-connect/

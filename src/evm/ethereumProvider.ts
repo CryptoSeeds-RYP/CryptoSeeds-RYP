@@ -1,5 +1,6 @@
 export type EthereumProvider = {
   isMetaMask?: boolean;
+  providers?: EthereumProvider[];
   request<T = unknown>(args: { method: string; params?: unknown[] | Record<string, unknown> }): Promise<T>;
   on?(event: "accountsChanged" | "chainChanged" | "connect" | "disconnect", listener: (...args: unknown[]) => void): void;
   removeListener?(
@@ -16,6 +17,10 @@ declare global {
 
 export function getEthereumProvider() {
   if (typeof window === "undefined") return undefined;
-  return window.ethereum;
+  const { ethereum } = window;
+  if (!ethereum) return undefined;
+  if (Array.isArray(ethereum.providers)) {
+    return ethereum.providers.find((provider) => provider.isMetaMask) ?? ethereum;
+  }
+  return ethereum;
 }
-

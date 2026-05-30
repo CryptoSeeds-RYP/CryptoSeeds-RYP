@@ -1,6 +1,6 @@
 import { Activity, Wallet } from "lucide-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
-import { shortEvmAddress, useMetaMaskWallet } from "../evm/useMetaMaskWallet";
+import { evmChainLabel, shortEvmAddress, useMetaMaskWallet } from "../evm/useMetaMaskWallet";
 
 export function WalletDock({
   metaMask,
@@ -15,13 +15,14 @@ export function WalletDock({
     <div className="wallet-dock" aria-label="Wallet connections">
       <WalletMultiButton className="wallet-button solana-wallet-button" />
       <button
-        className={`wallet-button metamask-button ${metaMask.connected ? "connected" : ""}`}
+        className={`wallet-button metamask-button ${metaMask.connected ? "connected" : ""} ${metaMask.error ? "error" : ""}`}
         onClick={metaMask.connect}
-        title={metaMask.available ? "Connect MetaMask" : "MetaMask not detected"}
+        title={metaMask.error ?? (metaMask.available ? "Connect MetaMask EVM route" : "MetaMask not detected")}
         disabled={!metaMask.available}
       >
         <Wallet size={18} />
-        {metaMask.connected ? shortEvmAddress(metaMask.address) : "MetaMask"}
+        <span>{metaMask.connected ? shortEvmAddress(metaMask.address) : "MetaMask"}</span>
+        <em>{evmChainLabel(metaMask.chainId)}</em>
       </button>
       <button
         className={`wallet-button demo-button ${demoMode ? "connected" : ""}`}
@@ -34,4 +35,3 @@ export function WalletDock({
     </div>
   );
 }
-

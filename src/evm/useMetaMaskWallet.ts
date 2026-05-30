@@ -99,3 +99,12 @@ export function shortEvmAddress(address?: string) {
   return `${address.slice(0, 6)}...${address.slice(-4)}`;
 }
 
+export function evmChainLabel(chainId?: string) {
+  if (!chainId) return "EVM";
+  if (chainId === "0x1") return "Ethereum";
+  if (chainId === "0x89") return "Polygon";
+  if (chainId === "0xa") return "Optimism";
+  if (chainId === "0xa4b1") return "Arbitrum";
+  if (chainId === "0x2105") return "Base";
+  return `EVM ${Number.parseInt(chainId, 16) || chainId}`;
+}
