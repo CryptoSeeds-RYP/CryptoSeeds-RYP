@@ -27,6 +27,7 @@ The MVP visual layer now uses a live PixiJS world instead of a static map skin:
 - camera focus requests for Homestead, Explorer's Map, Governance Hall, Harvest Ledger, and SeedBot Terminal
 - stable painted world plate as the PixiJS base layer so the premium map does not flicker into procedural scaffolding
 - selected-district route lighting from Homestead through the central plaza
+- edge-hover panning in strategy mode so users can move across the map without click-drag
 - WASD and arrow-key movement
 - click-to-move navigation
 - default strategy-map selection mode with glowing regions
@@ -41,6 +42,7 @@ The MVP visual layer now uses a live PixiJS world instead of a static map skin:
 - registry-aligned district dock for focusing major MicroVerse locations without cluttering the map
 - district-first interaction zones with glow/ring/label states; landmark assets act as softened emblems instead of the whole target
 - screen-edge fog and center readability cues to frame the strategy map
+- enlarged district and project tile targets for stronger readability at normal zoom
 - animated particles, tier atmosphere, and rain/storm effects
 - reduced-motion handling for users who prefer less animation
 

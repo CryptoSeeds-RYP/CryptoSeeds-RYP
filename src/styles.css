@@ -288,7 +288,7 @@ button:disabled {
   background:
     linear-gradient(90deg, rgba(9, 28, 33, 0.28), rgba(9, 28, 33, 0.06) 48%, rgba(9, 28, 33, 0.22)),
     url("/assets/concepts/microverse-world-plate-v1.png") center / cover,
-    url("/assets/microverse-river-delta.jpg") center / cover;
+    #10282d;
 }
 
 .microverse-scene.character-mode {
@@ -296,11 +296,11 @@ button:disabled {
 }
 
 .microverse-scene.strategy-mode {
-  cursor: grab;
+  cursor: default;
 }
 
 .microverse-scene.strategy-mode:active {
-  cursor: grabbing;
+  cursor: move;
 }
 
 .microverse-scene-fallback {
@@ -309,7 +309,7 @@ button:disabled {
   background:
     linear-gradient(90deg, rgba(12, 13, 10, 0.2), rgba(28, 57, 44, 0.06), rgba(12, 13, 10, 0.2)),
     url("/assets/concepts/microverse-world-plate-v1.png") center / cover,
-    url("/assets/microverse-river-delta.jpg") center / cover;
+    #10282d;
 }
 
 .microverse-scene canvas {

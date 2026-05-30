@@ -91,6 +91,7 @@ type WorldRuntime = {
   selectedLocation: LocationKey | null;
   route: RouteRuntime;
   drag: MapDragState | null;
+  hoverPan: Point;
   destination: Point | null;
   keys: Set<string>;
   worldSize: Point;
@@ -108,6 +109,8 @@ type WorldRuntime = {
 const CONTROL_KEYS = new Set(["w", "a", "s", "d", "arrowup", "arrowleft", "arrowdown", "arrowright"]);
 const MIN_STRATEGY_ZOOM = 0.74;
 const MAX_STRATEGY_ZOOM = 1.18;
+const HOVER_PAN_EDGE = 0.24;
+const HOVER_PAN_SPEED = 720;
 
 export function MicroVerseScene({
   cameraFocus,
@@ -249,7 +252,11 @@ export function MicroVerseScene({
 
       const handlePointerMove = (event: PointerEvent) => {
         const runtime = runtimeRef.current;
-        if (!runtime || runtime.navigationMode !== "STRATEGY" || !runtime.drag) return;
+        if (!runtime || runtime.navigationMode !== "STRATEGY") return;
+        if (!runtime.drag) {
+          runtime.hoverPan = hoverPanFromPointer(app, event);
+          return;
+        }
         if (runtime.drag.pointerId !== event.pointerId) return;
         const rect = app.canvas.getBoundingClientRect();
         const dx = ((event.clientX - runtime.drag.startClient.x) / Math.max(rect.width, 1)) * app.screen.width;
@@ -267,6 +274,11 @@ export function MicroVerseScene({
         app.canvas.releasePointerCapture?.(event.pointerId);
       };
 
+      const handlePointerLeave = () => {
+        const runtime = runtimeRef.current;
+        if (runtime) runtime.hoverPan = { x: 0, y: 0 };
+      };
+
       const handleWheel = (event: WheelEvent) => {
         const runtime = runtimeRef.current;
         if (!runtime || runtime.navigationMode !== "STRATEGY") return;
@@ -281,6 +293,7 @@ export function MicroVerseScene({
       app.canvas.addEventListener("pointermove", handlePointerMove);
       app.canvas.addEventListener("pointerup", handlePointerUp);
       app.canvas.addEventListener("pointercancel", handlePointerUp);
+      app.canvas.addEventListener("pointerleave", handlePointerLeave);
       app.canvas.addEventListener("wheel", handleWheel, { passive: false });
 
       const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -353,6 +366,7 @@ export function MicroVerseScene({
         app.canvas.removeEventListener("pointermove", handlePointerMove);
         app.canvas.removeEventListener("pointerup", handlePointerUp);
         app.canvas.removeEventListener("pointercancel", handlePointerUp);
+        app.canvas.removeEventListener("pointerleave", handlePointerLeave);
         app.canvas.removeEventListener("wheel", handleWheel);
       };
       hostElement.dataset.microverseCleanup = "ready";
@@ -460,15 +474,17 @@ async function buildWorld(
   const rainLines: RainLine[] = [];
 
   const [terrain, landmarkTextures, projectTileTextures] = await Promise.all([
-    Assets.load(MICROVERSE_ASSETS.conceptPlate).catch(() => Assets.load(MICROVERSE_ASSETS.fallbackTerrain)),
+    Assets.load(MICROVERSE_ASSETS.conceptPlate).catch(() => null),
     loadLandmarkTextures(),
     loadProjectTileTextures(),
   ]);
-  const background = new Sprite(terrain);
-  background.label = "terrain";
-  background.alpha = 1;
-  fitSprite(background, worldSize.x, worldSize.y);
-  world.addChild(background);
+  if (terrain) {
+    const background = new Sprite(terrain);
+    background.label = "terrain";
+    background.alpha = 1;
+    fitSprite(background, worldSize.x, worldSize.y);
+    world.addChild(background);
+  }
 
   world.addChild(buildTerrainLayer(worldSize, scene));
   const water = buildWaterLayer(worldSize, scene, glints);
@@ -545,6 +561,7 @@ async function buildWorld(
     selectedLocation: previousStrategyRuntime?.selectedLocation ?? "homestead",
     route,
     drag: null,
+    hoverPan: { x: 0, y: 0 },
     destination: null,
     keys,
     worldSize,
@@ -598,7 +615,7 @@ function animateScene(runtime: WorldRuntime, deltaSeconds: number, time: number)
     movePlayer(runtime, deltaSeconds * motionScale);
     updateCamera(runtime, runtime.reduceMotion ? 0.22 : 0.095);
   } else {
-    updateStrategicCamera(runtime);
+    updateStrategicCamera(runtime, deltaSeconds * motionScale);
   }
   updatePlayerGlow(runtime);
   drawSelectedRoute(runtime, time, motionScale);
@@ -614,14 +631,14 @@ function animateScene(runtime: WorldRuntime, deltaSeconds: number, time: number)
     const pulse = Math.sin(time * 1.45 + landmark.phase) * 0.018 * motionScale;
     const selected = Boolean(landmark.destination && landmark.destination === runtime.selectedLocation);
     const active = landmark.hovered || selected;
-    const targetScale = active ? landmark.baseScale * 1.075 : landmark.baseScale * (1 + pulse);
+    const targetScale = active ? landmark.baseScale * 1.12 : landmark.baseScale * (1 + pulse);
     const nextScale = landmark.container.scale.x + (targetScale - landmark.container.scale.x) * 0.18;
     landmark.container.scale.set(nextScale);
-    landmark.glow.alpha = active ? 0.3 : 0.13 + Math.sin(time * 1.2 + landmark.phase) * 0.025 * motionScale;
-    landmark.ring.alpha = active ? 0.74 : 0.32;
+    landmark.glow.alpha = active ? 0.42 : 0.22 + Math.sin(time * 1.2 + landmark.phase) * 0.035 * motionScale;
+    landmark.ring.alpha = active ? 0.84 : 0.44;
     landmark.label.alpha = active ? 1 : 0.78;
     if (landmark.sprite) {
-      landmark.sprite.alpha = active ? 0.84 : 0.52 + Math.sin(time * 1.1 + landmark.phase) * 0.025 * motionScale;
+      landmark.sprite.alpha = active ? 1 : 0.76 + Math.sin(time * 1.1 + landmark.phase) * 0.035 * motionScale;
     }
   });
 
@@ -709,9 +726,15 @@ function updateCamera(runtime: WorldRuntime, ease: number) {
   runtime.world.y = runtime.camera.y;
 }
 
-function updateStrategicCamera(runtime: WorldRuntime) {
+function updateStrategicCamera(runtime: WorldRuntime, deltaSeconds = 0) {
   const ease = runtime.reduceMotion ? 0.28 : 0.115;
   const zoomEase = runtime.reduceMotion ? 0.3 : 0.14;
+  if (!runtime.drag && (Math.abs(runtime.hoverPan.x) > 0.01 || Math.abs(runtime.hoverPan.y) > 0.01)) {
+    runtime.targetCamera = clampCameraForWorld(runtime.app, runtime.worldSize, runtime.targetZoom, {
+      x: runtime.targetCamera.x - runtime.hoverPan.x * HOVER_PAN_SPEED * deltaSeconds,
+      y: runtime.targetCamera.y - runtime.hoverPan.y * HOVER_PAN_SPEED * deltaSeconds,
+    });
+  }
   runtime.targetZoom = clamp(runtime.targetZoom, MIN_STRATEGY_ZOOM, MAX_STRATEGY_ZOOM);
   runtime.zoom += (runtime.targetZoom - runtime.zoom) * zoomEase;
   runtime.targetCamera = clampCameraForWorld(runtime.app, runtime.worldSize, runtime.zoom, runtime.targetCamera);
@@ -764,6 +787,26 @@ function zoomStrategicCamera(runtime: WorldRuntime, multiplier: number, screenX:
     x: screenX - worldX * nextZoom,
     y: screenY - worldY * nextZoom,
   });
+}
+
+function hoverPanFromPointer(app: Application, event: PointerEvent): Point {
+  const rect = app.canvas.getBoundingClientRect();
+  const x = (event.clientX - rect.left) / Math.max(rect.width, 1);
+  const y = (event.clientY - rect.top) / Math.max(rect.height, 1);
+  return {
+    x: edgePanAxis(x),
+    y: edgePanAxis(y),
+  };
+}
+
+function edgePanAxis(value: number) {
+  if (value < HOVER_PAN_EDGE) {
+    return -Math.pow((HOVER_PAN_EDGE - value) / HOVER_PAN_EDGE, 1.45);
+  }
+  if (value > 1 - HOVER_PAN_EDGE) {
+    return Math.pow((value - (1 - HOVER_PAN_EDGE)) / HOVER_PAN_EDGE, 1.45);
+  }
+  return 0;
 }
 
 function clampCameraForWorld(app: Application, worldSize: Point, zoom: number, camera: Point): Point {
@@ -880,6 +923,7 @@ function pointOnPolyline(points: Point[], progress: number): Point {
 
 function buildTerrainLayer(worldSize: Point, scene: MicroVerseSceneState) {
   const layer = new Graphics();
+  layer.alpha = 0.18;
   const tierGlow = scene.tier === "FRUIT" || scene.tier === "TREE" ? 0xffc857 : MICROVERSE_PALETTE.greenhouseTeal;
 
   layer.rect(0, 0, worldSize.x, worldSize.y).fill({ color: 0x061317, alpha: 0.18 });
@@ -1165,9 +1209,9 @@ function buildLandmarkSprite(
   container.cursor = landmark.destination ? "pointer" : "default";
 
   hitArea.ellipse(0, 0, districtWidth, districtHeight).fill({ color: 0xffffff, alpha: 0.001 });
-  glow.ellipse(0, 8 * landmark.scale, districtWidth * 1.16, districtHeight * 1.28).fill({
+  glow.ellipse(0, 8 * landmark.scale, districtWidth * 1.2, districtHeight * 1.36).fill({
     color: landmark.accent,
-    alpha: 0.16,
+    alpha: 0.2,
   });
   glow.ellipse(0, 10 * landmark.scale, districtWidth * 0.72, districtHeight * 0.72).fill({
     color: 0xffffff,
@@ -1175,8 +1219,8 @@ function buildLandmarkSprite(
   });
   ring.ellipse(0, 0, districtWidth, districtHeight).stroke({
     color: landmark.accent,
-    alpha: 0.38,
-    width: Math.max(2, 3.4 * landmark.scale),
+    alpha: 0.5,
+    width: Math.max(2.5, 4.2 * landmark.scale),
   });
   ring.ellipse(0, 0, districtWidth * 0.66, districtHeight * 0.6).stroke({
     color: MICROVERSE_PALETTE.ivory,
@@ -1217,29 +1261,29 @@ function buildLandmarkSprite(
 }
 
 function landmarkSpriteWidth(landmark: MicroVerseLandmark) {
-  if (landmark.kind === "HOMESTEAD") return 235 * landmark.scale;
-  if (landmark.kind === "GOVERNANCE_HALL") return 228 * landmark.scale;
-  if (landmark.kind === "SEEDBOT_TERMINAL") return 224 * landmark.scale;
-  if (landmark.kind === "EXPLORER_MAP") return 210 * landmark.scale;
-  if (landmark.kind === "HARVEST_LEDGER") return 206 * landmark.scale;
-  if (landmark.kind === "STEWARD_GLADE") return 206 * landmark.scale;
-  if (landmark.kind === "LOREHOUSE") return 200 * landmark.scale;
-  if (landmark.kind === "TREASURY_GROVE") return 202 * landmark.scale;
-  return 186 * landmark.scale;
+  if (landmark.kind === "HOMESTEAD") return 330 * landmark.scale;
+  if (landmark.kind === "GOVERNANCE_HALL") return 322 * landmark.scale;
+  if (landmark.kind === "SEEDBOT_TERMINAL") return 316 * landmark.scale;
+  if (landmark.kind === "EXPLORER_MAP") return 292 * landmark.scale;
+  if (landmark.kind === "HARVEST_LEDGER") return 284 * landmark.scale;
+  if (landmark.kind === "STEWARD_GLADE") return 286 * landmark.scale;
+  if (landmark.kind === "LOREHOUSE") return 276 * landmark.scale;
+  if (landmark.kind === "TREASURY_GROVE") return 280 * landmark.scale;
+  return 250 * landmark.scale;
 }
 
 function districtZoneWidth(landmark: MicroVerseLandmark) {
-  if (landmark.kind === "GOVERNANCE_HALL") return 250 * landmark.scale;
-  if (landmark.kind === "SEEDBOT_TERMINAL") return 236 * landmark.scale;
-  if (landmark.kind === "HOMESTEAD") return 230 * landmark.scale;
-  return 216 * landmark.scale;
+  if (landmark.kind === "GOVERNANCE_HALL") return 360 * landmark.scale;
+  if (landmark.kind === "SEEDBOT_TERMINAL") return 342 * landmark.scale;
+  if (landmark.kind === "HOMESTEAD") return 340 * landmark.scale;
+  return 316 * landmark.scale;
 }
 
 function districtZoneHeight(landmark: MicroVerseLandmark) {
-  if (landmark.kind === "GOVERNANCE_HALL") return 94 * landmark.scale;
-  if (landmark.kind === "SEEDBOT_TERMINAL") return 88 * landmark.scale;
-  if (landmark.kind === "HOMESTEAD") return 86 * landmark.scale;
-  return 78 * landmark.scale;
+  if (landmark.kind === "GOVERNANCE_HALL") return 132 * landmark.scale;
+  if (landmark.kind === "SEEDBOT_TERMINAL") return 124 * landmark.scale;
+  if (landmark.kind === "HOMESTEAD") return 122 * landmark.scale;
+  return 112 * landmark.scale;
 }
 
 function buildForegroundLayer(worldSize: Point) {
