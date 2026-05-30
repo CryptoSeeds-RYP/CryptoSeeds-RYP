@@ -2,6 +2,8 @@
 
 Date: 2026-05-29
 
+Rechecked: 2026-05-31
+
 ## Current Status
 
 The elevated Windows WSL setup helper was launched from:
@@ -14,6 +16,7 @@ Current machine status:
 - No Linux distribution is installed yet.
 - WSL2 cannot start because virtualization is not enabled in firmware.
 - `systeminfo` reports `Virtualization Enabled In Firmware: No`.
+- Windows PowerShell currently does not expose `cargo`, `anchor`, or `solana` on PATH.
 
 ## Required User Action
 

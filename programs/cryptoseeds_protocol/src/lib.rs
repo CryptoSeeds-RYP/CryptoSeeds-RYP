@@ -290,7 +290,7 @@ pub struct SetPause<'info> {
 pub struct StakeRyp<'info> {
     #[account(mut)]
     pub owner: Signer<'info>,
-    #[account(mut, seeds = [CONFIG_SEED], bump = config.bump, has_one = ryp_mint)]
+    #[account(mut, seeds = [CONFIG_SEED], bump = config.bump, has_one = ryp_mint, has_one = ryp_vault)]
     pub config: Account<'info, ProtocolConfig>,
     pub ryp_mint: InterfaceAccount<'info, Mint>,
     #[account(
@@ -334,7 +334,12 @@ pub struct UnstakeRyp<'info> {
         associated_token::token_program = token_program
     )]
     pub owner_ryp_account: InterfaceAccount<'info, TokenAccount>,
-    #[account(mut)]
+    #[account(
+        mut,
+        associated_token::mint = ryp_mint,
+        associated_token::authority = config,
+        associated_token::token_program = token_program
+    )]
     pub ryp_vault: InterfaceAccount<'info, TokenAccount>,
     #[account(
         mut,

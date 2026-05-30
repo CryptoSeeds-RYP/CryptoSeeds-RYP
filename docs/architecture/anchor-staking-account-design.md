@@ -108,6 +108,7 @@ Validation:
 - Amount > 0.
 - Resulting stake reaches at least Seed tier.
 - Transfer uses wallet signer authority.
+- Config account must point to the canonical config-owned RYP vault.
 
 State:
 
@@ -127,7 +128,7 @@ Validation:
 - Amount > 0.
 - Owner matches stake position.
 - Position has enough staked RYP.
-- Vault matches config.
+- Vault matches config and the canonical config-owned associated token account for the RYP mint.
 
 State:
 
@@ -179,4 +180,3 @@ Do not include these in the first staking program deployment:
 - Governance proposal storage
 - SeedBot permissions
 - Treasury distribution
-

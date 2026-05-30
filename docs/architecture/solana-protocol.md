@@ -11,7 +11,7 @@ CryptoSeeds should use Rust programs on Solana for core protocol logic. Anchor i
 - TypeScript generated clients from Anchor IDL
 - Vite/React dApp client
 
-The current local machine now has Rust and Cargo installed in the user profile, but does not yet have Solana/Agave CLI, Anchor CLI, WSL, or MSVC C++ build tools available. The scaffold is ready, but protocol compilation/deployment requires finishing the Solana/Anchor toolchain setup.
+The current local machine does not expose Rust/Cargo, Anchor CLI, Solana/Agave CLI, or a usable WSL distribution on PATH. The scaffold is ready, but protocol compilation/deployment requires finishing the Linux Solana/Anchor toolchain setup.
 
 ## First Program
 
@@ -24,6 +24,7 @@ Current scope:
 - Configure tier thresholds in raw token base units
 - Configure base network fee and tier fee reductions
 - Stake RYP into a protocol vault
+- Enforce the canonical config-owned RYP vault on stake and unstake paths
 - Track per-wallet stake position
 - Calculate staking tier
 - Activate Golden Key state
