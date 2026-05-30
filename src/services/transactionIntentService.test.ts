@@ -7,6 +7,7 @@ import {
   buildSeedBotAllocationIntent,
   buildSeedBotSwapIntent,
   buildStakePreviewIntent,
+  buildUnstakePreviewIntent,
   resetTransactionIntent,
 } from "./transactionIntentService";
 
@@ -22,6 +23,20 @@ describe("transaction intents", () => {
     expect(intent.amount).toBe("100,000");
     expect(intent.estimatedFees).toContain("2.45%");
     expect(intent.accounts.some((account) => account.signer && account.address === walletAddress)).toBe(true);
+    expect(intent.preparedSolanaTransaction?.action).toBe("STAKE_RYP");
+    expect(intent.preparedSolanaTransaction?.amountBaseUnits).toBe("100000000000");
+    expect(intent.preparedSolanaTransaction?.instructions[0].instructionName).toBe("stake_ryp");
+    expect(intent.preparedSolanaTransaction?.instructions[0].accounts).toHaveLength(9);
+  });
+
+  it("builds wallet-approved unstaking previews with derived protocol accounts", () => {
+    const intent = buildUnstakePreviewIntent(walletAddress, 5000);
+
+    expect(intent.type).toBe("UNSTAKE_RYP");
+    expect(intent.status).toBe("READY");
+    expect(intent.preparedSolanaTransaction?.action).toBe("UNSTAKE_RYP");
+    expect(intent.preparedSolanaTransaction?.amountBaseUnits).toBe("5000000000");
+    expect(intent.preparedSolanaTransaction?.warnings.join(" ")).toContain("Golden Key");
   });
 
   it("keeps project review intents preview-only until risk is acknowledged", () => {

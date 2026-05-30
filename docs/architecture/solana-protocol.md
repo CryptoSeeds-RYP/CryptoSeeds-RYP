@@ -32,6 +32,17 @@ Current scope:
 - Emergency pause
 - Emit protocol events
 
+Client preparation now has a TypeScript planning layer at `src/solana/protocolTransactionPlan.ts`:
+
+- Derives the protocol config PDA from `config`
+- Derives the per-wallet stake position PDA from `stake-position + wallet`
+- Derives the owner RYP associated token account
+- Derives the protocol RYP vault associated token account owned by the config PDA
+- Builds Anchor instruction data for `stake_ryp`, `unstake_ryp`, and `activate_voting_rights`
+- Exposes account order, signer/writable flags, instruction discriminator, and raw data hex for wallet-preview surfaces
+
+This is still a preparation layer. It does not sign, broadcast, or bypass wallet approval.
+
 ## Deferred Modules
 
 These should be added after the staking core is reviewed:

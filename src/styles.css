@@ -892,6 +892,12 @@ button:disabled {
   line-height: 1.35;
 }
 
+.prepared-transaction > span {
+  color: #d8decf;
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
 .acknowledgement-summary > strong {
   color: #fff8df;
 }

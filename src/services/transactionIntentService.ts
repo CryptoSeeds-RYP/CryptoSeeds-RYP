@@ -4,6 +4,7 @@ import { latestRiskDisclosure } from "../domain/projectRegistry";
 import { seedBotFeeDisclosure, type SeedBotStrategy } from "../domain/seedbot";
 import { venueById } from "../domain/seedbotVenues";
 import { effectiveFee, tierRequirements } from "../domain/tiering";
+import { buildStakeRypTransactionPlan, buildUnstakeRypTransactionPlan } from "../solana/protocolTransactionPlan";
 import { buildSeedBotRoutePlan } from "./seedbotVenueRouter";
 import type {
   RiskAcknowledgement,
@@ -21,6 +22,10 @@ export function buildStakePreviewIntent(
   walletAddress?: string,
   tier: Exclude<StakingTier, "NONE"> = "SPROUT",
 ): TransactionIntent {
+  const preparedSolanaTransaction = maybeBuildPlan(() =>
+    walletAddress ? buildStakeRypTransactionPlan({ ownerAddress: walletAddress, tier }) : undefined,
+  );
+
   return buildIntent({
     id: `stake-${tier.toLowerCase()}-preview`,
     type: "STAKE_RYP",
@@ -33,9 +38,34 @@ export function buildStakePreviewIntent(
     executionMode: "WALLET_APPROVED",
     signaturePolicy: "Manual Solana wallet signature required before staking can be submitted.",
     programs: cryptoSeedsPrograms("Stake state and Golden Key receipt"),
-    accounts: walletAccounts(walletAddress),
+    accounts: preparedSolanaTransaction?.instructions[0].accounts ?? walletAccounts(walletAddress),
+    preparedSolanaTransaction,
     riskSummary: "Wallet approval required. Staking changes access, fee tier, and NFT eligibility.",
     expectedResult: `${tier} tier, Golden Key active, Voting Rights timer started.`,
+  });
+}
+
+export function buildUnstakePreviewIntent(walletAddress?: string, amount = 5000): TransactionIntent {
+  const preparedSolanaTransaction = maybeBuildPlan(() =>
+    walletAddress ? buildUnstakeRypTransactionPlan({ ownerAddress: walletAddress, amountUi: amount }) : undefined,
+  );
+
+  return buildIntent({
+    id: `unstake-${amount}-preview`,
+    type: "UNSTAKE_RYP",
+    title: "Unstake RYP",
+    walletAddress,
+    inputToken: "RYP",
+    amount: amount.toLocaleString(),
+    estimatedFees: "Network fee only; no protocol fee previewed for unstaking",
+    status: "READY",
+    executionMode: "WALLET_APPROVED",
+    signaturePolicy: "Manual Solana wallet signature required before unstaking can be submitted.",
+    programs: cryptoSeedsPrograms("Stake withdrawal and tier recalculation"),
+    accounts: preparedSolanaTransaction?.instructions[0].accounts ?? walletAccounts(walletAddress),
+    preparedSolanaTransaction,
+    riskSummary: "Unstaking can reduce tier access, project slots, Golden Key state, and fee reduction.",
+    expectedResult: "RYP returns to the wallet after the Solana program confirms the withdrawal.",
   });
 }
 
@@ -308,4 +338,12 @@ function projectAcknowledgement(project: Project, accepted: boolean): RiskAcknow
       ? `project:${project.id}:document:${disclosure.id}:${disclosure.version}`
       : `project:${project.id}:risk-disclosure:missing`,
   };
+}
+
+function maybeBuildPlan<T>(factory: () => T): T | undefined {
+  try {
+    return factory();
+  } catch {
+    return undefined;
+  }
 }

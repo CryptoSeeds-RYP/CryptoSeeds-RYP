@@ -45,6 +45,28 @@ export type TransactionAccountReference = {
   writable: boolean;
 };
 
+export type PreparedInstructionAccount = TransactionAccountReference & {
+  order: number;
+};
+
+export type PreparedInstructionPlan = {
+  programId: string;
+  instructionName: string;
+  discriminatorHex: string;
+  dataHex: string;
+  accounts: PreparedInstructionAccount[];
+};
+
+export type PreparedSolanaTransactionPlan = {
+  action: "STAKE_RYP" | "UNSTAKE_RYP" | "ACTIVATE_VOTING_RIGHTS";
+  feePayer: string;
+  amountBaseUnits?: string;
+  amountUi?: string;
+  instructions: PreparedInstructionPlan[];
+  derivedAccounts: TransactionAccountReference[];
+  warnings: string[];
+};
+
 export type RiskAcknowledgement = {
   id: string;
   label: string;
@@ -70,6 +92,7 @@ export type TransactionIntent = {
   programs: TransactionProgramReference[];
   accounts: TransactionAccountReference[];
   acknowledgement?: RiskAcknowledgement;
+  preparedSolanaTransaction?: PreparedSolanaTransactionPlan;
   lifecycle: TransactionLifecycleStep[];
   riskSummary: string;
   expectedResult: string;

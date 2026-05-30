@@ -75,6 +75,26 @@ export function TransactionPanel({
         </div>
       </section>
 
+      {intent.preparedSolanaTransaction && (
+        <section className="transaction-subsection prepared-transaction">
+          <div className="panel-title">
+            <Route size={16} />
+            <strong>Prepared Solana Action</strong>
+          </div>
+          <StateLine label="Action" value={formatLabel(intent.preparedSolanaTransaction.action)} />
+          <StateLine label="Instruction" value={intent.preparedSolanaTransaction.instructions[0].instructionName} />
+          <StateLine label="Fee payer" value={shorten(intent.preparedSolanaTransaction.feePayer)} />
+          {intent.preparedSolanaTransaction.amountBaseUnits && (
+            <StateLine label="Base units" value={intent.preparedSolanaTransaction.amountBaseUnits} />
+          )}
+          <ReferenceLine
+            label="Data"
+            value={intent.preparedSolanaTransaction.instructions[0].dataHex}
+          />
+          <span>{intent.preparedSolanaTransaction.warnings[0]}</span>
+        </section>
+      )}
+
       {intent.acknowledgement && (
         <section className="transaction-subsection acknowledgement-summary">
           <div className="panel-title">
