@@ -11,17 +11,6 @@
     "notes": "High-quality direction setter. Convert/crop/compress before using as final launch art."
   },
   {
-    "id": "microverse-river-delta-fallback",
-    "role": "WORLD_PLATE",
-    "state": "IDLE",
-    "path": "/assets/microverse-river-delta.jpg",
-    "targetWidth": 1792,
-    "targetHeight": 1024,
-    "maxBytes": 2200000,
-    "productionReady": false,
-    "notes": "Legacy fallback terrain retained until production world plate and atlas assets are ready."
-  },
-  {
     "id": "homestead-active",
     "role": "LANDMARK",
     "state": "ACTIVE",

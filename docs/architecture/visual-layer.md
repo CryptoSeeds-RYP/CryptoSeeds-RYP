@@ -28,6 +28,7 @@ The MVP visual layer now uses a live PixiJS world instead of a static map skin:
 - stable painted world plate as the PixiJS base layer so the premium map does not flicker into procedural scaffolding
 - selected-district route lighting from Homestead through the central plaza
 - edge-hover panning in strategy mode so users can move across the map without click-drag
+- map-first Homestead layout so the primary world is not squeezed by side panels on desktop
 - WASD and arrow-key movement
 - click-to-move navigation
 - default strategy-map selection mode with glowing regions
@@ -43,6 +44,7 @@ The MVP visual layer now uses a live PixiJS world instead of a static map skin:
 - district-first interaction zones with glow/ring/label states; landmark assets act as softened emblems instead of the whole target
 - screen-edge fog and center readability cues to frame the strategy map
 - enlarged district and project tile targets for stronger readability at normal zoom
+- higher hover/selection scale and z-order priority so focused districts feel like selectable regions
 - animated particles, tier atmosphere, and rain/storm effects
 - reduced-motion handling for users who prefer less animation
 

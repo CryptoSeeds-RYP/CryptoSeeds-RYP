@@ -107,8 +107,8 @@ type WorldRuntime = {
 };
 
 const CONTROL_KEYS = new Set(["w", "a", "s", "d", "arrowup", "arrowleft", "arrowdown", "arrowright"]);
-const MIN_STRATEGY_ZOOM = 0.74;
-const MAX_STRATEGY_ZOOM = 1.18;
+const MIN_STRATEGY_ZOOM = 0.82;
+const MAX_STRATEGY_ZOOM = 1.28;
 const HOVER_PAN_EDGE = 0.24;
 const HOVER_PAN_SPEED = 720;
 
@@ -227,6 +227,7 @@ export function MicroVerseScene({
 
       appRef.current = app;
       hostElement.appendChild(app.canvas);
+      resizePixiApp(app, hostElement);
 
       const handlePointerDown = (event: PointerEvent) => {
         const runtime = runtimeRef.current;
@@ -331,6 +332,7 @@ export function MicroVerseScene({
       });
 
       const resizeObserver = new ResizeObserver(() => {
+        resizePixiApp(app, hostElement);
         renderGenerationRef.current += 1;
         const resizeGeneration = renderGenerationRef.current;
         void renderScene({
@@ -465,6 +467,7 @@ async function buildWorld(
   };
   const root = new Container();
   const world = new Container();
+  world.sortableChildren = true;
   const plotMarkers: PlotMarkerRuntime[] = [];
   const landmarkSprites: LandmarkSpriteRuntime[] = [];
   const route = buildRouteLayer();
@@ -507,6 +510,7 @@ async function buildWorld(
 
   const plotLayer = new Container();
   plotLayer.label = "plots";
+  plotLayer.sortableChildren = true;
   scene.plots.forEach((plot) => {
     const markerRuntime = buildPlotMarker(
       plot,
@@ -541,7 +545,7 @@ async function buildWorld(
   const atmosphere = buildScreenAtmosphere(app, scene);
   root.addChild(world, playerGlow, particleLayer, atmosphere);
   const previousStrategyRuntime = previousRuntime?.navigationMode === "STRATEGY" ? previousRuntime : null;
-  const initialZoom = previousStrategyRuntime ? previousStrategyRuntime.zoom : 0.94;
+  const initialZoom = previousStrategyRuntime ? previousStrategyRuntime.zoom : 1.08;
   const initialCamera = previousStrategyRuntime
     ? clampCameraForWorld(app, worldSize, initialZoom, previousStrategyRuntime.camera)
     : { x: 0, y: 0 };
@@ -625,20 +629,22 @@ function animateScene(runtime: WorldRuntime, deltaSeconds: number, time: number)
     const targetScale = marker.hovered ? marker.hoverScale : marker.baseScale + pulse;
     const nextScale = marker.container.scale.x + (targetScale - marker.container.scale.x) * 0.24;
     marker.container.scale.set(nextScale);
+    marker.container.zIndex = marker.hovered ? 70 : 24 + marker.container.y / 1000;
   });
 
   runtime.landmarkSprites.forEach((landmark) => {
     const pulse = Math.sin(time * 1.45 + landmark.phase) * 0.018 * motionScale;
     const selected = Boolean(landmark.destination && landmark.destination === runtime.selectedLocation);
     const active = landmark.hovered || selected;
-    const targetScale = active ? landmark.baseScale * 1.12 : landmark.baseScale * (1 + pulse);
+    const targetScale = active ? landmark.baseScale * 1.2 : landmark.baseScale * (1 + pulse);
     const nextScale = landmark.container.scale.x + (targetScale - landmark.container.scale.x) * 0.18;
     landmark.container.scale.set(nextScale);
-    landmark.glow.alpha = active ? 0.42 : 0.22 + Math.sin(time * 1.2 + landmark.phase) * 0.035 * motionScale;
-    landmark.ring.alpha = active ? 0.84 : 0.44;
-    landmark.label.alpha = active ? 1 : 0.78;
+    landmark.container.zIndex = active ? 80 : 32 + landmark.container.y / 1000;
+    landmark.glow.alpha = active ? 0.54 : 0.26 + Math.sin(time * 1.2 + landmark.phase) * 0.04 * motionScale;
+    landmark.ring.alpha = active ? 0.92 : 0.52;
+    landmark.label.alpha = active ? 1 : 0.86;
     if (landmark.sprite) {
-      landmark.sprite.alpha = active ? 1 : 0.76 + Math.sin(time * 1.1 + landmark.phase) * 0.035 * motionScale;
+      landmark.sprite.alpha = active ? 1 : 0.84 + Math.sin(time * 1.1 + landmark.phase) * 0.035 * motionScale;
     }
   });
 
@@ -757,7 +763,7 @@ function focusStrategicCamera(runtime: WorldRuntime, target: MicroVerseCameraFoc
   if (!landmark) return;
   runtime.selectedLocation = landmark.destination ?? null;
 
-  const zoom = target === "home" || target === "homestead" ? 1.02 : 0.96;
+  const zoom = target === "home" || target === "homestead" ? 1.13 : 1.04;
   const focusPoint = {
     x: runtime.worldSize.x * landmark.x,
     y: runtime.worldSize.y * landmark.y + 54 * landmark.scale,
@@ -807,6 +813,10 @@ function edgePanAxis(value: number) {
     return Math.pow((value - (1 - HOVER_PAN_EDGE)) / HOVER_PAN_EDGE, 1.45);
   }
   return 0;
+}
+
+function resizePixiApp(app: Application, hostElement: HTMLElement) {
+  app.renderer.resize(Math.max(1, hostElement.clientWidth), Math.max(1, hostElement.clientHeight));
 }
 
 function clampCameraForWorld(app: Application, worldSize: Point, zoom: number, camera: Point): Point {
@@ -1092,6 +1102,7 @@ function buildArchitectureLayer(
   const layer = new Container();
   const buildings = new Graphics();
   const sprites = new Container();
+  sprites.sortableChildren = true;
 
   MICROVERSE_LANDMARKS.forEach((landmark) => {
     const texture = landmarkTextures.get(landmark.id);
@@ -1184,7 +1195,7 @@ function buildLandmarkSprite(
       align: "center",
       fill: 0xfff8df,
       fontFamily: "Inter, Arial, sans-serif",
-      fontSize: 14,
+      fontSize: 15,
       fontWeight: "800",
       wordWrap: true,
       wordWrapWidth: districtWidth * 0.82,
@@ -1209,18 +1220,18 @@ function buildLandmarkSprite(
   container.cursor = landmark.destination ? "pointer" : "default";
 
   hitArea.ellipse(0, 0, districtWidth, districtHeight).fill({ color: 0xffffff, alpha: 0.001 });
-  glow.ellipse(0, 8 * landmark.scale, districtWidth * 1.2, districtHeight * 1.36).fill({
+  glow.ellipse(0, 8 * landmark.scale, districtWidth * 1.28, districtHeight * 1.48).fill({
     color: landmark.accent,
-    alpha: 0.2,
+    alpha: 0.24,
   });
   glow.ellipse(0, 10 * landmark.scale, districtWidth * 0.72, districtHeight * 0.72).fill({
     color: 0xffffff,
-    alpha: 0.035,
+    alpha: 0.05,
   });
   ring.ellipse(0, 0, districtWidth, districtHeight).stroke({
     color: landmark.accent,
-    alpha: 0.5,
-    width: Math.max(2.5, 4.2 * landmark.scale),
+    alpha: 0.58,
+    width: Math.max(3, 4.8 * landmark.scale),
   });
   ring.ellipse(0, 0, districtWidth * 0.66, districtHeight * 0.6).stroke({
     color: MICROVERSE_PALETTE.ivory,
@@ -1231,11 +1242,11 @@ function buildLandmarkSprite(
   sprite.anchor.set(0.5, 0.82);
   sprite.y = -districtHeight * 0.18;
   sprite.scale.set(spriteScale);
-  sprite.alpha = 0.58;
+  sprite.alpha = 0.72;
   sprite.label = landmark.id;
   label.anchor.set(0.5, 0);
   label.y = districtHeight * 0.28;
-  label.alpha = 0.78;
+  label.alpha = 0.86;
 
   container.addChild(hitArea, glow, sprite, ring, label);
   container.on("pointerover", () => {
@@ -1261,29 +1272,29 @@ function buildLandmarkSprite(
 }
 
 function landmarkSpriteWidth(landmark: MicroVerseLandmark) {
-  if (landmark.kind === "HOMESTEAD") return 330 * landmark.scale;
-  if (landmark.kind === "GOVERNANCE_HALL") return 322 * landmark.scale;
-  if (landmark.kind === "SEEDBOT_TERMINAL") return 316 * landmark.scale;
-  if (landmark.kind === "EXPLORER_MAP") return 292 * landmark.scale;
-  if (landmark.kind === "HARVEST_LEDGER") return 284 * landmark.scale;
-  if (landmark.kind === "STEWARD_GLADE") return 286 * landmark.scale;
-  if (landmark.kind === "LOREHOUSE") return 276 * landmark.scale;
-  if (landmark.kind === "TREASURY_GROVE") return 280 * landmark.scale;
-  return 250 * landmark.scale;
+  if (landmark.kind === "HOMESTEAD") return 390 * landmark.scale;
+  if (landmark.kind === "GOVERNANCE_HALL") return 384 * landmark.scale;
+  if (landmark.kind === "SEEDBOT_TERMINAL") return 370 * landmark.scale;
+  if (landmark.kind === "EXPLORER_MAP") return 344 * landmark.scale;
+  if (landmark.kind === "HARVEST_LEDGER") return 334 * landmark.scale;
+  if (landmark.kind === "STEWARD_GLADE") return 338 * landmark.scale;
+  if (landmark.kind === "LOREHOUSE") return 326 * landmark.scale;
+  if (landmark.kind === "TREASURY_GROVE") return 330 * landmark.scale;
+  return 292 * landmark.scale;
 }
 
 function districtZoneWidth(landmark: MicroVerseLandmark) {
-  if (landmark.kind === "GOVERNANCE_HALL") return 360 * landmark.scale;
-  if (landmark.kind === "SEEDBOT_TERMINAL") return 342 * landmark.scale;
-  if (landmark.kind === "HOMESTEAD") return 340 * landmark.scale;
-  return 316 * landmark.scale;
+  if (landmark.kind === "GOVERNANCE_HALL") return 420 * landmark.scale;
+  if (landmark.kind === "SEEDBOT_TERMINAL") return 398 * landmark.scale;
+  if (landmark.kind === "HOMESTEAD") return 392 * landmark.scale;
+  return 362 * landmark.scale;
 }
 
 function districtZoneHeight(landmark: MicroVerseLandmark) {
-  if (landmark.kind === "GOVERNANCE_HALL") return 132 * landmark.scale;
-  if (landmark.kind === "SEEDBOT_TERMINAL") return 124 * landmark.scale;
-  if (landmark.kind === "HOMESTEAD") return 122 * landmark.scale;
-  return 112 * landmark.scale;
+  if (landmark.kind === "GOVERNANCE_HALL") return 148 * landmark.scale;
+  if (landmark.kind === "SEEDBOT_TERMINAL") return 140 * landmark.scale;
+  if (landmark.kind === "HOMESTEAD") return 138 * landmark.scale;
+  return 126 * landmark.scale;
 }
 
 function buildForegroundLayer(worldSize: Point) {
@@ -1400,14 +1411,14 @@ function buildPlotMarker(
   const markerRuntime: PlotMarkerRuntime = {
     container: marker,
     baseScale: 1,
-    hoverScale: plot.lifecycle === "EMPTY" ? 1.14 : 1.2,
+    hoverScale: plot.lifecycle === "EMPTY" ? 1.22 : 1.3,
     hovered: false,
     phase: plot.slotIndex * 0.9,
   };
 
   const active = plot.lifecycle !== "EMPTY";
   const colors = colorsForPlot(plot);
-  const radius = active ? 36 : 30;
+  const radius = active ? 42 : 36;
   const tileTexture = projectTileTextures.get(plot.lifecycle);
   const tileSprite = tileTexture ? buildProjectTileSprite(plot, tileTexture) : null;
 
@@ -1464,10 +1475,10 @@ function buildPlotMarker(
       align: "center",
       fill: 0xfff8df,
       fontFamily: "Inter, Arial, sans-serif",
-      fontSize: 12,
+      fontSize: 13,
       fontWeight: "700",
       wordWrap: true,
-      wordWrapWidth: 128,
+      wordWrapWidth: 150,
     }),
   });
   label.anchor.set(0.5, 0);

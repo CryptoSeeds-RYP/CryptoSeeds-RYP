@@ -36,8 +36,11 @@ button:disabled {
 .app-shell {
   min-height: 100vh;
   background:
-    linear-gradient(135deg, rgba(17, 18, 15, 0.95), rgba(22, 34, 28, 0.86)),
-    url("/assets/microverse-river-delta.jpg") center / cover fixed;
+    radial-gradient(circle at 22% 12%, rgba(236, 216, 130, 0.13), transparent 28%),
+    radial-gradient(circle at 82% 8%, rgba(128, 220, 202, 0.11), transparent 30%),
+    linear-gradient(135deg, rgba(13, 20, 17, 0.97), rgba(18, 34, 34, 0.9)),
+    url("/assets/concepts/microverse-world-plate-v1.png") center / cover fixed,
+    #11120f;
 }
 
 .loading-shell {
@@ -245,6 +248,14 @@ button:disabled {
   padding: 18px;
 }
 
+.content-grid.homestead-layout {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.content-grid.homestead-layout .side-stack {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .primary-surface {
   min-width: 0;
 }
@@ -259,7 +270,7 @@ button:disabled {
 
 .microverse-map {
   position: relative;
-  min-height: 840px;
+  min-height: min(1040px, calc(100vh - 112px));
   overflow: hidden;
   border: 1px solid rgba(255, 231, 133, 0.34);
   border-radius: 8px;
@@ -271,6 +282,7 @@ button:disabled {
     inset 0 0 0 1px rgba(255, 248, 223, 0.16),
     inset 0 -120px 180px rgba(7, 13, 11, 0.3),
     0 32px 90px rgba(0, 0, 0, 0.34);
+  isolation: isolate;
 }
 
 .microverse-map img {
@@ -324,6 +336,8 @@ button:disabled {
   inset: 0;
   pointer-events: none;
   background:
+    linear-gradient(90deg, rgba(255, 214, 107, 0.08), transparent 16%, transparent 84%, rgba(128, 220, 202, 0.07)),
+    linear-gradient(0deg, rgba(255, 214, 107, 0.07), transparent 18%, transparent 82%, rgba(128, 220, 202, 0.06)),
     radial-gradient(ellipse at 50% 52%, transparent 42%, rgba(4, 9, 8, 0.18) 72%, rgba(4, 9, 8, 0.34)),
     radial-gradient(circle at 66% 20%, rgba(255, 210, 111, 0.08), transparent 32%),
     linear-gradient(90deg, rgba(6, 18, 22, 0.34), rgba(6, 18, 22, 0.02) 45%, rgba(6, 18, 22, 0.2)),
@@ -443,7 +457,7 @@ button:disabled {
 
 .visual-legend {
   position: absolute;
-  top: 24px;
+  top: 26px;
   right: 24px;
   display: flex;
   flex-wrap: wrap;
@@ -1731,6 +1745,10 @@ button:disabled {
     grid-template-columns: 1fr;
   }
 
+  .content-grid.homestead-layout .side-stack {
+    grid-template-columns: 1fr;
+  }
+
   .side-stack {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
@@ -1769,7 +1787,7 @@ button:disabled {
   }
 
   .microverse-map {
-    min-height: 640px;
+    min-height: 720px;
   }
 
   .metric-row,
@@ -1894,7 +1912,7 @@ button:disabled {
   }
 
   .microverse-map {
-    min-height: 560px;
+    min-height: 680px;
     width: 100%;
     max-width: calc(100vw - 24px);
   }
@@ -1910,16 +1928,25 @@ button:disabled {
   }
 
   .map-district-dock {
-    top: 146px;
     left: 18px;
     right: 18px;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    top: auto;
+    bottom: 18px;
+    display: flex;
+    grid-template-columns: none;
+    overflow-x: auto;
+    scrollbar-width: none;
     width: auto;
   }
 
+  .map-district-dock::-webkit-scrollbar {
+    display: none;
+  }
+
   .map-district-dock button {
+    flex: 0 0 auto;
     justify-content: center;
-    min-width: 0;
+    min-width: 112px;
     padding-right: 6px;
     padding-left: 6px;
   }
@@ -1936,6 +1963,10 @@ button:disabled {
   }
 
   .world-focus-panel {
+    display: none;
+  }
+
+  .visual-legend {
     display: none;
   }
 

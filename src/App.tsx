@@ -95,7 +95,7 @@ export default function App() {
           })}
         </aside>
 
-        <section className="content-grid">
+        <section className={`content-grid ${activeLocation === "homestead" ? "homestead-layout" : ""}`}>
           <section className="primary-surface">
             {activeLocation === "homestead" && (
               <HomesteadView

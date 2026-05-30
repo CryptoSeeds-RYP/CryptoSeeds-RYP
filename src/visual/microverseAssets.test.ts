@@ -11,7 +11,6 @@ import type { ProjectLifecycleVisualState } from "./projectVisuals";
 describe("microverse visual asset registry", () => {
   it("keeps core asset paths rooted in the public assets directory", () => {
     expect(MICROVERSE_ASSETS.conceptPlate).toMatch(/^\/assets\//);
-    expect(MICROVERSE_ASSETS.fallbackTerrain).toMatch(/^\/assets\//);
     expect(MICROVERSE_ASSETS.atlasManifest).toMatch(/^\/assets\//);
   });
 
@@ -60,7 +59,7 @@ describe("microverse visual asset registry", () => {
       expect(asset.lifecycle).toBe(state);
       expect(asset.assetPath).toMatch(/^\/assets\/project-tiles\//);
       expect(asset.targetWidth).toBeGreaterThanOrEqual(140);
-      expect(asset.targetWidth).toBeLessThanOrEqual(240);
+      expect(asset.targetWidth).toBeLessThanOrEqual(290);
     });
   });
 

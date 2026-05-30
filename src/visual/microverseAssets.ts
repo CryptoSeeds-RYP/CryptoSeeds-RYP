@@ -65,7 +65,6 @@ export type MicroVerseProjectTileAsset = {
 
 export const MICROVERSE_ASSETS = {
   conceptPlate: "/assets/concepts/microverse-world-plate-v1.png",
-  fallbackTerrain: "/assets/microverse-river-delta.jpg",
   atlasManifest: "/assets/microverse-atlas.json",
 } as const;
 
@@ -179,43 +178,43 @@ export const MICROVERSE_PROJECT_TILE_ASSETS: Record<ProjectLifecycleVisualState,
     lifecycle: "EMPTY",
     state: "OPEN",
     assetPath: "/assets/project-tiles/project-open.png",
-    targetWidth: 196,
+    targetWidth: 232,
   },
   PREPARING: {
     lifecycle: "PREPARING",
     state: "ACTIVE",
     assetPath: "/assets/project-tiles/project-active.png",
-    targetWidth: 212,
+    targetWidth: 248,
   },
   ACTIVE: {
     lifecycle: "ACTIVE",
     state: "ACTIVE",
     assetPath: "/assets/project-tiles/project-active.png",
-    targetWidth: 212,
+    targetWidth: 248,
   },
   MILESTONE: {
     lifecycle: "MILESTONE",
     state: "MILESTONE",
     assetPath: "/assets/project-tiles/project-milestone.png",
-    targetWidth: 226,
+    targetWidth: 266,
   },
   HARVEST: {
     lifecycle: "HARVEST",
     state: "HARVEST",
     assetPath: "/assets/project-tiles/project-harvest.png",
-    targetWidth: 232,
+    targetWidth: 274,
   },
   COMPLETED: {
     lifecycle: "COMPLETED",
     state: "COMPLETED",
     assetPath: "/assets/project-tiles/project-completed.png",
-    targetWidth: 210,
+    targetWidth: 248,
   },
   PAUSED: {
     lifecycle: "PAUSED",
     state: "PAUSED",
     assetPath: "/assets/project-tiles/project-paused.png",
-    targetWidth: 206,
+    targetWidth: 242,
   },
 };
 
