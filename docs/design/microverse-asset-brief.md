@@ -2,6 +2,12 @@
 
 Date: 2026-05-29
 
+Related docs:
+
+- `docs/design/visual-bible.md`
+- `docs/design/visual-qa-checklist.md`
+- `docs/architecture/visual-layer.md`
+
 ## Art Direction
 
 CryptoSeeds should feel like a premium regenerative strategy interface, not a cartoon farming game.
@@ -19,6 +25,14 @@ Style targets:
 ## MVP Asset Set
 
 The first asset pack should support the navigable PixiJS world. It should be a compact sprite atlas plus background plates, not a full 3D environment.
+
+Current concept plate:
+
+- `public/assets/concepts/microverse-world-plate-v1.png`
+
+Runtime asset registration:
+
+- `src/visual/microverseAssets.ts`
 
 Required terrain:
 
@@ -82,6 +96,7 @@ Required landmark objects:
 - Name assets by category and state, for example `plot-grove-active.webp`.
 - Keep important silhouettes readable at small dashboard sizes and mobile widths.
 - Avoid text inside the art assets. React should render labels and disclosures.
+- Register new runtime assets through `src/visual/microverseAssets.ts`.
 
 ## Initial Dimensions
 

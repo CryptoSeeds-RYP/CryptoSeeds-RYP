@@ -1,5 +1,11 @@
 import { useEffect, useRef } from "react";
 import { Application, Assets, Container, Graphics, Sprite, Text, TextStyle } from "pixi.js";
+import {
+  MICROVERSE_ASSETS,
+  MICROVERSE_LANDMARKS,
+  MICROVERSE_PALETTE,
+  type MicroVerseLandmark,
+} from "./microverseAssets";
 import type { MicroVersePlot, MicroVerseSceneState } from "./microverseSceneState";
 
 type Point = { x: number; y: number };
@@ -287,10 +293,12 @@ async function buildWorld(
   const particles: Particle[] = [];
   const rainLines: RainLine[] = [];
 
-  const terrain = await Assets.load("/assets/microverse-river-delta.jpg");
+  const terrain = await Assets.load(MICROVERSE_ASSETS.conceptPlate).catch(() =>
+    Assets.load(MICROVERSE_ASSETS.fallbackTerrain),
+  );
   const background = new Sprite(terrain);
   background.label = "terrain";
-  background.alpha = 0.16;
+  background.alpha = 0.28;
   fitSprite(background, worldSize.x, worldSize.y);
   world.addChild(background);
 
@@ -453,10 +461,10 @@ function updatePlayerGlow(runtime: WorldRuntime) {
 
 function buildTerrainLayer(worldSize: Point, scene: MicroVerseSceneState) {
   const layer = new Graphics();
-  const tierGlow = scene.tier === "FRUIT" || scene.tier === "TREE" ? 0xffc857 : 0x8ce9cf;
+  const tierGlow = scene.tier === "FRUIT" || scene.tier === "TREE" ? 0xffc857 : MICROVERSE_PALETTE.greenhouseTeal;
 
-  layer.rect(0, 0, worldSize.x, worldSize.y).fill({ color: 0x10282d, alpha: 1 });
-  layer.rect(0, 0, worldSize.x, worldSize.y).fill({ color: 0x1e575b, alpha: 0.34 });
+  layer.rect(0, 0, worldSize.x, worldSize.y).fill({ color: MICROVERSE_PALETTE.terrainBase, alpha: 1 });
+  layer.rect(0, 0, worldSize.x, worldSize.y).fill({ color: MICROVERSE_PALETTE.terrainWash, alpha: 0.3 });
 
   for (let index = 0; index < 56; index += 1) {
     const x = (index * 97) % worldSize.x;
@@ -504,11 +512,11 @@ function buildWaterLayer(worldSize: Point, scene: MicroVerseSceneState, glints: 
     { x: worldSize.x * 0.48, y: worldSize.y + 80 },
   ];
 
-  strokePath(water, canal, 138, 0x0f4658, 0.52);
-  strokePath(water, canal, 100, 0x26a6b8, 0.74);
-  strokePath(water, canal, 18, 0xd9fff8, scene.weather === "GOLDEN_HARVEST" ? 0.48 : 0.36);
-  strokePath(water, branch, 94, 0x0f4658, 0.52);
-  strokePath(water, branch, 62, 0x2194a9, 0.68);
+  strokePath(water, canal, 138, MICROVERSE_PALETTE.waterDeep, 0.52);
+  strokePath(water, canal, 100, MICROVERSE_PALETTE.waterMid, 0.74);
+  strokePath(water, canal, 18, MICROVERSE_PALETTE.waterLight, scene.weather === "GOLDEN_HARVEST" ? 0.48 : 0.36);
+  strokePath(water, branch, 94, MICROVERSE_PALETTE.waterDeep, 0.52);
+  strokePath(water, branch, 62, MICROVERSE_PALETTE.waterMid, 0.68);
   strokePath(water, branch, 10, 0xe9fff7, 0.34);
   layer.addChild(water);
 
@@ -529,8 +537,8 @@ function buildWaterLayer(worldSize: Point, scene: MicroVerseSceneState, glints: 
 function buildPathLayer(worldSize: Point) {
   const layer = new Graphics();
   const plaza = { x: worldSize.x * 0.51, y: worldSize.y * 0.55 };
-  const pathColor = 0xf1cc74;
-  const shadow = 0x3f6653;
+  const pathColor = MICROVERSE_PALETTE.soilGold;
+  const shadow = MICROVERSE_PALETTE.pathShadow;
   const gold = 0xffe8a2;
 
   const paths = [
@@ -560,13 +568,8 @@ function buildPathLayer(worldSize: Point) {
 function buildArchitectureLayer(worldSize: Point, scene: MicroVerseSceneState, lanterns: Lantern[]) {
   const layer = new Container();
   const buildings = new Graphics();
-  const palaceGlow = scene.walletConnected ? 0x80dcca : 0xffcf5a;
 
-  drawDomeCluster(buildings, worldSize.x * 0.74, worldSize.y * 0.29, 1.08, palaceGlow);
-  drawDomeCluster(buildings, worldSize.x * 0.32, worldSize.y * 0.36, 0.78, 0xb6d6ff);
-  drawDomeCluster(buildings, worldSize.x * 0.18, worldSize.y * 0.7, 0.66, 0xe8b8ff);
-  drawDomeCluster(buildings, worldSize.x * 0.83, worldSize.y * 0.66, 0.7, 0xf0c46f);
-  drawWindmill(buildings, worldSize.x * 0.58, worldSize.y * 0.2, 0.76);
+  MICROVERSE_LANDMARKS.forEach((landmark) => drawLandmark(buildings, landmark, worldSize, scene));
   layer.addChild(buildings);
 
   const lanternPositions = [
@@ -818,6 +821,94 @@ function drawCanopyTree(layer: Graphics, x: number, y: number, scale: number, le
   layer.circle(x - 11 * scale, y - 8 * scale, 12 * scale).stroke({ color: 0x2d724f, alpha: 0.8, width: 2 * scale });
   layer.circle(x + 9 * scale, y - 10 * scale, 13 * scale).stroke({ color: 0x2d724f, alpha: 0.8, width: 2 * scale });
   layer.circle(x, y - 19 * scale, 14 * scale).stroke({ color: 0x2d724f, alpha: 0.8, width: 2 * scale });
+}
+
+function drawLandmark(
+  layer: Graphics,
+  landmark: MicroVerseLandmark,
+  worldSize: Point,
+  scene: MicroVerseSceneState,
+) {
+  const x = worldSize.x * landmark.x;
+  const y = worldSize.y * landmark.y;
+  const accent = scene.walletConnected || landmark.kind !== "GOVERNANCE_HALL" ? landmark.accent : 0xffcf5a;
+
+  if (landmark.kind === "SEEDBOT_TERMINAL") {
+    drawSeedBotGreenhouse(layer, x, y, landmark.scale, accent);
+    return;
+  }
+
+  if (landmark.kind === "STEWARD_GLADE") {
+    drawStewardGlade(layer, x, y, landmark.scale, accent);
+    return;
+  }
+
+  if (landmark.kind === "LOREHOUSE") {
+    drawLorehouse(layer, x, y, landmark.scale, accent);
+    return;
+  }
+
+  if (landmark.kind === "TREASURY_GROVE") {
+    drawTreasuryGrove(layer, x, y, landmark.scale, accent);
+    return;
+  }
+
+  drawDomeCluster(layer, x, y, landmark.scale, accent);
+}
+
+function drawSeedBotGreenhouse(layer: Graphics, x: number, y: number, scale: number, accent: number) {
+  layer.ellipse(x, y + 48 * scale, 96 * scale, 31 * scale).fill({ color: 0x10231f, alpha: 0.42 });
+  drawOutlinedRect(layer, x - 58 * scale, y + 4 * scale, 116 * scale, 55 * scale, 0x183a35, 0.92, 0xd6b35d, 0.72, 4 * scale);
+  drawOutlinedEllipse(layer, x, y - 6 * scale, 66 * scale, 46 * scale, 0x1f8590, 0.88, 0xd6b35d, 0.84, 5 * scale);
+  layer.rect(x - 46 * scale, y + 13 * scale, 92 * scale, 14 * scale).fill({ color: 0x92f0dc, alpha: 0.22 });
+  layer.moveTo(x - 42 * scale, y + 43 * scale).lineTo(x + 42 * scale, y + 43 * scale).stroke({
+    color: accent,
+    alpha: 0.7,
+    width: 4 * scale,
+    cap: "round",
+  });
+  layer.circle(x, y + 24 * scale, 13 * scale).fill({ color: accent, alpha: 0.7 });
+  layer.circle(x, y + 24 * scale, 13 * scale).stroke({ color: 0xffffff, alpha: 0.42, width: 2 * scale });
+  for (let index = 0; index < 4; index += 1) {
+    const nodeX = x - 36 * scale + index * 24 * scale;
+    layer.circle(nodeX, y + 44 * scale, 4.5 * scale).fill({ color: 0xbdf8ee, alpha: 0.74 });
+  }
+}
+
+function drawStewardGlade(layer: Graphics, x: number, y: number, scale: number, accent: number) {
+  layer.ellipse(x, y + 30 * scale, 86 * scale, 32 * scale).fill({ color: 0x183f31, alpha: 0.58 });
+  layer.circle(x, y + 2 * scale, 34 * scale).fill({ color: accent, alpha: 0.12 });
+  layer.circle(x, y + 2 * scale, 34 * scale).stroke({ color: accent, alpha: 0.48, width: 3 * scale });
+  layer.moveTo(x, y + 34 * scale).lineTo(x, y - 44 * scale).stroke({ color: 0xd7b1ff, alpha: 0.76, width: 5 * scale, cap: "round" });
+  for (let index = 0; index < 6; index += 1) {
+    const angle = index * (Math.PI / 3);
+    layer.circle(x + Math.cos(angle) * 43 * scale, y + Math.sin(angle) * 21 * scale, 10 * scale).fill({
+      color: index % 2 === 0 ? 0x7fc65d : 0x9edcdf,
+      alpha: 0.78,
+    });
+  }
+}
+
+function drawLorehouse(layer: Graphics, x: number, y: number, scale: number, accent: number) {
+  drawWindmill(layer, x, y, scale);
+  layer.circle(x - 42 * scale, y + 48 * scale, 12 * scale).fill({ color: accent, alpha: 0.32 });
+  layer.circle(x + 42 * scale, y + 48 * scale, 12 * scale).fill({ color: accent, alpha: 0.32 });
+}
+
+function drawTreasuryGrove(layer: Graphics, x: number, y: number, scale: number, accent: number) {
+  layer.ellipse(x, y + 32 * scale, 84 * scale, 30 * scale).fill({ color: 0x213f28, alpha: 0.5 });
+  for (let index = 0; index < 7; index += 1) {
+    const angle = index * 0.9;
+    drawCanopyTree(
+      layer,
+      x + Math.cos(angle) * 38 * scale,
+      y + Math.sin(angle) * 20 * scale,
+      0.74 * scale,
+      index % 2 === 0 ? 0x7fc65d : 0x2f8d5f,
+    );
+  }
+  layer.circle(x, y, 18 * scale).fill({ color: accent, alpha: 0.58 });
+  layer.circle(x, y, 18 * scale).stroke({ color: 0xffffff, alpha: 0.4, width: 2 * scale });
 }
 
 function drawWindmill(layer: Graphics, x: number, y: number, scale: number) {
