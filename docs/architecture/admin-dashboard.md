@@ -36,6 +36,7 @@ The MVP god-wallet route is acceptable for localnet/devnet testing only. Product
 | Charity accounts | Draft only | Donation-only account separation |
 | Treasury labels | Draft only | Public labels and reporting cadence |
 | Fee split policy | Review gated | 1% RYP transfer-fee route plus holder/staker/treasury/dev split proposals |
+| Reward epochs | Draft only | Holder snapshot, reward vault, rollover, and delivery-cost review packets |
 | Homestead config | Local/dev preview | Cosmetic and UI tuning only |
 | SeedBot config | Review gated | Strategy/venue/performance copy and permission gates |
 | Emergency pause | Devnet-ready concept | Testnet/devnet only until authority policy is approved |

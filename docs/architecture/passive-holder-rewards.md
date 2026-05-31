@@ -63,3 +63,13 @@ Every epoch must balance:
 `distributed net payouts + reserved delivery costs + rolled-forward allocations = holder reward pool`
 
 This makes the system auditable and prevents silent treasury leakage.
+
+## Draft Command
+
+Local review packet command:
+
+```bash
+npm run rewards:epoch:draft
+```
+
+This reads `docs/operations/holder-reward-epoch.example.json`, builds a draft reward epoch, validates required vault roles, and prints review JSON. It does not sign, broadcast, or move funds.

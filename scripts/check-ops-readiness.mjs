@@ -13,6 +13,7 @@ const requiredScripts = [
   "devnet:readiness",
   "protocol:idl:check",
   "protocol:smoke:localnet:wsl",
+  "rewards:epoch:draft",
   "ops:check",
 ];
 
@@ -20,6 +21,7 @@ const requiredDocs = [
   "docs/architecture/admin-dashboard.md",
   "docs/architecture/operations-model.md",
   "docs/architecture/platform-authority-model.md",
+  "docs/architecture/reward-vault-epochs.md",
   "docs/compliance/decentralization-and-self-custody.md",
   "docs/product/master-brief.md",
 ];

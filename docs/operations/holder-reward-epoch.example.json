@@ -1,0 +1,88 @@
+{
+  "id": "holder-epoch-example-001",
+  "label": "Example weekly holder reward epoch",
+  "createdAt": "2026-06-07T00:00:00.000Z",
+  "rewardMint": "CFPzKkPYqpyfNJp3WDB4dykMemfhwYrV9cgNUy7nsoPD",
+  "snapshotTakenAt": "2026-06-07T00:00:00.000Z",
+  "scheduledCadences": ["WEEKLY"],
+  "rewardPoolBaseUnits": "1000000000",
+  "estimatedDeliveryCostPerPayoutBaseUnits": "10000",
+  "minimumNetPayoutBaseUnits": "20000",
+  "entries": [
+    {
+      "walletAddress": "CanopyHolder111111111111111111111111111111",
+      "rypBalanceBaseUnits": "100000000000"
+    },
+    {
+      "walletAddress": "SproutHolder111111111111111111111111111111",
+      "rypBalanceBaseUnits": "20000000000"
+    },
+    {
+      "walletAddress": "SeedHolder11111111111111111111111111111111",
+      "rypBalanceBaseUnits": "5000000000"
+    },
+    {
+      "walletAddress": "Treasury1111111111111111111111111111111111",
+      "rypBalanceBaseUnits": "150000000000",
+      "excluded": true,
+      "exclusionReason": "Treasury wallet excluded from holder rewards."
+    }
+  ],
+  "vaults": [
+    {
+      "id": "holder-reward-vault",
+      "label": "Holder Reward Vault",
+      "role": "HOLDER_REWARD",
+      "rewardMint": "CFPzKkPYqpyfNJp3WDB4dykMemfhwYrV9cgNUy7nsoPD",
+      "address": "HolderRewardVault1111111111111111111111111",
+      "custodyModel": "PROGRAM_CONTROLLED",
+      "status": "PENDING_VERIFICATION",
+      "receivesUserFunds": false,
+      "notes": "Example placeholder vault for review packet shape only."
+    },
+    {
+      "id": "staker-reward-vault",
+      "label": "Staker Reward Vault",
+      "role": "STAKER_REWARD",
+      "rewardMint": "CFPzKkPYqpyfNJp3WDB4dykMemfhwYrV9cgNUy7nsoPD",
+      "address": "StakerRewardVault1111111111111111111111111",
+      "custodyModel": "PROGRAM_CONTROLLED",
+      "status": "PENDING_VERIFICATION",
+      "receivesUserFunds": false,
+      "notes": "Example placeholder vault for review packet shape only."
+    },
+    {
+      "id": "independent-treasury-vault",
+      "label": "Independent Treasury Vault",
+      "role": "INDEPENDENT_TREASURY",
+      "rewardMint": "CFPzKkPYqpyfNJp3WDB4dykMemfhwYrV9cgNUy7nsoPD",
+      "address": "IndependentTreasuryVault11111111111111111111",
+      "custodyModel": "TREASURY_CONTROLLED",
+      "status": "PENDING_VERIFICATION",
+      "receivesUserFunds": false,
+      "notes": "Example placeholder vault for review packet shape only."
+    },
+    {
+      "id": "delivery-cost-reserve",
+      "label": "Delivery Cost Reserve",
+      "role": "DELIVERY_COST_RESERVE",
+      "rewardMint": "CFPzKkPYqpyfNJp3WDB4dykMemfhwYrV9cgNUy7nsoPD",
+      "address": "DeliveryCostReserve111111111111111111111111",
+      "custodyModel": "PROGRAM_CONTROLLED",
+      "status": "PENDING_VERIFICATION",
+      "receivesUserFunds": false,
+      "notes": "Example placeholder vault for review packet shape only."
+    },
+    {
+      "id": "rollover-vault",
+      "label": "Rollover Vault",
+      "role": "ROLLOVER",
+      "rewardMint": "CFPzKkPYqpyfNJp3WDB4dykMemfhwYrV9cgNUy7nsoPD",
+      "address": "RolloverVault111111111111111111111111111",
+      "custodyModel": "PROGRAM_CONTROLLED",
+      "status": "PENDING_VERIFICATION",
+      "receivesUserFunds": false,
+      "notes": "Example placeholder vault for review packet shape only."
+    }
+  ]
+}

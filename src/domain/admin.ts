@@ -70,6 +70,14 @@ export const adminActionPreviews: AdminActionPreview[] = [
     executionRule: "Requires governance, security, legal, and accounting review before any live parameter change.",
   },
   {
+    id: "reward-epoch-draft",
+    label: "Reward Epochs",
+    category: "FEES",
+    status: "DRAFT_ONLY",
+    description: "Prepare holder snapshot, reward vault, rollover, and delivery-cost accounting drafts.",
+    executionRule: "Draft/export only; no payout, claim, or vault movement from the admin UI.",
+  },
+  {
     id: "homestead-visual-config",
     label: "Homestead Config",
     category: "VISUALS",

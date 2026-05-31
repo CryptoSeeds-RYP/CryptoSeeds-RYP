@@ -82,6 +82,7 @@ These should be added after the staking core is reviewed:
 - Voting Rights NFT minting and dynamic metadata
 - Reward accrual and expiration
 - Fee router, holder/staker/treasury accrual, and 1-year unclaimed redistribution
+- Reward vault and epoch accounts described in `docs/architecture/reward-vault-epochs.md`
 - Project pool participation
 - Governance proposals and voting records
 - Treasury distribution

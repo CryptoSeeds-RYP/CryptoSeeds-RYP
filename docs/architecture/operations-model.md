@@ -20,6 +20,7 @@ CryptoSeeds should be advanced internally and simple operationally. The target i
 | RYP token health | Daily | `npm.cmd run token:check` | Monitor only | No |
 | Broadcast readiness gate | Before launch | `npm.cmd run devnet:readiness` | Approval required | Yes |
 | Protocol drift gate | Every commit | `npm.cmd run protocol:idl:check` | Monitor only | No |
+| Reward epoch draft check | Weekly | `npm.cmd run rewards:epoch:draft` | Draft only | Yes |
 | Project disclosure review | Weekly | Review queue | Draft only | Yes |
 | Treasury label review | Weekly | Review queue | Draft only | Yes |
 | SeedBot permission review | Before launch | Disabled | Blocked | Yes |
@@ -55,10 +56,10 @@ The eventual production operations surface should show:
 - protocol health,
 - project disclosure health,
 - treasury label health,
+- reward epoch draft balance and vault role health,
 - SeedBot permission status,
 - open governance actions,
 - failed checks,
 - next required human approval.
 
 The operator should see what needs attention without understanding every protocol detail. Advanced details should remain available behind each status.
-

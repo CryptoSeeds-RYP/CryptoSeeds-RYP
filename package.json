@@ -21,6 +21,7 @@
     "wsl:setup": "powershell -ExecutionPolicy Bypass -File scripts/setup-wsl-solana.ps1",
     "copy:audit": "node scripts/audit-copy-guardrails.mjs",
     "ops:check": "node scripts/check-ops-readiness.mjs",
+    "rewards:epoch:draft": "node scripts/prepare-holder-reward-epoch.mjs docs/operations/holder-reward-epoch.example.json",
     "token:check": "node scripts/check-ryp-mint.mjs",
     "visual:audit": "node scripts/audit-visual-assets.mjs"
   },
