@@ -513,3 +513,62 @@ fn validate_fee_reductions(base_fee_bps: u16, reductions: &[u16; 5]) -> Result<(
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const THRESHOLDS: [u64; 5] = [
+        5_000_000_000,
+        20_000_000_000,
+        50_000_000_000,
+        100_000_000_000,
+        150_000_000_000,
+    ];
+
+    #[test]
+    fn maps_stake_amounts_to_expected_tiers() {
+        assert!(matches!(
+            StakeTier::from_amount(THRESHOLDS[0] - 1, &THRESHOLDS),
+            StakeTier::None
+        ));
+        assert!(matches!(
+            StakeTier::from_amount(THRESHOLDS[0], &THRESHOLDS),
+            StakeTier::Seed
+        ));
+        assert!(matches!(
+            StakeTier::from_amount(THRESHOLDS[1], &THRESHOLDS),
+            StakeTier::Sprout
+        ));
+        assert!(matches!(
+            StakeTier::from_amount(THRESHOLDS[2], &THRESHOLDS),
+            StakeTier::Sapling
+        ));
+        assert!(matches!(
+            StakeTier::from_amount(THRESHOLDS[3], &THRESHOLDS),
+            StakeTier::Tree
+        ));
+        assert!(matches!(
+            StakeTier::from_amount(THRESHOLDS[4], &THRESHOLDS),
+            StakeTier::Fruit
+        ));
+        assert!(matches!(
+            StakeTier::from_amount(THRESHOLDS[4] + 1, &THRESHOLDS),
+            StakeTier::Fruit
+        ));
+    }
+
+    #[test]
+    fn validates_strictly_increasing_nonzero_thresholds() {
+        assert!(validate_thresholds(&THRESHOLDS).is_ok());
+        assert!(validate_thresholds(&[0, 20, 50, 100, 150]).is_err());
+        assert!(validate_thresholds(&[5, 20, 20, 100, 150]).is_err());
+        assert!(validate_thresholds(&[5, 20, 50, 40, 150]).is_err());
+    }
+
+    #[test]
+    fn blocks_fee_reductions_above_base_fee() {
+        assert!(validate_fee_reductions(350, &[0, 35, 70, 105, 140]).is_ok());
+        assert!(validate_fee_reductions(350, &[0, 35, 70, 105, 351]).is_err());
+    }
+}

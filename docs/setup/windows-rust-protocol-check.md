@@ -34,6 +34,12 @@ rustup run stable-x86_64-pc-windows-gnullvm cargo fmt --manifest-path programs\c
 rustup run stable-x86_64-pc-windows-gnullvm cargo check --manifest-path programs\cryptoseeds_protocol\Cargo.toml
 ```
 
+For host-side Rust unit tests:
+
+```powershell
+npm run protocol:test:win
+```
+
 ## Current Limit
 
 This is not a replacement for `anchor build` or `anchor test` against a Solana local validator.
@@ -46,6 +52,6 @@ Full Anchor/Solana deployment verification still needs one of:
 
 ## Current Result
 
-`cargo fmt --check` and `cargo check` pass for `programs/cryptoseeds_protocol`.
+`cargo fmt --check`, `cargo check`, and host-side `cargo test` pass for `programs/cryptoseeds_protocol`.
 
 Anchor/Solana dependency macros currently emit `unexpected cfg` warnings on Rust 1.96.0. These warnings are from upstream macro cfg declarations and are not compile errors in the CryptoSeeds program.
