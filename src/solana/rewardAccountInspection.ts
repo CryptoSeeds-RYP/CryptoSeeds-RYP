@@ -1,9 +1,37 @@
 import { Connection, PublicKey } from "@solana/web3.js";
 import { appConfig, PLACEHOLDER_PROTOCOL_PROGRAM_ID } from "../config/env";
+import protocolAccountLayoutsJson from "./protocolAccountLayouts.json";
 
 export const REWARD_CONFIG_SEED = "reward-config";
 export const REWARD_VAULT_STATE_SEED = "reward-vault";
 export const REWARD_EPOCH_SEED = "reward-epoch";
+
+type RewardAccountLayoutName = "RewardConfig" | "RewardVaultState" | "RewardEpoch";
+
+type RewardAccountFieldLayout = {
+  name: string;
+  type: string;
+  offset: number;
+  size: number;
+};
+
+type RewardAccountLayout = {
+  discriminatorHex: string;
+  minimumLength: number;
+  fields: RewardAccountFieldLayout[];
+};
+
+export const REWARD_ACCOUNT_LAYOUTS = protocolAccountLayoutsJson as Record<
+  RewardAccountLayoutName,
+  RewardAccountLayout
+>;
+
+const REWARD_ACCOUNT_FIELD_OFFSETS = Object.fromEntries(
+  Object.entries(REWARD_ACCOUNT_LAYOUTS).map(([accountName, layout]) => [
+    accountName,
+    Object.fromEntries(layout.fields.map((field) => [field.name, field.offset])),
+  ]),
+) as Record<RewardAccountLayoutName, Record<string, number>>;
 
 export type RewardVaultRole =
   | "HOLDER_REWARD"
@@ -220,58 +248,61 @@ export async function readRewardAccountInspection({
 }
 
 export function decodeRewardConfigAccount(data: Uint8Array): RewardConfigAccount {
-  assertLength(data, 131, "RewardConfig");
+  assertAccountLayout(data, "RewardConfig");
+  const offset = REWARD_ACCOUNT_FIELD_OFFSETS.RewardConfig;
 
   return {
-    authority: readPubkey(data, 8),
-    protocolConfig: readPubkey(data, 40),
-    rypMint: readPubkey(data, 72),
-    epochCadenceSeconds: readI64(data, 104).toString(),
-    holderSplitBps: readU16(data, 112),
-    stakerSplitBps: readU16(data, 114),
-    treasurySplitBps: readU16(data, 116),
-    registeredVaultRolesMask: data[118],
-    verifiedVaultRolesMask: data[119],
-    totalEpochDrafts: readU64(data, 120).toString(),
-    paused: readBool(data, 128),
-    draftOnly: readBool(data, 129),
-    bump: data[130],
+    authority: readPubkey(data, offset.authority),
+    protocolConfig: readPubkey(data, offset.protocol_config),
+    rypMint: readPubkey(data, offset.ryp_mint),
+    epochCadenceSeconds: readI64(data, offset.epoch_cadence_seconds).toString(),
+    holderSplitBps: readU16(data, offset.holder_split_bps),
+    stakerSplitBps: readU16(data, offset.staker_split_bps),
+    treasurySplitBps: readU16(data, offset.treasury_split_bps),
+    registeredVaultRolesMask: data[offset.registered_vault_roles_mask],
+    verifiedVaultRolesMask: data[offset.verified_vault_roles_mask],
+    totalEpochDrafts: readU64(data, offset.total_epoch_drafts).toString(),
+    paused: readBool(data, offset.paused),
+    draftOnly: readBool(data, offset.draft_only),
+    bump: data[offset.bump],
   };
 }
 
 export function decodeRewardVaultStateAccount(data: Uint8Array): RewardVaultStateAccount {
-  assertLength(data, 141, "RewardVaultState");
+  assertAccountLayout(data, "RewardVaultState");
+  const offset = REWARD_ACCOUNT_FIELD_OFFSETS.RewardVaultState;
 
   return {
-    rewardConfig: readPubkey(data, 8),
-    role: rewardVaultRoleFromVariant(data[40]),
-    rewardMint: readPubkey(data, 41),
-    vaultAddress: readPubkey(data, 73),
-    custodyModel: custodyModelFromVariant(data[105]),
-    verificationStatus: verificationStatusFromVariant(data[106]),
-    metadataHash: bytesToHex(data.subarray(107, 139)),
-    receivesUserFunds: readBool(data, 139),
-    bump: data[140],
+    rewardConfig: readPubkey(data, offset.reward_config),
+    role: rewardVaultRoleFromVariant(data[offset.role]),
+    rewardMint: readPubkey(data, offset.reward_mint),
+    vaultAddress: readPubkey(data, offset.vault_address),
+    custodyModel: custodyModelFromVariant(data[offset.custody_model]),
+    verificationStatus: verificationStatusFromVariant(data[offset.verification_status]),
+    metadataHash: bytesToHex(data.subarray(offset.metadata_hash, offset.metadata_hash + 32)),
+    receivesUserFunds: readBool(data, offset.receives_user_funds),
+    bump: data[offset.bump],
   };
 }
 
 export function decodeRewardEpochAccount(data: Uint8Array): RewardEpochAccount {
-  assertLength(data, 163, "RewardEpoch");
+  assertAccountLayout(data, "RewardEpoch");
+  const offset = REWARD_ACCOUNT_FIELD_OFFSETS.RewardEpoch;
 
   return {
-    rewardConfig: readPubkey(data, 8),
-    epochId: readU64(data, 40).toString(),
-    snapshotTakenAt: readI64(data, 48).toString(),
-    createdAt: readI64(data, 56).toString(),
-    rewardMint: readPubkey(data, 64),
-    rewardPoolAmount: readU64(data, 96).toString(),
-    distributedNetAmount: readU64(data, 104).toString(),
-    reservedDeliveryCostAmount: readU64(data, 112).toString(),
-    rolledForwardAmount: readU64(data, 120).toString(),
-    exclusionListHash: bytesToHex(data.subarray(128, 160)),
-    status: epochStatusFromVariant(data[160]),
-    executionBlocked: readBool(data, 161),
-    bump: data[162],
+    rewardConfig: readPubkey(data, offset.reward_config),
+    epochId: readU64(data, offset.epoch_id).toString(),
+    snapshotTakenAt: readI64(data, offset.snapshot_taken_at).toString(),
+    createdAt: readI64(data, offset.created_at).toString(),
+    rewardMint: readPubkey(data, offset.reward_mint),
+    rewardPoolAmount: readU64(data, offset.reward_pool_amount).toString(),
+    distributedNetAmount: readU64(data, offset.distributed_net_amount).toString(),
+    reservedDeliveryCostAmount: readU64(data, offset.reserved_delivery_cost_amount).toString(),
+    rolledForwardAmount: readU64(data, offset.rolled_forward_amount).toString(),
+    exclusionListHash: bytesToHex(data.subarray(offset.exclusion_list_hash, offset.exclusion_list_hash + 32)),
+    status: epochStatusFromVariant(data[offset.status]),
+    executionBlocked: readBool(data, offset.execution_blocked),
+    bump: data[offset.bump],
   };
 }
 
@@ -346,9 +377,15 @@ function readBool(data: Uint8Array, offset: number) {
   return data[offset] === 1;
 }
 
-function assertLength(data: Uint8Array, minimumLength: number, accountName: string) {
-  if (data.length < minimumLength) {
-    throw new Error(`${accountName} account is too small: expected at least ${minimumLength} bytes.`);
+function assertAccountLayout(data: Uint8Array, accountName: RewardAccountLayoutName) {
+  const layout = REWARD_ACCOUNT_LAYOUTS[accountName];
+  if (data.length < layout.minimumLength) {
+    throw new Error(`${accountName} account is too small: expected at least ${layout.minimumLength} bytes.`);
+  }
+
+  const actualDiscriminator = bytesToHex(data.subarray(0, 8));
+  if (actualDiscriminator !== layout.discriminatorHex) {
+    throw new Error(`${accountName} discriminator mismatch: expected ${layout.discriminatorHex}.`);
   }
 }
 

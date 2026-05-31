@@ -1,0 +1,55 @@
+{
+  "RewardConfig": {
+    "discriminatorHex": "a3ae6250e6774540",
+    "minimumLength": 131,
+    "fields": [
+      { "name": "authority", "type": "pubkey", "offset": 8, "size": 32 },
+      { "name": "protocol_config", "type": "pubkey", "offset": 40, "size": 32 },
+      { "name": "ryp_mint", "type": "pubkey", "offset": 72, "size": 32 },
+      { "name": "epoch_cadence_seconds", "type": "i64", "offset": 104, "size": 8 },
+      { "name": "holder_split_bps", "type": "u16", "offset": 112, "size": 2 },
+      { "name": "staker_split_bps", "type": "u16", "offset": 114, "size": 2 },
+      { "name": "treasury_split_bps", "type": "u16", "offset": 116, "size": 2 },
+      { "name": "registered_vault_roles_mask", "type": "u8", "offset": 118, "size": 1 },
+      { "name": "verified_vault_roles_mask", "type": "u8", "offset": 119, "size": 1 },
+      { "name": "total_epoch_drafts", "type": "u64", "offset": 120, "size": 8 },
+      { "name": "paused", "type": "bool", "offset": 128, "size": 1 },
+      { "name": "draft_only", "type": "bool", "offset": 129, "size": 1 },
+      { "name": "bump", "type": "u8", "offset": 130, "size": 1 }
+    ]
+  },
+  "RewardVaultState": {
+    "discriminatorHex": "35ee1cf0ec7c199a",
+    "minimumLength": 141,
+    "fields": [
+      { "name": "reward_config", "type": "pubkey", "offset": 8, "size": 32 },
+      { "name": "role", "type": "defined:RewardVaultRole", "offset": 40, "size": 1 },
+      { "name": "reward_mint", "type": "pubkey", "offset": 41, "size": 32 },
+      { "name": "vault_address", "type": "pubkey", "offset": 73, "size": 32 },
+      { "name": "custody_model", "type": "defined:RewardVaultCustodyModel", "offset": 105, "size": 1 },
+      { "name": "verification_status", "type": "defined:RewardVaultVerificationStatus", "offset": 106, "size": 1 },
+      { "name": "metadata_hash", "type": "array:u8:32", "offset": 107, "size": 32 },
+      { "name": "receives_user_funds", "type": "bool", "offset": 139, "size": 1 },
+      { "name": "bump", "type": "u8", "offset": 140, "size": 1 }
+    ]
+  },
+  "RewardEpoch": {
+    "discriminatorHex": "d6676a610e04219c",
+    "minimumLength": 163,
+    "fields": [
+      { "name": "reward_config", "type": "pubkey", "offset": 8, "size": 32 },
+      { "name": "epoch_id", "type": "u64", "offset": 40, "size": 8 },
+      { "name": "snapshot_taken_at", "type": "i64", "offset": 48, "size": 8 },
+      { "name": "created_at", "type": "i64", "offset": 56, "size": 8 },
+      { "name": "reward_mint", "type": "pubkey", "offset": 64, "size": 32 },
+      { "name": "reward_pool_amount", "type": "u64", "offset": 96, "size": 8 },
+      { "name": "distributed_net_amount", "type": "u64", "offset": 104, "size": 8 },
+      { "name": "reserved_delivery_cost_amount", "type": "u64", "offset": 112, "size": 8 },
+      { "name": "rolled_forward_amount", "type": "u64", "offset": 120, "size": 8 },
+      { "name": "exclusion_list_hash", "type": "array:u8:32", "offset": 128, "size": 32 },
+      { "name": "status", "type": "defined:RewardEpochStatus", "offset": 160, "size": 1 },
+      { "name": "execution_blocked", "type": "bool", "offset": 161, "size": 1 },
+      { "name": "bump", "type": "u8", "offset": 162, "size": 1 }
+    ]
+  }
+}

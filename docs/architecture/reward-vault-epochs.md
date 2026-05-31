@@ -118,9 +118,11 @@ Frontend read-only model:
 
 - `src/solana/rewardAccountInspection.ts`
 - `src/solana/rewardAccountInspection.test.ts`
+- `src/solana/protocolAccountLayouts.json`
 - `src/views/AdminView.tsx`
 
 The Admin Dashboard can derive and decode reward config, vault state, and draft epoch accounts for inspection. It does not expose reward setup, claim, payout, or vault-movement transaction builders.
+Reward account decoders verify Anchor account discriminators before reading account fields.
 
 Localnet inspection:
 

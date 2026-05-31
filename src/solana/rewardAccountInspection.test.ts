@@ -6,6 +6,7 @@ import {
   decodeRewardEpochAccount,
   decodeRewardVaultStateAccount,
   deriveRewardAccountAddresses,
+  REWARD_ACCOUNT_LAYOUTS,
 } from "./rewardAccountInspection";
 import { PLACEHOLDER_PROTOCOL_PROGRAM_ID } from "../config/env";
 
@@ -44,6 +45,7 @@ describe("reward account inspection", () => {
     const rypMint = Keypair.generate().publicKey;
     const data = new Uint8Array(131);
 
+    writeDiscriminator(data, "RewardConfig");
     writePubkey(data, 8, authority);
     writePubkey(data, 40, protocolConfig);
     writePubkey(data, 72, rypMint);
@@ -81,6 +83,7 @@ describe("reward account inspection", () => {
     const vaultAddress = Keypair.generate().publicKey;
     const data = new Uint8Array(141);
 
+    writeDiscriminator(data, "RewardVaultState");
     writePubkey(data, 8, rewardConfig);
     data[40] = 2;
     writePubkey(data, 41, rewardMint);
@@ -109,6 +112,7 @@ describe("reward account inspection", () => {
     const rewardMint = Keypair.generate().publicKey;
     const data = new Uint8Array(163);
 
+    writeDiscriminator(data, "RewardEpoch");
     writePubkey(data, 8, rewardConfig);
     view(data).setBigUint64(40, 3n, true);
     view(data).setBigInt64(48, 1_800_000_000n, true);
@@ -139,7 +143,18 @@ describe("reward account inspection", () => {
       bump: 253,
     });
   });
+
+  it("rejects reward accounts with the wrong Anchor discriminator", () => {
+    const data = new Uint8Array(131);
+
+    expect(() => decodeRewardConfigAccount(data)).toThrow("RewardConfig discriminator mismatch");
+  });
 });
+
+function writeDiscriminator(data: Uint8Array, accountName: keyof typeof REWARD_ACCOUNT_LAYOUTS) {
+  const bytes = REWARD_ACCOUNT_LAYOUTS[accountName].discriminatorHex.match(/.{1,2}/g) ?? [];
+  data.set(bytes.map((byte) => Number.parseInt(byte, 16)), 0);
+}
 
 function writePubkey(data: Uint8Array, offset: number, publicKey: PublicKey) {
   data.set(publicKey.toBytes(), offset);
