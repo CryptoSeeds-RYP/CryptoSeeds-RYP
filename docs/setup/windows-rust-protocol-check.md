@@ -13,7 +13,7 @@ This machine can now run a host-side Rust check for the CryptoSeeds Anchor progr
 
 ## Why This Route Exists
 
-WSL remains blocked because CPU virtualization is disabled in firmware.
+This route was added while WSL was blocked by firmware virtualization. WSL is now available, but the Windows host-side check remains useful because it gives a fast Rust-only safety pass without starting the Linux toolchain.
 
 The normal Windows MSVC Rust path was also blocked because the current shell is not elevated and the Windows SDK system installer could not install `kernel32.lib`.
 
@@ -42,11 +42,11 @@ npm run protocol:test:win
 
 ## Current Limit
 
-This is not a replacement for `anchor build` or `anchor test` against a Solana local validator.
+This is not a replacement for `anchor build` or deployment checks against a Solana local validator.
 
 Full Anchor/Solana deployment verification still needs one of:
 
-- WSL2 after enabling virtualization in BIOS/UEFI.
+- WSL2 with the Solana/Anchor toolchain.
 - A Linux CI runner.
 - A remote Linux dev box.
 
@@ -54,4 +54,4 @@ Full Anchor/Solana deployment verification still needs one of:
 
 `cargo fmt --check`, `cargo check`, and host-side `cargo test` pass for `programs/cryptoseeds_protocol`.
 
-Anchor/Solana dependency macros currently emit `unexpected cfg` warnings on Rust 1.96.0. These warnings are from upstream macro cfg declarations and are not compile errors in the CryptoSeeds program.
+The protocol manifest now includes the Anchor/Solana cfg feature entries needed to keep Rust 1.96 output readable during these checks.

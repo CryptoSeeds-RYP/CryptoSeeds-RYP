@@ -4,77 +4,82 @@ Date: 2026-05-31
 
 ## Current Status
 
-Current machine status:
+WSL is now usable for the CryptoSeeds Solana/Anchor development lane.
 
-- WSL package is installed.
-- WSL version is `2.7.3.0`.
-- WSL kernel version is `6.6.114.1-1`.
-- WSL default version is `2`.
-- `wsl --install Ubuntu-24.04 --no-launch --web-download` returned successfully.
-- Windows reports the WSL install changes will not be effective until reboot.
-- No Linux distribution is visible in `wsl -l -v` yet.
-- `systeminfo` reports `Virtualization Enabled In Firmware: No`.
-- Current shell is not elevated, so optional Windows feature inspection/enabling is blocked from this session.
-- Windows PowerShell now has a host-side Rust check route through Cargo, the `stable-x86_64-pc-windows-gnullvm` toolchain, and portable LLVM-MinGW.
-- Anchor CLI and Solana CLI are still not available for local validator deployment.
+- Default WSL distribution: `Ubuntu-24.04`
+- WSL default version: `2`
+- Installed distribution: `Ubuntu-24.04`, version `2`
+- Ubuntu release: `Ubuntu 24.04.4 LTS`
+- WSL kernel: `6.6.114.1-microsoft-standard-WSL2`
+- Current WSL user for automated commands: `root`
+- Linux Rust/Cargo: `1.96.0`
+- Solana/Agave CLI: `solana-cli 3.1.10`
+- Anchor CLI: `anchor-cli 1.0.2`
+- AVM: `1.0.2`
+- Node.js in WSL: `v18.19.1`
+- npm in WSL: `9.2.0`
 
-## Required User Action
+The repo can now run Anchor build and protocol unit-test checks through WSL from Windows PowerShell.
 
-Enable CPU virtualization in firmware/BIOS.
+## Commands
 
-Common names:
-
-- Intel VT-x
-- Intel Virtualization Technology
-- AMD-V
-- SVM Mode
-
-After enabling virtualization, reboot Windows.
-
-## Next Commands
-
-After reboot, verify firmware virtualization and WSL:
+From the repo root in Windows PowerShell:
 
 ```powershell
 npm run wsl:check
-wsl --status
-wsl -l -v
+npm run protocol:build:wsl
+npm run protocol:test:wsl
 ```
 
-If Ubuntu 24.04 is not listed after reboot:
-
-```powershell
-wsl --install Ubuntu-24.04 --web-download
-```
-
-Launch Ubuntu and create the Linux user:
-
-```powershell
-wsl -d Ubuntu-24.04
-```
-
-After Ubuntu opens and the Linux user is created, run the Linux Solana/Anchor bootstrap inside WSL:
+Inside WSL directly:
 
 ```bash
 cd /mnt/c/Users/FiercePC/Desktop/crypto-seeds-microverse
-bash scripts/setup-solana-anchor-linux.sh
+npm run protocol:build
+npm run protocol:test
 ```
 
-Then verify the Anchor program:
+## Program ID Note
+
+The current program id in `Anchor.toml` and `declare_id!` is still the development placeholder:
+
+```text
+FG6PaFpoGXkYsidMpWxTWqVfbGqmtn8z8DK9HdJrMPfL
+```
+
+Because `target/deploy/*-keypair.json` is generated and ignored, a raw `anchor build` creates a local random keypair and reports a program ID mismatch.
+
+For the current development stage, use:
 
 ```bash
-cd /mnt/c/Users/FiercePC/Desktop/crypto-seeds-microverse
-anchor build
-anchor test
+anchor build --ignore-keys
 ```
 
-Until WSL is available, use the Windows host-side Rust check from the repo root:
+Before devnet deployment, generate and approve a permanent program keypair, then sync `Anchor.toml`, `declare_id!`, `.env.example`, and frontend defaults to that real program id.
+
+## Verification
+
+Verified on 2026-05-31:
 
 ```powershell
-npm run protocol:check:win
-npm run protocol:test:win
+npm run protocol:build:wsl
+npm run protocol:test:wsl
 ```
 
-## Why This Matters
+`protocol:build:wsl` completed an Anchor build and IDL generation path.
 
-WSL/Linux is the cleaner route for Solana and Anchor development because it matches the expected toolchain and avoids Windows linker friction.
+`protocol:test:wsl` ran the Anchor test script, which now executes:
+
+```bash
+cargo test --manifest-path programs/cryptoseeds_protocol/Cargo.toml
+```
+
+Current protocol unit-test result:
+
+```text
+4 passed; 0 failed
+```
+
+## Follow-Up
+
+Create a non-root WSL development user before this becomes the daily long-term development environment. The current root-based setup is acceptable for bootstrap automation, but a normal Linux user is cleaner for ongoing local development.

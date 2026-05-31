@@ -64,6 +64,13 @@ npm run protocol:check:win
 npm run protocol:test:win
 ```
 
+WSL Anchor protocol checks:
+
+```powershell
+npm run protocol:build:wsl
+npm run protocol:test:wsl
+```
+
 GitHub Actions runs app and host-side protocol checks on pushes and pull requests. The public RYP mint authority check runs as a scheduled/manual external audit because it depends on public Solana RPC availability.
 
 ## Protocol Development
@@ -71,11 +78,11 @@ GitHub Actions runs app and host-side protocol checks on pushes and pull request
 The protocol scaffold is Anchor/Rust based:
 
 ```bash
-anchor build
-anchor test
+npm run protocol:build
+npm run protocol:test
 ```
 
-Rust, Cargo, Solana/Agave tooling, and Anchor must be installed before protocol builds can run locally.
+Rust, Cargo, Solana/Agave tooling, Anchor, and Node must be installed before protocol builds can run locally. The current Windows machine has a working Ubuntu 24.04 WSL2 route; see `docs/setup/wsl-solana-status.md`.
 
 ## Guardrails
 

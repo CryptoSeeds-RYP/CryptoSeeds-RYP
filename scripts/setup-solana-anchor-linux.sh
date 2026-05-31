@@ -11,6 +11,8 @@ sudo apt-get install -y \
   libudev-dev \
   clang \
   cmake \
+  nodejs \
+  npm \
   protobuf-compiler
 
 if ! command -v rustup >/dev/null 2>&1; then
@@ -37,4 +39,5 @@ echo "Rust: $(rustc --version)"
 echo "Cargo: $(cargo --version)"
 echo "Solana: $(solana --version)"
 echo "Anchor: $(anchor --version)"
-
+echo "Node: $(node --version)"
+echo "npm: $(npm --version)"

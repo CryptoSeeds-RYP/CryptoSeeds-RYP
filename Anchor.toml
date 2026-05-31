@@ -16,4 +16,4 @@ cluster = "Localnet"
 wallet = "~/.config/solana/id.json"
 
 [scripts]
-test = "echo Protocol test suite pending full Anchor/Solana toolchain"
+test = "cargo test --manifest-path programs/cryptoseeds_protocol/Cargo.toml"

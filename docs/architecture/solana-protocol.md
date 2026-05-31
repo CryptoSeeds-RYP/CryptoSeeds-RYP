@@ -11,9 +11,12 @@ CryptoSeeds should use Rust programs on Solana for core protocol logic. Anchor i
 - TypeScript generated clients from Anchor IDL
 - Vite/React dApp client
 
-The current local machine now has a no-admin Windows Rust verification path for host-side protocol checks. Use `npm run protocol:check:win` to run `cargo fmt --check` and `cargo check` through the `stable-x86_64-pc-windows-gnullvm` toolchain plus portable LLVM-MinGW.
+The current local machine has two verification paths:
 
-Full Anchor/Solana deployment verification still requires a Linux Solana/Anchor environment. WSL2 remains blocked until CPU virtualization is enabled in firmware.
+- Windows host-side Rust checks through `npm run protocol:check:win` and `npm run protocol:test:win`.
+- WSL Solana/Anchor checks through `npm run protocol:build:wsl` and `npm run protocol:test:wsl`.
+
+The WSL route is the primary local path for Anchor builds. Full deployment verification still needs a synced program id and local validator/devnet deployment review.
 
 ## First Program
 
