@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
-import { rm, readFile } from "node:fs/promises";
+import { mkdir, rm, readFile, writeFile } from "node:fs/promises";
 import net from "node:net";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -35,6 +35,7 @@ const REWARD_SPLIT_BPS = {
   staker: 3_333,
   treasury: 3_333,
 };
+const DEMO_WALLET_ADDRESS = "3bmqc6gEdUNmRrANE6w6CuW2ht5Vscy8SGXaLyTLQsy3";
 const REWARD_ROLES = [
   { key: "holder", name: "HolderReward", seed: "holder-reward", variant: 0, custodyModel: 0 },
   { key: "staker", name: "StakerReward", seed: "staker-reward", variant: 1, custodyModel: 0 },
@@ -43,6 +44,7 @@ const REWARD_ROLES = [
   { key: "rollover", name: "Rollover", seed: "rollover", variant: 4, custodyModel: 0 },
 ];
 
+const options = parseOptions(process.argv.slice(2));
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const rewardAccountLayouts = JSON.parse(
   await readFile(path.join(repoRoot, "src", "solana", "protocolAccountLayouts.json"), "utf8"),
@@ -73,13 +75,100 @@ try {
 
   log("validator ready; running protocol smoke flow");
   const result = await runSmoke(activeConnection);
+  if (options.adminFixturePath) {
+    await writeAdminFixture(options.adminFixturePath, buildLocalnetAdminFixture({ result, rpcUrl }));
+    log(`wrote localnet admin fixture to ${path.relative(repoRoot, path.resolve(options.adminFixturePath))}`);
+  }
   console.log(JSON.stringify(result, null, 2));
+  if (options.keepAliveMs > 0) {
+    log(`keeping local validator alive for ${options.keepAliveMs}ms`);
+    await sleep(options.keepAliveMs);
+  }
 } finally {
   closeConnection();
   await stopValidator();
 }
 
 process.exit(0);
+
+function parseOptions(args) {
+  const parsed = {
+    adminFixturePath: undefined,
+    keepAliveMs: 0,
+  };
+
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    if (arg === "--admin-fixture") {
+      parsed.adminFixturePath = args[index + 1];
+      index += 1;
+      continue;
+    }
+    if (arg?.startsWith("--admin-fixture=")) {
+      parsed.adminFixturePath = arg.slice("--admin-fixture=".length);
+      continue;
+    }
+    if (arg === "--keep-alive-ms") {
+      parsed.keepAliveMs = parseKeepAliveMs(args[index + 1]);
+      index += 1;
+      continue;
+    }
+    if (arg?.startsWith("--keep-alive-ms=")) {
+      parsed.keepAliveMs = parseKeepAliveMs(arg.slice("--keep-alive-ms=".length));
+      continue;
+    }
+    throw new Error(`Unknown argument: ${arg}`);
+  }
+
+  if (parsed.adminFixturePath === "") {
+    throw new Error("--admin-fixture requires a file path.");
+  }
+
+  return parsed;
+}
+
+function parseKeepAliveMs(value) {
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 0 || parsed > 10 * 60 * 1000) {
+    throw new Error("--keep-alive-ms must be an integer between 0 and 600000.");
+  }
+  return parsed;
+}
+
+function buildLocalnetAdminFixture({ result, rpcUrl }) {
+  return {
+    exportVersion: "localnet-admin-fixture/v1",
+    generatedAt: new Date().toISOString(),
+    rpcUrl,
+    programId: result.programId,
+    mint: result.mint,
+    accounts: {
+      config: result.config,
+      rewardConfig: result.rewardConfig,
+      position: result.position,
+      rypVault: result.rypVault,
+    },
+    appEnv: {
+      VITE_SOLANA_CLUSTER: "localnet",
+      VITE_SOLANA_RPC_URL: rpcUrl,
+      VITE_RYP_MINT_ADDRESS: result.mint,
+      VITE_RYP_DECIMALS: RYP_DECIMALS.toString(),
+      VITE_CRYPTOSEEDS_PROGRAM_ID: result.programId,
+      VITE_CRYPTOSEEDS_PROGRAM_DEPLOYMENT: "localnet",
+      VITE_DEMO_MODE: "true",
+      VITE_SOLANA_BROADCAST_ENABLED: "false",
+      VITE_ADMIN_AUTHORITY_ADDRESS: DEMO_WALLET_ADDRESS,
+    },
+    adminRewardInspection: result.adminRewardInspection,
+    checked: result.checked,
+  };
+}
+
+async function writeAdminFixture(filePath, fixture) {
+  const outputPath = path.resolve(filePath);
+  await mkdir(path.dirname(outputPath), { recursive: true });
+  await writeFile(outputPath, `${JSON.stringify(fixture, null, 2)}\n`, "utf8");
+}
 
 async function runSmoke(connection) {
   const authority = Keypair.generate();
