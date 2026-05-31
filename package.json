@@ -9,6 +9,7 @@
     "preview": "vite preview --host 127.0.0.1",
     "test": "vitest run",
     "protocol:build": "anchor build",
+    "protocol:check:win": "powershell -ExecutionPolicy Bypass -File scripts/check-anchor-windows.ps1",
     "protocol:test": "anchor test",
     "token:check": "node scripts/check-ryp-mint.mjs",
     "visual:audit": "node scripts/audit-visual-assets.mjs"

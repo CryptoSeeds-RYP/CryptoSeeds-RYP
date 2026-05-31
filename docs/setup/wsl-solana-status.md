@@ -16,7 +16,8 @@ Current machine status:
 - No Linux distribution is installed yet.
 - WSL2 cannot start because virtualization is not enabled in firmware.
 - `systeminfo` reports `Virtualization Enabled In Firmware: No`.
-- Windows PowerShell currently does not expose `cargo`, `anchor`, or `solana` on PATH.
+- Windows PowerShell now has a host-side Rust check route through Cargo, the `stable-x86_64-pc-windows-gnullvm` toolchain, and portable LLVM-MinGW.
+- Anchor CLI and Solana CLI are still not available for local validator deployment.
 
 ## Required User Action
 
@@ -59,6 +60,12 @@ Then verify the Anchor program:
 cd /mnt/c/Users/FiercePC/Desktop/crypto-seeds-microverse/programs/cryptoseeds_protocol
 cargo fmt -- --check
 cargo check
+```
+
+Until WSL is available, use the Windows host-side Rust check from the repo root:
+
+```powershell
+npm run protocol:check:win
 ```
 
 ## Why This Matters

@@ -95,8 +95,7 @@ pub mod cryptoseeds_protocol {
             to: ctx.accounts.ryp_vault.to_account_info(),
             authority: ctx.accounts.owner.to_account_info(),
         };
-        let cpi_context =
-            CpiContext::new(ctx.accounts.token_program.to_account_info(), cpi_accounts);
+        let cpi_context = CpiContext::new(ctx.accounts.token_program.key(), cpi_accounts);
         transfer_checked(cpi_context, amount, ctx.accounts.ryp_mint.decimals)?;
 
         let clock = Clock::get()?;
@@ -171,7 +170,7 @@ pub mod cryptoseeds_protocol {
             authority: ctx.accounts.config.to_account_info(),
         };
         let cpi_context = CpiContext::new_with_signer(
-            ctx.accounts.token_program.to_account_info(),
+            ctx.accounts.token_program.key(),
             cpi_accounts,
             signer_seeds,
         );
