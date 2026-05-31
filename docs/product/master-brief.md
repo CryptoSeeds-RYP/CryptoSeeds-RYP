@@ -31,7 +31,7 @@ Core dApp modules:
 - Staking and tier logic
 - Fee reduction calculation
 - Reward accrual and claims
-- Treasury and network-fee distribution
+- Treasury and fee distribution
 - Golden Key and Voting Rights NFT identity
 - Project pools and participation records
 - Governance proposals and voting
@@ -110,24 +110,34 @@ Main uses:
 
 - Staking
 - MicroVerse access
-- Network fees
+- Token-transfer fees
+- Platform/action fees
 - Governance eligibility
 - NFT reward eligibility
 - Project participation access
 - SeedBot Terminal access tiers
 - Ecosystem utility
 
-## Network Fee Model
+## Fee Model
 
-The planned network fee is 3.5%. This fee may be dynamically divided between holders, stakers, and treasury. Exact percentages should remain configurable.
+The RYP token-transfer fee target is 1%. This fee should use the same holder, staker, and independent treasury bucket model as the wider platform fee policy. Exact percentages should remain configurable.
+
+The separate platform/action fee is 3.5% before staking-tier reductions. This applies to CryptoSeeds-controlled protocol actions, not arbitrary wallet transfers outside the app.
 
 Known fee memory:
 
-- Base platform/network fee: 3.5%.
+- RYP token-transfer fee target: 1%.
+- Base platform/action fee: 3.5%.
 - Fee-reduction model: staking tier reduces the effective fee.
 - Distribution categories: holders, stakers, and independent treasury.
 - Exact holder/staker/treasury split: configurable and not final until governance/legal/accounting review.
 - SeedBot strategy success-fee concept: review-gated preview only; current model is 12% on realized positive strategy PnL, split 40% dev / 60% treasury, disabled for live use until security and legal review.
+
+Important Solana implementation note:
+
+- App-controlled actions can preview and route the 1% RYP transfer fee during staking, project participation, and claim flows.
+- Enforcing a fee on every raw wallet-to-wallet transfer requires a reviewed wrapper, migration, or Solana token-extension route.
+- The current fixed-supply RYP mint should not be treated as freely mutable.
 
 CryptoSeeds should be positioned as a self-custodial platform/interface layer that charges transparent platform or tool fees. It should not present itself as taking custody, managing user accounts, guaranteeing results, or operating a hidden investment pool.
 

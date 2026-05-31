@@ -21,10 +21,12 @@ describe("platform governance posture", () => {
 
   it("keeps fee memory explicit and configurable", () => {
     expect(platformFeePolicy.baseFeeBps).toBe(350);
+    expect(platformFeePolicy.tokenTransferFeeBps).toBe(100);
     expect(platformFeePolicy.tierEffectiveFeesBps.SEED).toBe(350);
     expect(platformFeePolicy.tierEffectiveFeesBps.FRUIT).toBe(210);
-    expect(platformFeePolicy.splitBuckets).toContain("INDEPENDENT_TREASURY");
+    expect(platformFeePolicy.splitBuckets).toEqual(["HOLDERS", "STAKERS", "INDEPENDENT_TREASURY"]);
     expect(platformFeePolicy.exactSplitStatus).toBe("CONFIGURABLE_NOT_FINAL");
+    expect(platformFeePolicy.tokenTransferFeeNotes.join(" ")).toContain("1%");
   });
 
   it("requires public logs for material authority controls", () => {
@@ -39,4 +41,3 @@ describe("platform governance posture", () => {
     expect(reviewGates.find((gate) => gate.id === "founder-token-disclosure")?.status).toBe("DISCLOSURE_REQUIRED");
   });
 });
-

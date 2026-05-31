@@ -1,4 +1,11 @@
 import type { StakingTier } from "./microverse";
+import {
+  PLATFORM_ACTION_BASE_FEE_BPS,
+  RYP_TOKEN_TRANSFER_FEE_BPS,
+  coreFeeBuckets,
+  effectivePlatformActionFeeBps,
+  type CoreFeeBucket,
+} from "./feeRouter";
 
 export type PlatformBoundary = {
   id: string;
@@ -23,13 +30,15 @@ export type ReviewGate = {
   reason: string;
 };
 
-export type FeeSplitBucket = "HOLDERS" | "STAKERS" | "INDEPENDENT_TREASURY";
+export type FeeSplitBucket = CoreFeeBucket;
 
 export type PlatformFeePolicy = {
   baseFeeBps: number;
+  tokenTransferFeeBps: number;
   splitBuckets: FeeSplitBucket[];
   exactSplitStatus: "CONFIGURABLE_NOT_FINAL";
   tierEffectiveFeesBps: Record<StakingTier, number>;
+  tokenTransferFeeNotes: string[];
   seedBotSuccessFeePreviewBps: number;
   seedBotSuccessFeeSplit: {
     devSharePercent: number;
@@ -65,17 +74,23 @@ export const platformBoundaries: PlatformBoundary[] = [
 ];
 
 export const platformFeePolicy: PlatformFeePolicy = {
-  baseFeeBps: 350,
-  splitBuckets: ["HOLDERS", "STAKERS", "INDEPENDENT_TREASURY"],
+  baseFeeBps: PLATFORM_ACTION_BASE_FEE_BPS,
+  tokenTransferFeeBps: RYP_TOKEN_TRANSFER_FEE_BPS,
+  splitBuckets: coreFeeBuckets,
   exactSplitStatus: "CONFIGURABLE_NOT_FINAL",
   tierEffectiveFeesBps: {
-    NONE: 350,
-    SEED: 350,
-    SPROUT: 315,
-    SAPLING: 280,
-    TREE: 245,
-    FRUIT: 210,
+    NONE: effectivePlatformActionFeeBps("NONE"),
+    SEED: effectivePlatformActionFeeBps("SEED"),
+    SPROUT: effectivePlatformActionFeeBps("SPROUT"),
+    SAPLING: effectivePlatformActionFeeBps("SAPLING"),
+    TREE: effectivePlatformActionFeeBps("TREE"),
+    FRUIT: effectivePlatformActionFeeBps("FRUIT"),
   },
+  tokenTransferFeeNotes: [
+    "Target RYP transfer fee is 1% with the same holder, staker, and independent treasury buckets.",
+    "App and protocol actions can preview and route this fee before wallet approval.",
+    "Enforcement on every raw token transfer requires a reviewed wrapper, migration, or token-extension route.",
+  ],
   seedBotSuccessFeePreviewBps: 1200,
   seedBotSuccessFeeSplit: {
     devSharePercent: 40,
@@ -160,4 +175,3 @@ export function allControlsAvoidUserFundCustody() {
 export function materialControlsRequirePublicLogs() {
   return authorityControls.every((control) => control.publicLogRequired);
 }
-

@@ -18,6 +18,7 @@ Live mainnet RPC sanity check:
 
 - Decimals: `6`
 - Supply: `49,999,999.429327 RYP`
+- Owner program: `TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA`
 - Mint authority: `null`
 - Freeze authority: `null`
 
@@ -35,6 +36,7 @@ VITE_SOLANA_BROADCAST_ENABLED=false
 ## Notes
 
 - The RYP mint is public information and safe to store in frontend config.
+- The current mint is owned by the legacy SPL Token program. A universal 1% transfer-fee mechanism cannot be silently added to this mint; that requires a reviewed wrapper, migration, or token-extension route.
 - The protocol program id is still a placeholder until the Anchor program has a real deployed address.
 - Live balance reads require a connected Solana wallet and an RPC endpoint with access to mainnet token-account data.
 

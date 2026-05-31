@@ -1,5 +1,6 @@
 import { AlertTriangle, BadgeCheck, Bot, Clock3, Landmark, ListChecks, ShieldCheck, Vote, WalletCards } from "lucide-react";
 import { ViewHeader } from "../components/ViewHeader";
+import { basisPointsToPercent } from "../domain/feeRouter";
 import { agentSafetyRules, maintenanceRunbook } from "../domain/operations";
 import {
   authorityControls,
@@ -83,9 +84,17 @@ export function GovernanceView({ votingActive }: { votingActive: boolean }) {
             <Landmark size={20} />
             <strong>Fee & Treasury Policy</strong>
           </div>
-          <span>{platformFeePolicy.baseFeeBps / 100}% base fee</span>
+          <span>{basisPointsToPercent(platformFeePolicy.tokenTransferFeeBps)} RYP transfer fee</span>
         </div>
         <div className="policy-strip">
+          <div>
+            <span>RYP transfer fee</span>
+            <strong>{basisPointsToPercent(platformFeePolicy.tokenTransferFeeBps)}</strong>
+          </div>
+          <div>
+            <span>Platform action fee</span>
+            <strong>{basisPointsToPercent(platformFeePolicy.baseFeeBps)} before tier reduction</strong>
+          </div>
           <div>
             <span>Fee buckets</span>
             <strong>{platformFeePolicy.splitBuckets.map(formatLabel).join(" / ")}</strong>
@@ -95,9 +104,18 @@ export function GovernanceView({ votingActive }: { votingActive: boolean }) {
             <strong>{formatLabel(platformFeePolicy.exactSplitStatus)}</strong>
           </div>
           <div>
+            <span>Transfer enforcement</span>
+            <strong>Wrapper or token-extension route required</strong>
+          </div>
+          <div>
             <span>SeedBot fee</span>
             <strong>Review-gated preview</strong>
           </div>
+        </div>
+        <div className="policy-note-list">
+          {platformFeePolicy.tokenTransferFeeNotes.map((note) => (
+            <span key={note}>{note}</span>
+          ))}
         </div>
       </section>
 

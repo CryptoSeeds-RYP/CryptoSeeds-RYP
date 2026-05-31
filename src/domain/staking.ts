@@ -14,6 +14,7 @@ export type StakingPositionSummary = {
   votingRightsState: VotingRightsState;
   votingDaysRemaining: number;
   feeReductionPercent: number;
+  effectivePlatformFee: string;
   effectiveNetworkFee: string;
   projectSlotsUnlocked: number;
 };
@@ -32,6 +33,7 @@ export function summarizeStakingPosition(user: UserMicroVerseState): StakingPosi
     votingRightsState: user.votingRightsNft ? "ACTIVE" : user.stakingTier === "NONE" ? "LOCKED" : "TIMER_ACTIVE",
     votingDaysRemaining: user.votingRightsNft ? 0 : Math.max(0, 14 - user.stakingDays),
     feeReductionPercent: tierFeeReduction[user.stakingTier],
+    effectivePlatformFee: effectiveFee(user.stakingTier),
     effectiveNetworkFee: effectiveFee(user.stakingTier),
     projectSlotsUnlocked: projectSlotsForTier(user.stakingTier),
   };
@@ -42,4 +44,3 @@ function findNextTier(tier: StakingTier) {
   const currentIndex = selectableTiers.indexOf(tier as Exclude<StakingTier, "NONE">);
   return selectableTiers[Math.max(0, currentIndex + 1)];
 }
-

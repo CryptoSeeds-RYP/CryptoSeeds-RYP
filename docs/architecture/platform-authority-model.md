@@ -50,15 +50,18 @@ Donation listings must use separated charity-controlled accounts and must not be
 
 ## Fee Memory
 
-- Base platform/network fee: 350 bps.
+- RYP token-transfer fee target: 100 bps / 1%.
+- Token-transfer split buckets: holders, stakers, independent treasury.
+- Base platform/action fee: 350 bps.
 - Tier effective fees:
   - Seed: 350 bps.
   - Sprout: 315 bps.
   - Sapling: 280 bps.
   - Tree: 245 bps.
   - Fruit: 210 bps.
-- Split buckets: holders, stakers, independent treasury.
+- Platform/action split buckets: holders, stakers, independent treasury.
 - Exact split percentages: configurable and not final.
+- Full token-transfer-level enforcement requires a reviewed wrapper, migration, or token-extension route; app-controlled actions can preview and route the fee earlier.
 - SeedBot success-fee preview: 1200 bps on realized positive strategy PnL only, split 40% dev / 60% treasury, disabled for live use pending review.
 
 ## Review Gates

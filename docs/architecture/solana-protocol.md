@@ -29,7 +29,8 @@ Current scope:
 - Initialize protocol config
 - Store RYP mint and staking vault
 - Configure tier thresholds in raw token base units
-- Configure base network fee and tier fee reductions
+- Configure base platform/action fee and tier fee reductions
+- Model the 1% RYP token-transfer fee target separately from the platform/action fee
 - Stake RYP into a protocol vault
 - Enforce the canonical config-owned RYP vault on stake and unstake paths
 - Track per-wallet stake position
@@ -80,6 +81,7 @@ These should be added after the staking core is reviewed:
 - Actual Golden Key NFT mint/burn/return logic
 - Voting Rights NFT minting and dynamic metadata
 - Reward accrual and expiration
+- Fee router, holder/staker/treasury accrual, and 1-year unclaimed redistribution
 - Project pool participation
 - Governance proposals and voting records
 - Treasury distribution

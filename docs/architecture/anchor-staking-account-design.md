@@ -38,7 +38,7 @@ Stores global protocol settings.
 | `authority` | `Pubkey` | Admin authority for pause/config actions |
 | `ryp_mint` | `Pubkey` | Confirmed RYP mint |
 | `ryp_vault` | `Pubkey` | Program-owned token account |
-| `base_fee_bps` | `u16` | Planned base fee, currently 350 bps |
+| `base_fee_bps` | `u16` | Planned platform/action base fee, currently 350 bps |
 | `tier_thresholds` | `[u64; 5]` | Seed, Sprout, Sapling, Tree, Fruit thresholds in base units |
 | `tier_fee_reduction_bps` | `[u16; 5]` | Fee reduction amounts in bps |
 | `total_staked` | `u64` | Aggregate staked base units |
@@ -174,6 +174,7 @@ Events should include enough data for an indexer to reconstruct:
 Do not include these in the first staking program deployment:
 
 - Reward accrual and expiration
+- 1% RYP transfer-fee router and holder/staker/treasury distribution accounting
 - Real Golden Key NFT mint/burn/return
 - Real Voting Rights NFT minting and dynamic metadata
 - Project pool participation

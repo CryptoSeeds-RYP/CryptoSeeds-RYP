@@ -35,7 +35,7 @@ The MVP god-wallet route is acceptable for localnet/devnet testing only. Product
 | Project registry | Draft only | Project text, docs, receiving accounts, disclosure notes |
 | Charity accounts | Draft only | Donation-only account separation |
 | Treasury labels | Draft only | Public labels and reporting cadence |
-| Fee split policy | Review gated | Holder/staker/treasury/dev split proposals |
+| Fee split policy | Review gated | 1% RYP transfer-fee route plus holder/staker/treasury/dev split proposals |
 | Homestead config | Local/dev preview | Cosmetic and UI tuning only |
 | SeedBot config | Review gated | Strategy/venue/performance copy and permission gates |
 | Emergency pause | Devnet-ready concept | Testnet/devnet only until authority policy is approved |
@@ -52,3 +52,9 @@ Later production design should use:
 - timelock for non-emergency changes,
 - public logs for all material changes.
 
+Fee edits should be drafted as review packets, not executed directly. The dashboard can preview:
+
+- 1% RYP transfer-fee policy,
+- 3.5% platform/action fee before tier reductions,
+- holder/staker/independent-treasury distribution buckets,
+- SeedBot success-fee preview as review-gated and disabled for live use.

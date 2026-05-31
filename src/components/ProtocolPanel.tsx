@@ -1,5 +1,6 @@
 import { Activity } from "lucide-react";
 import { appConfig } from "../config/env";
+import { basisPointsToPercent, RYP_TOKEN_TRANSFER_FEE_BPS } from "../domain/feeRouter";
 import { summarizeStakingPosition } from "../domain/staking";
 import { RYP_CONFIRMED_SUPPLY, shortAddress } from "../domain/token";
 import { selectableTiers } from "../domain/tiering";
@@ -51,7 +52,8 @@ export function ProtocolPanel({
         <StateLine label="Balance" value={`${formatRyp(rypBalance)} RYP`} />
         <StateLine label="Staked" value={`${formatRyp(stakedAmount)} RYP`} />
         <StateLine label="Fee Cut" value={`${stakingSummary.feeReductionPercent}%`} />
-        <StateLine label="Effective Fee" value={stakingSummary.effectiveNetworkFee} />
+        <StateLine label="Platform Fee" value={stakingSummary.effectivePlatformFee} />
+        <StateLine label="Transfer Fee" value={basisPointsToPercent(RYP_TOKEN_TRANSFER_FEE_BPS)} />
         <StateLine
           label="Next Tier"
           value={

@@ -1374,6 +1374,8 @@ button:disabled {
 .authority-card.review-disclosure_required,
 .authority-card.ops-card.approval_required,
 .authority-card.ops-card.draft_only,
+.authority-card.fee-route-card.configurable_not_final,
+.authority-card.fee-route-card.draft_preview,
 .authority-card.admin-action-card.review_gated,
 .authority-card.admin-action-card.draft_only,
 .authority-card.admin-action-card.devnet_ready {
@@ -1448,6 +1450,21 @@ button:disabled {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
   padding: 14px;
+}
+
+.policy-note-list {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid rgba(236, 218, 157, 0.1);
+  border-radius: 8px;
+  background: rgba(244, 239, 226, 0.04);
+}
+
+.policy-note-list span {
+  color: #d8decf;
+  font-size: 0.84rem;
+  line-height: 1.4;
 }
 
 .policy-strip div {

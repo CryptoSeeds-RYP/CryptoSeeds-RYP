@@ -92,7 +92,9 @@ Rewards should be claimable, transparent, and conservative. The UI should distin
 
 ### Treasury and Fees
 
-The planned 3.5% network fee should remain configurable. Fee distribution and reductions must be transparent to users.
+The RYP token-transfer fee target is 1% and should use the same holder, staker, and independent treasury bucket model as the platform/action fee policy.
+
+The separate 3.5% platform/action fee should remain configurable and tier-reduced. Fee distribution and reductions must be transparent to users.
 
 ### Project Pools
 

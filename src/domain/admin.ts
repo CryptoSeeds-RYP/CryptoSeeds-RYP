@@ -66,8 +66,8 @@ export const adminActionPreviews: AdminActionPreview[] = [
     label: "Fee Split Policy",
     category: "FEES",
     status: "REVIEW_GATED",
-    description: "Prepare holder, staker, treasury, and dev fee split proposals.",
-    executionRule: "Requires governance/legal/accounting review before any live parameter change.",
+    description: "Prepare the 1% RYP transfer-fee route and holder, staker, treasury, and dev fee split proposals.",
+    executionRule: "Requires governance, security, legal, and accounting review before any live parameter change.",
   },
   {
     id: "homestead-visual-config",
@@ -153,4 +153,3 @@ export function buildAdminAccess({
 export function adminActionsExecutableInMvp() {
   return adminActionPreviews.every((action) => action.status !== "LOCALNET_READY" || action.executionRule.includes("preview"));
 }
-

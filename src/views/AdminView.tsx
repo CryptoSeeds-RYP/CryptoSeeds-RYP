@@ -1,6 +1,7 @@
-import { AlertTriangle, FileCog, LockKeyhole, ShieldCheck, WalletCards } from "lucide-react";
+import { AlertTriangle, FileCog, Landmark, LockKeyhole, ShieldCheck, WalletCards } from "lucide-react";
 import { appConfig } from "../config/env";
 import { adminActionPreviews, buildAdminAccess } from "../domain/admin";
+import { basisPointsToPercent, feeRoutePolicies } from "../domain/feeRouter";
 import { formatLabel } from "../utils/format";
 import { ViewHeader } from "../components/ViewHeader";
 
@@ -53,6 +54,29 @@ export function AdminView({
       <section className="governance-section">
         <div className="view-header">
           <div>
+            <Landmark size={20} />
+            <strong>Fee Route Drafts</strong>
+          </div>
+          <span>Transfer fee set to 1%</span>
+        </div>
+        <div className="authority-grid ops-grid">
+          {feeRoutePolicies.map((policy) => (
+            <article className={`authority-card fee-route-card ${policy.splitStatus.toLowerCase()}`} key={policy.id}>
+              <div className="authority-card-top">
+                <Landmark size={17} />
+                <span>{basisPointsToPercent(policy.baseFeeBps)}</span>
+              </div>
+              <strong>{policy.label}</strong>
+              <p>{policy.splitBuckets.map(formatLabel).join(" / ")}</p>
+              <em>{formatLabel(policy.enforcementLayer)} / {formatLabel(policy.splitStatus)}</em>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="governance-section">
+        <div className="view-header">
+          <div>
             <WalletCards size={20} />
             <strong>Admin Action Drafts</strong>
           </div>
@@ -78,4 +102,3 @@ export function AdminView({
     </div>
   );
 }
-

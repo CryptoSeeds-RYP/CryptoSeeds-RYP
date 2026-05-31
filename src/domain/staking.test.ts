@@ -42,6 +42,7 @@ describe("staking summary", () => {
     expect(summary.votingRightsState).toBe("TIMER_ACTIVE");
     expect(summary.votingDaysRemaining).toBe(8);
     expect(summary.feeReductionPercent).toBe(10);
+    expect(summary.effectivePlatformFee).toBe("3.15%");
     expect(summary.effectiveNetworkFee).toBe("3.15%");
   });
 
@@ -62,4 +63,3 @@ describe("staking summary", () => {
     expect(summary.rypToNextTier).toBe(tierRequirements.FRUIT - tierRequirements.TREE);
   });
 });
-

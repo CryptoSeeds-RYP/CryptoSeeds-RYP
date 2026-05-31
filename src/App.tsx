@@ -5,6 +5,7 @@ import { ProtocolPanel } from "./components/ProtocolPanel";
 import { TransactionPanel } from "./components/TransactionPanel";
 import { WalletDock } from "./components/WalletDock";
 import { appConfig } from "./config/env";
+import { basisPointsToPercent, RYP_TOKEN_TRANSFER_FEE_BPS } from "./domain/feeRouter";
 import { activeParticipations } from "./domain/participation";
 import { effectiveFee, canAccess } from "./domain/tiering";
 import { useMetaMaskWallet } from "./evm/useMetaMaskWallet";
@@ -76,7 +77,8 @@ export default function App() {
         <div className="network-strip" aria-label="Network status">
           <span><Signal size={15} /> Solana {appConfig.cluster}</span>
           <span><ShieldCheck size={15} /> Self-custodial</span>
-          <span><Gauge size={15} /> Fee {effectiveFee(activeTier)}</span>
+          <span><Gauge size={15} /> Platform {effectiveFee(activeTier)}</span>
+          <span><Gauge size={15} /> RYP transfer {basisPointsToPercent(RYP_TOKEN_TRANSFER_FEE_BPS)}</span>
           <span><Activity size={15} /> {demoMode ? "Demo state" : "Live state"}</span>
           {loading && <span><Activity size={15} /> Syncing</span>}
         </div>

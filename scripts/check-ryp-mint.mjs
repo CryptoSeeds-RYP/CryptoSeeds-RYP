@@ -17,6 +17,7 @@ const supplyBaseUnits = String(mint.supply);
 const divisor = 10 ** decimals;
 const report = {
   address: mintAddress,
+  ownerProgram: account.value.owner.toBase58(),
   decimals,
   supplyBaseUnits,
   supplyUiAmount: Number(supplyBaseUnits) / divisor,

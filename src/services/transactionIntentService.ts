@@ -1,5 +1,6 @@
 import { appConfig } from "../config/env";
 import type { Project, StakingTier } from "../domain/microverse";
+import { basisPointsToPercent, RYP_TOKEN_TRANSFER_FEE_BPS } from "../domain/feeRouter";
 import { latestRiskDisclosure } from "../domain/projectRegistry";
 import { seedBotFeeDisclosure, type SeedBotStrategy } from "../domain/seedbot";
 import { venueById } from "../domain/seedbotVenues";
@@ -34,7 +35,7 @@ export function buildStakePreviewIntent(
     walletAddress,
     inputToken: "RYP",
     amount: tierRequirements[tier].toLocaleString(),
-    estimatedFees: `${effectiveFee(tier)} effective network fee after tier reduction`,
+    estimatedFees: `${effectiveFee(tier)} effective platform action fee after tier reduction; ${basisPointsToPercent(RYP_TOKEN_TRANSFER_FEE_BPS)} RYP transfer-fee policy target`,
     status: "READY",
     executionMode: "WALLET_APPROVED",
     signaturePolicy: "Manual Solana wallet signature required before staking can be submitted.",
@@ -58,7 +59,7 @@ export function buildUnstakePreviewIntent(walletAddress?: string, amount = 5000)
     walletAddress,
     inputToken: "RYP",
     amount: amount.toLocaleString(),
-    estimatedFees: "Network fee only; no protocol fee previewed for unstaking",
+    estimatedFees: "Solana network fee only in the staking MVP; final RYP transfer-fee behavior depends on the approved token route",
     status: "READY",
     executionMode: "WALLET_APPROVED",
     signaturePolicy: "Manual Solana wallet signature required before unstaking can be submitted.",
@@ -98,7 +99,7 @@ export function buildProjectParticipationIntent(project: Project, walletAddress?
     walletAddress,
     inputToken: "RYP",
     amount: project.requiredTier === "SEED" ? "5,000+" : `${tierRequirements[project.requiredTier].toLocaleString()}+`,
-    estimatedFees: "3.5% base network fee before tier reduction",
+    estimatedFees: `${basisPointsToPercent(RYP_TOKEN_TRANSFER_FEE_BPS)} RYP transfer-fee target plus platform action fee preview before signing`,
     status: "READY",
     executionMode: "WALLET_APPROVED",
     signaturePolicy: "Manual Solana wallet signature required. No hidden execution or custody.",
