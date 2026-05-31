@@ -11,7 +11,8 @@ export type LocationKey =
   | "explorer"
   | "harvest"
   | "governance"
-  | "seedbot";
+  | "seedbot"
+  | "admin";
 
 export type ProjectStatus =
   | "PROPOSED"

@@ -10,6 +10,7 @@ export type AppConfig = {
   solanaBroadcastEnabled: boolean;
   seedBotHyperliquidNetwork: "MAINNET" | "TESTNET";
   seedBotSignedExecutionEnabled: boolean;
+  adminAuthorityAddress?: string;
 };
 
 export const PLACEHOLDER_PROTOCOL_PROGRAM_ID = "FG6PaFpoGXkYsidMpWxTWqVfbGqmtn8z8DK9HdJrMPfL";
@@ -34,6 +35,7 @@ export const appConfig: AppConfig = {
   solanaBroadcastEnabled: import.meta.env.VITE_SOLANA_BROADCAST_ENABLED === "true",
   seedBotHyperliquidNetwork: readHyperliquidNetwork(import.meta.env.VITE_SEEDBOT_HYPERLIQUID_NETWORK),
   seedBotSignedExecutionEnabled: import.meta.env.VITE_SEEDBOT_SIGNED_EXECUTION === "true",
+  adminAuthorityAddress: readOptionalString(import.meta.env.VITE_ADMIN_AUTHORITY_ADDRESS),
 };
 
 function readCluster(value: string | undefined): AppConfig["cluster"] {
@@ -53,4 +55,9 @@ function readProtocolDeployment(
 function readHyperliquidNetwork(value: string | undefined): AppConfig["seedBotHyperliquidNetwork"] {
   if (value === "MAINNET" || value === "TESTNET") return value;
   return "TESTNET";
+}
+
+function readOptionalString(value: string | undefined) {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : undefined;
 }

@@ -1,4 +1,4 @@
-import { Activity, Bot, Gauge, Map, ShieldCheck, Signal, Sprout, Vote, Wheat } from "lucide-react";
+import { Activity, Bot, FileCog, Gauge, Map, ShieldCheck, Signal, Sprout, Vote, Wheat } from "lucide-react";
 import { LoadingShell } from "./components/LoadingShell";
 import { ProjectSnapshot } from "./components/ProjectSnapshot";
 import { ProtocolPanel } from "./components/ProtocolPanel";
@@ -11,6 +11,7 @@ import { useMetaMaskWallet } from "./evm/useMetaMaskWallet";
 import { useMicroVerseState } from "./state/useMicroVerseState";
 import type { LocationKey } from "./types";
 import { ExplorerView } from "./views/ExplorerView";
+import { AdminView } from "./views/AdminView";
 import { GovernanceView } from "./views/GovernanceView";
 import { HarvestView } from "./views/HarvestView";
 import { HomesteadView } from "./views/HomesteadView";
@@ -26,6 +27,7 @@ const navItems: Array<{
   { key: "harvest", label: "Harvest Ledger", icon: Wheat },
   { key: "governance", label: "Governance Hall", icon: Vote },
   { key: "seedbot", label: "SeedBot Terminal", icon: Bot },
+  { key: "admin", label: "Admin Dashboard", icon: FileCog },
 ];
 
 export default function App() {
@@ -131,6 +133,7 @@ export default function App() {
             )}
             {activeLocation === "harvest" && <HarvestView rewards={rewards} />}
             {activeLocation === "governance" && <GovernanceView votingActive={farm.governanceActive} />}
+            {activeLocation === "admin" && <AdminView walletAddress={user.walletAddress} demoMode={demoMode} />}
             {activeLocation === "seedbot" && (
               <SeedBotView
                 unlocked={farm.seedBotUnlocked}

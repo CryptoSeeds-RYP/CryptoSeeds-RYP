@@ -17,6 +17,7 @@ const requiredScripts = [
 ];
 
 const requiredDocs = [
+  "docs/architecture/admin-dashboard.md",
   "docs/architecture/operations-model.md",
   "docs/architecture/platform-authority-model.md",
   "docs/compliance/decentralization-and-self-custody.md",
@@ -51,4 +52,3 @@ console.log(JSON.stringify(report, null, 2));
 if (blockers.length > 0) {
   process.exitCode = 1;
 }
-

@@ -365,6 +365,7 @@ function labelForDestination(destination: LocationKey) {
     harvest: "Harvest",
     governance: "Governance",
     seedbot: "SeedBot",
+    admin: "Admin",
   };
 
   return labels[destination];

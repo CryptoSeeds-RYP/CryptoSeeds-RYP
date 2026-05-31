@@ -1363,7 +1363,8 @@ button:disabled {
 
 .authority-card.disabled,
 .authority-card.review-blocked_until_review,
-.authority-card.ops-card.blocked {
+.authority-card.ops-card.blocked,
+.authority-card.admin-action-card.blocked {
   border-color: rgba(255, 163, 123, 0.36);
   background: rgba(78, 43, 35, 0.58);
 }
@@ -1372,12 +1373,21 @@ button:disabled {
 .authority-card.disclosure_required,
 .authority-card.review-disclosure_required,
 .authority-card.ops-card.approval_required,
-.authority-card.ops-card.draft_only {
+.authority-card.ops-card.draft_only,
+.authority-card.admin-action-card.review_gated,
+.authority-card.admin-action-card.draft_only,
+.authority-card.admin-action-card.devnet_ready {
   border-color: rgba(236, 216, 130, 0.32);
   background: rgba(76, 63, 30, 0.58);
 }
 
+.authority-card.admin-action-card.localnet_ready {
+  border-color: rgba(128, 198, 109, 0.28);
+  background: rgba(48, 102, 61, 0.3);
+}
+
 .ops-card em,
+.admin-action-card em,
 .agent-policy-strip em {
   color: #aeb9aa;
   font-size: 0.78rem;
@@ -1387,6 +1397,50 @@ button:disabled {
 
 .ops-grid .authority-card {
   min-height: 184px;
+}
+
+.admin-access-panel.locked {
+  border-color: rgba(255, 163, 123, 0.32);
+  background: rgba(54, 34, 30, 0.68);
+}
+
+.admin-access-panel.unlocked {
+  border-color: rgba(128, 198, 109, 0.32);
+  background: rgba(28, 62, 42, 0.66);
+}
+
+.admin-policy-strip {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.admin-blocker-list {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid rgba(255, 163, 123, 0.28);
+  border-radius: 8px;
+  background: rgba(78, 43, 35, 0.34);
+}
+
+.admin-blocker-list span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #ffbd88;
+  font-size: 0.84rem;
+}
+
+.admin-blocker-list span.warning {
+  color: #f2db89;
+}
+
+.admin-action-card button {
+  min-height: 38px;
+  margin-top: auto;
+  border: 1px solid rgba(236, 218, 157, 0.18);
+  border-radius: 8px;
+  color: #fff8df;
+  background: rgba(244, 239, 226, 0.08);
 }
 
 .policy-strip {
