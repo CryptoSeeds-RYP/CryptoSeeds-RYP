@@ -93,6 +93,22 @@ Every landmark should eventually have:
 
 MVP map landmarks and their app destinations are registered in `src/visual/microverseAssets.ts`. The React marker layer and Pixi strategic hotspot layer should use this shared registry.
 
+## RPG Homestead Customization
+
+The personal homestead should feel like an epic RPG base that grows through staking tier, project participation, governance, donations, achievements, and seasonal events.
+
+Tier progression should affect visual scale and customization capacity:
+
+| Tier | Homestead Feel |
+| --- | --- |
+| Seed | starter base, first cottage, first fields, basic pathing |
+| Sprout | growing holding, workers, extra paths, more decorative identity |
+| Sapling | richer estate, greenhouses, project trophies, stewardship objects |
+| Tree | mature domain, prestige buildings, larger project districts |
+| Fruit | regenerative citadel, rare cosmetics, symbolic effects, broad layout options |
+
+Customization options should include buildings, paths, banners, crop styles, greenhouse modules, project trophies, donation grove elements, seasonal items, Golden Key displays, Voting Scroll displays, and SeedBot instruments. Keep these expressive and cosmetic. Do not make the visual language imply guaranteed financial advantage.
+
 Current MVP runtime landmark assets:
 
 - `public/assets/landmarks/homestead-active.png`

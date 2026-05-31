@@ -121,6 +121,16 @@ Main uses:
 
 The planned network fee is 3.5%. This fee may be dynamically divided between holders, stakers, and treasury. Exact percentages should remain configurable.
 
+Known fee memory:
+
+- Base platform/network fee: 3.5%.
+- Fee-reduction model: staking tier reduces the effective fee.
+- Distribution categories: holders, stakers, and independent treasury.
+- Exact holder/staker/treasury split: configurable and not final until governance/legal/accounting review.
+- SeedBot strategy success-fee concept: review-gated preview only; current model is 12% on realized positive strategy PnL, split 40% dev / 60% treasury, disabled for live use until security and legal review.
+
+CryptoSeeds should be positioned as a self-custodial platform/interface layer that charges transparent platform or tool fees. It should not present itself as taking custody, managing user accounts, guaranteeing results, or operating a hidden investment pool.
+
 Fee reduction by staking tier:
 
 | Tier | Name | Fee Reduction | Effective Fee |
@@ -165,6 +175,16 @@ The MicroVerse Dashboard is the central user experience. It should be a premium,
 Before staking, the user sees an undeveloped but alive natural landscape: wild fields, misty terrain, empty project plots, locked structures, distant map areas, and an inactive SeedBot Terminal.
 
 After staking, the user dashboard becomes an active farm/ecosystem hub. Higher tiers expand the environment, but the Seed tier should still feel meaningful.
+
+Homestead size and customization should feel like an epic RPG progression system:
+
+- Seed: starter homestead with first project fields and basic customization.
+- Sprout: larger holding with more decorations, paths, and project presence.
+- Sapling: richer estate with advanced structures and clearer stewardship identity.
+- Tree: mature domain with prestige buildings, larger project districts, and rare cosmetics.
+- Fruit: full regenerative citadel with the broadest customization and symbolic effects.
+
+Customization should be cosmetic, expressive, and state-driven. It may include buildings, pathing, banners, crops, greenhouse modules, stewardship artifacts, seasonal items, project trophies, donation grove elements, and SeedBot instruments. Higher tiers may unlock larger homesteads and more customization capacity, but this must not imply guaranteed financial advantage.
 
 ## Main MicroVerse Locations
 
@@ -392,6 +412,8 @@ Avoid building or marketing:
 - public claims that decentralization eliminates legal obligations
 
 Donations must not promise financial return. Reward-bearing or participation-based projects must be clearly separated from donation and impact updates.
+
+Project owners may hold a disclosed percentage of platform tokens, but the treasury should remain independent, transparent, and controlled through the chosen governance/admin model. Any founder, operator, advisor, treasury, ecosystem, or community allocation should be documented with wallet labels, vesting/lockup expectations, and conflicts-of-interest disclosures before public launch.
 
 ## Recommended MVP Phases
 

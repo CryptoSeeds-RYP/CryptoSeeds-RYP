@@ -78,11 +78,27 @@ export type FarmVisualState = {
   terrainLevel: number;
   buildingLevel: number;
   projectSlotsUnlocked: number;
+  homesteadProfile: HomesteadProfile;
   activeProjectVisuals: ProjectVisual[];
   weatherState?: "CLEAR" | "RAIN" | "GOLDEN_HARVEST" | "STORM" | "SEASONAL_EVENT";
   harvestAvailable: boolean;
   governanceActive: boolean;
   seedBotUnlocked: boolean;
+};
+```
+
+```ts
+export type HomesteadProfile = {
+  tier: StakingTier;
+  name: string;
+  estateScale: number;
+  projectSlots: number;
+  buildingSlots: number;
+  decorationSlots: number;
+  pathSlots: number;
+  rareCosmeticSlots: number;
+  visualIdentity: string;
+  customizationMood: string;
 };
 ```
 
@@ -168,6 +184,19 @@ export type TransactionIntent = {
 | SAPLING | 3-5 | Advanced farm, richer environment, more detail |
 | TREE | 5-7 | Mature ecosystem, larger project areas |
 | FRUIT | 7+ | Full estate, rare cosmetics, premium effects |
+
+## Homestead Customization Mapping
+
+| Tier | Homestead | Estate Scale | Buildings | Decor | Paths | Rare Cosmetic Slots |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| NONE | Wild Fields | 0.65x | 0 | 0 | 0 | 0 |
+| SEED | Seed Homestead | 1.00x | 2 | 6 | 4 | 0 |
+| SPROUT | Sprout Holding | 1.28x | 3 | 10 | 6 | 1 |
+| SAPLING | Sapling Estate | 1.62x | 5 | 16 | 9 | 2 |
+| TREE | Tree Domain | 2.05x | 7 | 24 | 12 | 3 |
+| FRUIT | Fruit Citadel | 2.50x | 10 | 36 | 16 | 5 |
+
+Customization capacity is cosmetic and expressive. It should make higher-tier homesteads feel larger and more prestigious without presenting higher tiers as guaranteed financial advantage.
 
 ## Design Rule
 

@@ -9,10 +9,12 @@ import {
   LockKeyhole,
   Map,
   MousePointer2,
+  Palette,
   ScrollText,
   Vote,
   Wheat,
 } from "lucide-react";
+import { homesteadProfileForTier } from "../domain/homesteadCustomization";
 import { buildProjectSlots } from "../domain/participation";
 import type { FarmVisualState, LocationKey, Project, ProjectParticipation, StakingTier } from "../types";
 import { formatLabel, formatRyp } from "../utils/format";
@@ -63,6 +65,7 @@ export function HomesteadView({
   const [navigationMode, setNavigationMode] = useState<MicroVerseNavigationMode>("STRATEGY");
   const [focusedTarget, setFocusedTarget] = useState<WorldFocusTarget | null>(null);
   const [cameraFocus, setCameraFocus] = useState<MicroVerseCameraFocusRequest>({ target: "home", nonce: 0 });
+  const homesteadProfile = homesteadProfileForTier(activeTier);
   const mapMarkers = useMemo(
     () =>
       MICROVERSE_LANDMARKS.filter(
@@ -201,6 +204,7 @@ export function HomesteadView({
         <Metric icon={Leaf} label="Staked" value={formatRyp(stakedAmount)} />
         <Metric icon={KeyRound} label="Golden Key" value={walletConnected && activeTier !== "NONE" ? "Active" : "Locked"} />
         <Metric icon={ScrollText} label="Voting NFT" value={votingActive ? "14d timer" : "Locked"} />
+        <Metric icon={Palette} label="Homestead" value={homesteadProfile.name} />
       </div>
 
       <section className="visual-state-panel">
@@ -234,7 +238,7 @@ export function HomesteadView({
             <Leaf size={20} />
             <strong>Project Fields</strong>
           </div>
-          <span>{projectSlotsUnlocked} slots unlocked</span>
+          <span>{projectSlotsUnlocked} fields / {homesteadProfile.decorationSlots} decor slots</span>
         </div>
         <div className="project-slot-grid">
           {projectSlots.map((slot) => (
