@@ -8,7 +8,12 @@ declare_id!("FG6PaFpoGXkYsidMpWxTWqVfbGqmtn8z8DK9HdJrMPfL");
 
 pub const CONFIG_SEED: &[u8] = b"config";
 pub const STAKE_POSITION_SEED: &[u8] = b"stake-position";
+pub const REWARD_CONFIG_SEED: &[u8] = b"reward-config";
+pub const REWARD_VAULT_STATE_SEED: &[u8] = b"reward-vault";
+pub const REWARD_EPOCH_SEED: &[u8] = b"reward-epoch";
 pub const VOTING_RIGHTS_DELAY_SECONDS: i64 = 14 * 24 * 60 * 60;
+pub const MAX_REWARD_EPOCH_CADENCE_SECONDS: i64 = 366 * 24 * 60 * 60;
+pub const BPS_DENOMINATOR: u16 = 10_000;
 
 #[program]
 pub mod cryptoseeds_protocol {
@@ -250,6 +255,240 @@ pub mod cryptoseeds_protocol {
 
         Ok(())
     }
+
+    pub fn initialize_reward_config(
+        ctx: Context<InitializeRewardConfig>,
+        epoch_cadence_seconds: i64,
+        holder_split_bps: u16,
+        staker_split_bps: u16,
+        treasury_split_bps: u16,
+    ) -> Result<()> {
+        validate_protocol_authority(&ctx.accounts.config, &ctx.accounts.authority.key())?;
+        validate_reward_cadence(epoch_cadence_seconds)?;
+        validate_reward_split(holder_split_bps, staker_split_bps, treasury_split_bps)?;
+
+        let reward_config = &mut ctx.accounts.reward_config;
+        reward_config.authority = ctx.accounts.authority.key();
+        reward_config.protocol_config = ctx.accounts.config.key();
+        reward_config.ryp_mint = ctx.accounts.ryp_mint.key();
+        reward_config.epoch_cadence_seconds = epoch_cadence_seconds;
+        reward_config.holder_split_bps = holder_split_bps;
+        reward_config.staker_split_bps = staker_split_bps;
+        reward_config.treasury_split_bps = treasury_split_bps;
+        reward_config.registered_vault_roles_mask = 0;
+        reward_config.verified_vault_roles_mask = 0;
+        reward_config.total_epoch_drafts = 0;
+        reward_config.paused = false;
+        reward_config.draft_only = true;
+        reward_config.bump = ctx.bumps.reward_config;
+
+        emit!(RewardConfigInitialized {
+            authority: reward_config.authority,
+            ryp_mint: reward_config.ryp_mint,
+            epoch_cadence_seconds,
+            holder_split_bps,
+            staker_split_bps,
+            treasury_split_bps,
+        });
+
+        Ok(())
+    }
+
+    pub fn register_reward_vault(
+        ctx: Context<RegisterRewardVault>,
+        role: RewardVaultRole,
+        vault_address: Pubkey,
+        custody_model: RewardVaultCustodyModel,
+        metadata_hash: [u8; 32],
+    ) -> Result<()> {
+        validate_reward_authority(
+            &ctx.accounts.config,
+            &ctx.accounts.reward_config,
+            ctx.accounts.config.key(),
+            &ctx.accounts.authority.key(),
+        )?;
+        require!(
+            !ctx.accounts.reward_config.paused,
+            CryptoSeedsError::RewardConfigPaused
+        );
+        require!(
+            vault_address != Pubkey::default(),
+            CryptoSeedsError::InvalidRewardVault
+        );
+        require!(
+            metadata_hash != [0; 32],
+            CryptoSeedsError::InvalidRewardMetadata
+        );
+
+        let reward_config = &mut ctx.accounts.reward_config;
+        reward_config.registered_vault_roles_mask |= role.mask();
+
+        let vault_state = &mut ctx.accounts.reward_vault_state;
+        vault_state.reward_config = reward_config.key();
+        vault_state.role = role;
+        vault_state.reward_mint = reward_config.ryp_mint;
+        vault_state.vault_address = vault_address;
+        vault_state.custody_model = custody_model;
+        vault_state.verification_status = RewardVaultVerificationStatus::PendingVerification;
+        vault_state.metadata_hash = metadata_hash;
+        vault_state.receives_user_funds = false;
+        vault_state.bump = ctx.bumps.reward_vault_state;
+
+        emit!(RewardVaultRegistered {
+            reward_config: reward_config.key(),
+            role,
+            vault_address,
+            custody_model,
+        });
+
+        Ok(())
+    }
+
+    pub fn verify_reward_vault(
+        ctx: Context<VerifyRewardVault>,
+        role: RewardVaultRole,
+        expected_metadata_hash: [u8; 32],
+    ) -> Result<()> {
+        validate_reward_authority(
+            &ctx.accounts.config,
+            &ctx.accounts.reward_config,
+            ctx.accounts.config.key(),
+            &ctx.accounts.authority.key(),
+        )?;
+        require!(
+            !ctx.accounts.reward_config.paused,
+            CryptoSeedsError::RewardConfigPaused
+        );
+
+        let vault_state = &mut ctx.accounts.reward_vault_state;
+        require!(
+            vault_state.role == role,
+            CryptoSeedsError::InvalidRewardVault
+        );
+        require!(
+            vault_state.verification_status != RewardVaultVerificationStatus::Disabled,
+            CryptoSeedsError::RewardVaultDisabled
+        );
+        require!(
+            vault_state.metadata_hash == expected_metadata_hash,
+            CryptoSeedsError::RewardMetadataMismatch
+        );
+        require!(
+            vault_state.custody_model != RewardVaultCustodyModel::DisclosurePending,
+            CryptoSeedsError::RewardCustodyDisclosurePending
+        );
+
+        vault_state.verification_status = RewardVaultVerificationStatus::Verified;
+        ctx.accounts.reward_config.verified_vault_roles_mask |= role.mask();
+
+        emit!(RewardVaultVerified {
+            reward_config: ctx.accounts.reward_config.key(),
+            role,
+            vault_address: vault_state.vault_address,
+        });
+
+        Ok(())
+    }
+
+    pub fn draft_reward_epoch(
+        ctx: Context<DraftRewardEpoch>,
+        epoch_id: u64,
+        snapshot_taken_at: i64,
+        reward_pool_amount: u64,
+        distributed_net_amount: u64,
+        reserved_delivery_cost_amount: u64,
+        rolled_forward_amount: u64,
+        exclusion_list_hash: [u8; 32],
+    ) -> Result<()> {
+        validate_reward_authority(
+            &ctx.accounts.config,
+            &ctx.accounts.reward_config,
+            ctx.accounts.config.key(),
+            &ctx.accounts.authority.key(),
+        )?;
+        require!(
+            !ctx.accounts.reward_config.paused,
+            CryptoSeedsError::RewardConfigPaused
+        );
+        require!(
+            ctx.accounts.reward_config.draft_only,
+            CryptoSeedsError::RewardExecutionNotApproved
+        );
+        validate_reward_epoch_accounting(
+            reward_pool_amount,
+            distributed_net_amount,
+            reserved_delivery_cost_amount,
+            rolled_forward_amount,
+        )?;
+
+        let reward_config_key = ctx.accounts.reward_config.key();
+        let reward_mint = ctx.accounts.reward_config.ryp_mint;
+        validate_reward_vault_for_epoch(
+            &ctx.accounts.holder_reward_vault_state,
+            reward_config_key,
+            reward_mint,
+            RewardVaultRole::HolderReward,
+        )?;
+        validate_reward_vault_for_epoch(
+            &ctx.accounts.staker_reward_vault_state,
+            reward_config_key,
+            reward_mint,
+            RewardVaultRole::StakerReward,
+        )?;
+        validate_reward_vault_for_epoch(
+            &ctx.accounts.independent_treasury_vault_state,
+            reward_config_key,
+            reward_mint,
+            RewardVaultRole::IndependentTreasury,
+        )?;
+        validate_reward_vault_for_epoch(
+            &ctx.accounts.delivery_cost_reserve_state,
+            reward_config_key,
+            reward_mint,
+            RewardVaultRole::DeliveryCostReserve,
+        )?;
+        validate_reward_vault_for_epoch(
+            &ctx.accounts.rollover_vault_state,
+            reward_config_key,
+            reward_mint,
+            RewardVaultRole::Rollover,
+        )?;
+
+        let clock = Clock::get()?;
+        let reward_epoch = &mut ctx.accounts.reward_epoch;
+        reward_epoch.reward_config = reward_config_key;
+        reward_epoch.epoch_id = epoch_id;
+        reward_epoch.snapshot_taken_at = snapshot_taken_at;
+        reward_epoch.created_at = clock.unix_timestamp;
+        reward_epoch.reward_mint = reward_mint;
+        reward_epoch.reward_pool_amount = reward_pool_amount;
+        reward_epoch.distributed_net_amount = distributed_net_amount;
+        reward_epoch.reserved_delivery_cost_amount = reserved_delivery_cost_amount;
+        reward_epoch.rolled_forward_amount = rolled_forward_amount;
+        reward_epoch.exclusion_list_hash = exclusion_list_hash;
+        reward_epoch.status = RewardEpochStatus::Drafted;
+        reward_epoch.execution_blocked = true;
+        reward_epoch.bump = ctx.bumps.reward_epoch;
+
+        ctx.accounts.reward_config.total_epoch_drafts = ctx
+            .accounts
+            .reward_config
+            .total_epoch_drafts
+            .checked_add(1)
+            .ok_or(CryptoSeedsError::MathOverflow)?;
+
+        emit!(RewardEpochDrafted {
+            reward_config: reward_config_key,
+            epoch_id,
+            reward_pool_amount,
+            distributed_net_amount,
+            reserved_delivery_cost_amount,
+            rolled_forward_amount,
+            execution_blocked: true,
+        });
+
+        Ok(())
+    }
 }
 
 #[derive(Accounts)]
@@ -362,6 +601,129 @@ pub struct ActivateVotingRights<'info> {
     pub position: Account<'info, StakePosition>,
 }
 
+#[derive(Accounts)]
+pub struct InitializeRewardConfig<'info> {
+    #[account(mut)]
+    pub authority: Signer<'info>,
+    #[account(seeds = [CONFIG_SEED], bump = config.bump, has_one = ryp_mint)]
+    pub config: Account<'info, ProtocolConfig>,
+    pub ryp_mint: InterfaceAccount<'info, Mint>,
+    #[account(
+        init,
+        payer = authority,
+        space = 8 + RewardConfig::INIT_SPACE,
+        seeds = [REWARD_CONFIG_SEED],
+        bump
+    )]
+    pub reward_config: Account<'info, RewardConfig>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+#[instruction(role: RewardVaultRole)]
+pub struct RegisterRewardVault<'info> {
+    #[account(mut)]
+    pub authority: Signer<'info>,
+    #[account(seeds = [CONFIG_SEED], bump = config.bump)]
+    pub config: Account<'info, ProtocolConfig>,
+    #[account(mut, seeds = [REWARD_CONFIG_SEED], bump = reward_config.bump)]
+    pub reward_config: Box<Account<'info, RewardConfig>>,
+    #[account(
+        init,
+        payer = authority,
+        space = 8 + RewardVaultState::INIT_SPACE,
+        seeds = [REWARD_VAULT_STATE_SEED, reward_config.key().as_ref(), role.seed()],
+        bump
+    )]
+    pub reward_vault_state: Account<'info, RewardVaultState>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+#[instruction(role: RewardVaultRole)]
+pub struct VerifyRewardVault<'info> {
+    pub authority: Signer<'info>,
+    #[account(seeds = [CONFIG_SEED], bump = config.bump)]
+    pub config: Account<'info, ProtocolConfig>,
+    #[account(mut, seeds = [REWARD_CONFIG_SEED], bump = reward_config.bump)]
+    pub reward_config: Account<'info, RewardConfig>,
+    #[account(
+        mut,
+        seeds = [REWARD_VAULT_STATE_SEED, reward_config.key().as_ref(), role.seed()],
+        bump = reward_vault_state.bump
+    )]
+    pub reward_vault_state: Account<'info, RewardVaultState>,
+}
+
+#[derive(Accounts)]
+#[instruction(epoch_id: u64)]
+pub struct DraftRewardEpoch<'info> {
+    #[account(mut)]
+    pub authority: Signer<'info>,
+    #[account(seeds = [CONFIG_SEED], bump = config.bump)]
+    pub config: Account<'info, ProtocolConfig>,
+    #[account(mut, seeds = [REWARD_CONFIG_SEED], bump = reward_config.bump)]
+    pub reward_config: Account<'info, RewardConfig>,
+    #[account(
+        seeds = [
+            REWARD_VAULT_STATE_SEED,
+            reward_config.key().as_ref(),
+            RewardVaultRole::HolderReward.seed()
+        ],
+        bump = holder_reward_vault_state.bump
+    )]
+    pub holder_reward_vault_state: Box<Account<'info, RewardVaultState>>,
+    #[account(
+        seeds = [
+            REWARD_VAULT_STATE_SEED,
+            reward_config.key().as_ref(),
+            RewardVaultRole::StakerReward.seed()
+        ],
+        bump = staker_reward_vault_state.bump
+    )]
+    pub staker_reward_vault_state: Box<Account<'info, RewardVaultState>>,
+    #[account(
+        seeds = [
+            REWARD_VAULT_STATE_SEED,
+            reward_config.key().as_ref(),
+            RewardVaultRole::IndependentTreasury.seed()
+        ],
+        bump = independent_treasury_vault_state.bump
+    )]
+    pub independent_treasury_vault_state: Box<Account<'info, RewardVaultState>>,
+    #[account(
+        seeds = [
+            REWARD_VAULT_STATE_SEED,
+            reward_config.key().as_ref(),
+            RewardVaultRole::DeliveryCostReserve.seed()
+        ],
+        bump = delivery_cost_reserve_state.bump
+    )]
+    pub delivery_cost_reserve_state: Box<Account<'info, RewardVaultState>>,
+    #[account(
+        seeds = [
+            REWARD_VAULT_STATE_SEED,
+            reward_config.key().as_ref(),
+            RewardVaultRole::Rollover.seed()
+        ],
+        bump = rollover_vault_state.bump
+    )]
+    pub rollover_vault_state: Box<Account<'info, RewardVaultState>>,
+    #[account(
+        init,
+        payer = authority,
+        space = 8 + RewardEpoch::INIT_SPACE,
+        seeds = [
+            REWARD_EPOCH_SEED,
+            reward_config.key().as_ref(),
+            epoch_id.to_le_bytes().as_ref()
+        ],
+        bump
+    )]
+    pub reward_epoch: Box<Account<'info, RewardEpoch>>,
+    pub system_program: Program<'info, System>,
+}
+
 #[account]
 #[derive(InitSpace)]
 pub struct ProtocolConfig {
@@ -391,6 +753,79 @@ pub struct StakePosition {
     pub bump: u8,
 }
 
+#[account]
+#[derive(InitSpace)]
+pub struct RewardConfig {
+    pub authority: Pubkey,
+    pub protocol_config: Pubkey,
+    pub ryp_mint: Pubkey,
+    pub epoch_cadence_seconds: i64,
+    pub holder_split_bps: u16,
+    pub staker_split_bps: u16,
+    pub treasury_split_bps: u16,
+    pub registered_vault_roles_mask: u8,
+    pub verified_vault_roles_mask: u8,
+    pub total_epoch_drafts: u64,
+    pub paused: bool,
+    pub draft_only: bool,
+    pub bump: u8,
+}
+
+#[account]
+#[derive(InitSpace)]
+pub struct RewardVaultState {
+    pub reward_config: Pubkey,
+    pub role: RewardVaultRole,
+    pub reward_mint: Pubkey,
+    pub vault_address: Pubkey,
+    pub custody_model: RewardVaultCustodyModel,
+    pub verification_status: RewardVaultVerificationStatus,
+    pub metadata_hash: [u8; 32],
+    pub receives_user_funds: bool,
+    pub bump: u8,
+}
+
+#[account]
+#[derive(InitSpace)]
+pub struct RewardEpoch {
+    pub reward_config: Pubkey,
+    pub epoch_id: u64,
+    pub snapshot_taken_at: i64,
+    pub created_at: i64,
+    pub reward_mint: Pubkey,
+    pub reward_pool_amount: u64,
+    pub distributed_net_amount: u64,
+    pub reserved_delivery_cost_amount: u64,
+    pub rolled_forward_amount: u64,
+    pub exclusion_list_hash: [u8; 32],
+    pub status: RewardEpochStatus,
+    pub execution_blocked: bool,
+    pub bump: u8,
+}
+
+#[account]
+#[derive(InitSpace)]
+pub struct RewardClaimRecord {
+    pub reward_epoch: Pubkey,
+    pub wallet: Pubkey,
+    pub gross_allocation_amount: u64,
+    pub delivery_cost_amount: u64,
+    pub net_claim_amount: u64,
+    pub rolled_forward_amount: u64,
+    pub claimed: bool,
+    pub bump: u8,
+}
+
+#[account]
+#[derive(InitSpace)]
+pub struct RewardExclusionList {
+    pub reward_config: Pubkey,
+    pub metadata_hash: [u8; 32],
+    pub excluded_wallet_count: u32,
+    pub updated_at: i64,
+    pub bump: u8,
+}
+
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, InitSpace)]
 pub enum StakeTier {
     None,
@@ -417,6 +852,59 @@ impl StakeTier {
             Self::None
         }
     }
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, InitSpace)]
+pub enum RewardVaultRole {
+    HolderReward,
+    StakerReward,
+    IndependentTreasury,
+    DeliveryCostReserve,
+    Rollover,
+}
+
+impl RewardVaultRole {
+    pub fn mask(self) -> u8 {
+        match self {
+            Self::HolderReward => 1 << 0,
+            Self::StakerReward => 1 << 1,
+            Self::IndependentTreasury => 1 << 2,
+            Self::DeliveryCostReserve => 1 << 3,
+            Self::Rollover => 1 << 4,
+        }
+    }
+
+    pub fn seed(self) -> &'static [u8] {
+        match self {
+            Self::HolderReward => b"holder-reward",
+            Self::StakerReward => b"staker-reward",
+            Self::IndependentTreasury => b"independent-treasury",
+            Self::DeliveryCostReserve => b"delivery-cost-reserve",
+            Self::Rollover => b"rollover",
+        }
+    }
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, InitSpace)]
+pub enum RewardVaultCustodyModel {
+    ProgramControlled,
+    TreasuryControlled,
+    DisclosurePending,
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, InitSpace)]
+pub enum RewardVaultVerificationStatus {
+    Draft,
+    PendingVerification,
+    Verified,
+    Disabled,
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, InitSpace)]
+pub enum RewardEpochStatus {
+    Drafted,
+    Reviewed,
+    Cancelled,
 }
 
 #[event]
@@ -465,6 +953,42 @@ pub struct VotingRightsActivated {
     pub activated_at: i64,
 }
 
+#[event]
+pub struct RewardConfigInitialized {
+    pub authority: Pubkey,
+    pub ryp_mint: Pubkey,
+    pub epoch_cadence_seconds: i64,
+    pub holder_split_bps: u16,
+    pub staker_split_bps: u16,
+    pub treasury_split_bps: u16,
+}
+
+#[event]
+pub struct RewardVaultRegistered {
+    pub reward_config: Pubkey,
+    pub role: RewardVaultRole,
+    pub vault_address: Pubkey,
+    pub custody_model: RewardVaultCustodyModel,
+}
+
+#[event]
+pub struct RewardVaultVerified {
+    pub reward_config: Pubkey,
+    pub role: RewardVaultRole,
+    pub vault_address: Pubkey,
+}
+
+#[event]
+pub struct RewardEpochDrafted {
+    pub reward_config: Pubkey,
+    pub epoch_id: u64,
+    pub reward_pool_amount: u64,
+    pub distributed_net_amount: u64,
+    pub reserved_delivery_cost_amount: u64,
+    pub rolled_forward_amount: u64,
+    pub execution_blocked: bool,
+}
+
 #[error_code]
 pub enum CryptoSeedsError {
     #[msg("The provided amount is invalid.")]
@@ -489,6 +1013,30 @@ pub enum CryptoSeedsError {
     VotingRightsAlreadyActive,
     #[msg("Math overflow or underflow.")]
     MathOverflow,
+    #[msg("Reward split must total 10000 basis points.")]
+    InvalidRewardSplit,
+    #[msg("Reward epoch cadence is outside approved bounds.")]
+    InvalidRewardCadence,
+    #[msg("Reward config is paused.")]
+    RewardConfigPaused,
+    #[msg("Reward execution is not approved; this path is draft-only.")]
+    RewardExecutionNotApproved,
+    #[msg("Reward vault is invalid for the requested role or config.")]
+    InvalidRewardVault,
+    #[msg("Reward vault has not been verified.")]
+    RewardVaultNotVerified,
+    #[msg("Reward vault is disabled.")]
+    RewardVaultDisabled,
+    #[msg("Reward metadata hash does not match the reviewed packet.")]
+    RewardMetadataMismatch,
+    #[msg("Reward metadata hash is invalid.")]
+    InvalidRewardMetadata,
+    #[msg("Reward vault custody disclosure is still pending.")]
+    RewardCustodyDisclosurePending,
+    #[msg("Reward epoch accounting is not balanced.")]
+    RewardEpochUnbalanced,
+    #[msg("Reward pool amount is invalid.")]
+    InvalidRewardPool,
 }
 
 fn validate_thresholds(thresholds: &[u64; 5]) -> Result<()> {
@@ -510,6 +1058,130 @@ fn validate_fee_reductions(base_fee_bps: u16, reductions: &[u16; 5]) -> Result<(
             CryptoSeedsError::InvalidFeeReduction
         );
     }
+
+    Ok(())
+}
+
+fn validate_protocol_authority(config: &ProtocolConfig, authority: &Pubkey) -> Result<()> {
+    require_keys_eq!(config.authority, *authority, CryptoSeedsError::Unauthorized);
+    Ok(())
+}
+
+fn validate_reward_authority(
+    config: &ProtocolConfig,
+    reward_config: &RewardConfig,
+    config_key: Pubkey,
+    authority: &Pubkey,
+) -> Result<()> {
+    validate_protocol_authority(config, authority)?;
+    require_keys_eq!(
+        reward_config.authority,
+        *authority,
+        CryptoSeedsError::Unauthorized
+    );
+    require_keys_eq!(
+        reward_config.protocol_config,
+        config_key,
+        CryptoSeedsError::InvalidRewardVault
+    );
+    require_keys_eq!(
+        reward_config.ryp_mint,
+        config.ryp_mint,
+        CryptoSeedsError::InvalidRewardVault
+    );
+
+    Ok(())
+}
+
+fn validate_reward_cadence(epoch_cadence_seconds: i64) -> Result<()> {
+    require!(
+        epoch_cadence_seconds > 0 && epoch_cadence_seconds <= MAX_REWARD_EPOCH_CADENCE_SECONDS,
+        CryptoSeedsError::InvalidRewardCadence
+    );
+
+    Ok(())
+}
+
+fn validate_reward_split(
+    holder_split_bps: u16,
+    staker_split_bps: u16,
+    treasury_split_bps: u16,
+) -> Result<()> {
+    let total = holder_split_bps
+        .checked_add(staker_split_bps)
+        .and_then(|value| value.checked_add(treasury_split_bps))
+        .ok_or(CryptoSeedsError::MathOverflow)?;
+    require!(
+        total == BPS_DENOMINATOR,
+        CryptoSeedsError::InvalidRewardSplit
+    );
+
+    Ok(())
+}
+
+fn validate_reward_epoch_accounting(
+    reward_pool_amount: u64,
+    distributed_net_amount: u64,
+    reserved_delivery_cost_amount: u64,
+    rolled_forward_amount: u64,
+) -> Result<()> {
+    require!(reward_pool_amount > 0, CryptoSeedsError::InvalidRewardPool);
+    let accounted = distributed_net_amount
+        .checked_add(reserved_delivery_cost_amount)
+        .and_then(|value| value.checked_add(rolled_forward_amount))
+        .ok_or(CryptoSeedsError::MathOverflow)?;
+    require!(
+        accounted == reward_pool_amount,
+        CryptoSeedsError::RewardEpochUnbalanced
+    );
+
+    Ok(())
+}
+
+fn validate_reward_vault_for_epoch(
+    vault_state: &RewardVaultState,
+    reward_config: Pubkey,
+    reward_mint: Pubkey,
+    role: RewardVaultRole,
+) -> Result<()> {
+    require_keys_eq!(
+        vault_state.reward_config,
+        reward_config,
+        CryptoSeedsError::InvalidRewardVault
+    );
+    require_keys_eq!(
+        vault_state.reward_mint,
+        reward_mint,
+        CryptoSeedsError::InvalidRewardVault
+    );
+    require!(
+        vault_state.role == role,
+        CryptoSeedsError::InvalidRewardVault
+    );
+    require!(
+        !vault_state.receives_user_funds,
+        CryptoSeedsError::InvalidRewardVault
+    );
+    require!(
+        vault_state.vault_address != Pubkey::default(),
+        CryptoSeedsError::InvalidRewardVault
+    );
+    require!(
+        vault_state.metadata_hash != [0; 32],
+        CryptoSeedsError::InvalidRewardMetadata
+    );
+    require!(
+        vault_state.custody_model != RewardVaultCustodyModel::DisclosurePending,
+        CryptoSeedsError::RewardCustodyDisclosurePending
+    );
+    require!(
+        vault_state.verification_status != RewardVaultVerificationStatus::Disabled,
+        CryptoSeedsError::RewardVaultDisabled
+    );
+    require!(
+        vault_state.verification_status == RewardVaultVerificationStatus::Verified,
+        CryptoSeedsError::RewardVaultNotVerified
+    );
 
     Ok(())
 }
@@ -570,5 +1242,103 @@ mod tests {
     fn blocks_fee_reductions_above_base_fee() {
         assert!(validate_fee_reductions(350, &[0, 35, 70, 105, 140]).is_ok());
         assert!(validate_fee_reductions(350, &[0, 35, 70, 105, 351]).is_err());
+    }
+
+    #[test]
+    fn validates_reward_split_totals() {
+        assert!(validate_reward_split(3_334, 3_333, 3_333).is_ok());
+        assert!(validate_reward_split(3_334, 3_333, 3_334).is_err());
+    }
+
+    #[test]
+    fn validates_reward_cadence_bounds() {
+        assert!(validate_reward_cadence(7 * 24 * 60 * 60).is_ok());
+        assert!(validate_reward_cadence(0).is_err());
+        assert!(validate_reward_cadence(MAX_REWARD_EPOCH_CADENCE_SECONDS + 1).is_err());
+    }
+
+    #[test]
+    fn rejects_unbalanced_reward_epoch_accounting() {
+        assert!(validate_reward_epoch_accounting(1_000, 700, 100, 200).is_ok());
+        assert!(validate_reward_epoch_accounting(1_000, 700, 100, 199).is_err());
+        assert!(validate_reward_epoch_accounting(0, 0, 0, 0).is_err());
+    }
+
+    #[test]
+    fn requires_verified_reward_vaults_for_epoch_drafts() {
+        let reward_config = Pubkey::new_unique();
+        let reward_mint = Pubkey::new_unique();
+        let mut vault_state = reward_vault_state(
+            reward_config,
+            reward_mint,
+            RewardVaultRole::HolderReward,
+            RewardVaultVerificationStatus::Verified,
+        );
+
+        assert!(validate_reward_vault_for_epoch(
+            &vault_state,
+            reward_config,
+            reward_mint,
+            RewardVaultRole::HolderReward,
+        )
+        .is_ok());
+
+        vault_state.verification_status = RewardVaultVerificationStatus::PendingVerification;
+        assert!(validate_reward_vault_for_epoch(
+            &vault_state,
+            reward_config,
+            reward_mint,
+            RewardVaultRole::HolderReward,
+        )
+        .is_err());
+
+        vault_state.verification_status = RewardVaultVerificationStatus::Verified;
+        vault_state.receives_user_funds = true;
+        assert!(validate_reward_vault_for_epoch(
+            &vault_state,
+            reward_config,
+            reward_mint,
+            RewardVaultRole::HolderReward,
+        )
+        .is_err());
+
+        vault_state.receives_user_funds = false;
+        vault_state.custody_model = RewardVaultCustodyModel::DisclosurePending;
+        assert!(validate_reward_vault_for_epoch(
+            &vault_state,
+            reward_config,
+            reward_mint,
+            RewardVaultRole::HolderReward,
+        )
+        .is_err());
+
+        vault_state.custody_model = RewardVaultCustodyModel::ProgramControlled;
+        vault_state.metadata_hash = [0; 32];
+        assert!(validate_reward_vault_for_epoch(
+            &vault_state,
+            reward_config,
+            reward_mint,
+            RewardVaultRole::HolderReward,
+        )
+        .is_err());
+    }
+
+    fn reward_vault_state(
+        reward_config: Pubkey,
+        reward_mint: Pubkey,
+        role: RewardVaultRole,
+        verification_status: RewardVaultVerificationStatus,
+    ) -> RewardVaultState {
+        RewardVaultState {
+            reward_config,
+            role,
+            reward_mint,
+            vault_address: Pubkey::new_unique(),
+            custody_model: RewardVaultCustodyModel::ProgramControlled,
+            verification_status,
+            metadata_hash: [7; 32],
+            receives_user_funds: false,
+            bump: 255,
+        }
     }
 }

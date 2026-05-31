@@ -38,10 +38,15 @@ Current scope:
 - Activate Golden Key state
 - Unlock Voting Rights state after 14 days
 - Unstake RYP
+- Initialize reward config for draft holder/staker/treasury epoch accounting
+- Register and verify reward vault state by role
+- Draft balanced, execution-blocked reward epochs
 - Emergency pause
 - Emit protocol events
 
-Current localnet security coverage includes rejected duplicate tier thresholds, rejected below-Seed staking, rejected early voting-right activation, rejected mismatched-owner unstaking, rejected oversized unstaking, Seed-to-Sprout top-up state preservation, Sprout-to-Seed partial unstake state preservation, rejected non-authority pause attempts, and pause enforcement for stake, unstake, and voting activation paths.
+Current localnet security coverage includes rejected duplicate tier thresholds, reward config initialization, rejected invalid reward splits, rejected blank reward metadata, reward vault registration and verification, rejected pending-vault reward epochs, rejected reward metadata mismatch, rejected non-authority reward verification, rejected unbalanced reward epochs, balanced execution-blocked reward epoch drafts, rejected below-Seed staking, rejected early voting-right activation, rejected mismatched-owner unstaking, rejected oversized unstaking, Seed-to-Sprout top-up state preservation, Sprout-to-Seed partial unstake state preservation, rejected non-authority pause attempts, and pause enforcement for stake, unstake, and voting activation paths.
+
+Current Rust unit coverage also includes reward split totals, reward cadence bounds, reward epoch accounting balance, and verified-vault requirements for epoch drafts.
 
 Client preparation now has a TypeScript planning layer at `src/solana/protocolTransactionPlan.ts`:
 
@@ -80,9 +85,8 @@ These should be added after the staking core is reviewed:
 
 - Actual Golden Key NFT mint/burn/return logic
 - Voting Rights NFT minting and dynamic metadata
-- Reward accrual and expiration
-- Fee router, holder/staker/treasury accrual, and 1-year unclaimed redistribution
-- Reward vault and epoch accounts described in `docs/architecture/reward-vault-epochs.md`
+- Reward claim, payout, batching, accrual, expiration, and 1-year unclaimed redistribution
+- Fee router holder/staker/treasury vault funding instructions
 - Project pool participation
 - Governance proposals and voting records
 - Treasury distribution
@@ -113,4 +117,5 @@ For the first build, a single `cryptoseeds_protocol` program is acceptable while
 - Store token thresholds in base units
 - Use wallet-approved transactions only
 - Review all CPI signer seeds carefully before deployment
-- Keep localnet rejection tests current for config, stake, unstake, pause, and voting-right paths
+- Keep localnet rejection tests current for config, stake, unstake, pause, voting-right, and reward-epoch paths
+- Keep reward epochs draft-only until claim and payout instructions pass security review

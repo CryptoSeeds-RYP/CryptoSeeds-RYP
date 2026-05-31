@@ -56,7 +56,7 @@ Reward vaults should never be presented as user custody accounts.
 
 ## On-Chain Direction
 
-Future Anchor accounts should likely include:
+Anchor now includes the first reward-account scaffold:
 
 | Account | Purpose |
 | --- | --- |
@@ -66,7 +66,38 @@ Future Anchor accounts should likely include:
 | `RewardClaimRecord` | Wallet, epoch, claimed amount, delivery cost, rollover, claim state |
 | `RewardExclusionList` | Hash or registry pointer for excluded wallets |
 
-This should remain modular from staking until reward logic is fully reviewed.
+Current reward instructions:
+
+| Instruction | Purpose | Movement |
+| --- | --- | --- |
+| `initialize_reward_config` | Creates reward config and split/cadence policy | No funds |
+| `register_reward_vault` | Registers one role-specific vault state as pending verification | No funds |
+| `verify_reward_vault` | Marks a reviewed vault state as verified when metadata hash matches | No funds |
+| `draft_reward_epoch` | Creates a balanced, execution-blocked epoch draft | No funds |
+
+No claim or payout instruction exists yet.
+
+Reward logic remains modular from staking until the full claim, batching, exclusion-list, and authority review is complete.
+
+## Protocol Rejection Rules
+
+The Anchor validation layer rejects:
+
+- non-authority reward setup,
+- reward split totals that do not equal 10,000 bps,
+- zero or out-of-bounds reward cadence,
+- zero reward pools,
+- unbalanced epoch accounting,
+- disabled vaults,
+- unverified vaults,
+- vault states with the wrong role, reward mint, or reward config,
+- vault states marked as receiving user funds,
+- default/empty vault addresses,
+- blank metadata hashes,
+- vaults with pending custody disclosure,
+- metadata-hash mismatches during verification.
+
+These checks are covered by Rust unit tests in `programs/cryptoseeds_protocol/src/lib.rs` and the WSL localnet smoke flow in `scripts/run-anchor-localnet-smoke.mjs`.
 
 ## Current Implementation
 
@@ -76,3 +107,9 @@ Local domain model:
 - `src/domain/rewardVaults.test.ts`
 
 The model builds review-gated reward epoch drafts and serializes bigint accounting into JSON strings for review packets.
+
+Protocol model:
+
+- `programs/cryptoseeds_protocol/src/lib.rs`
+
+The protocol model stores reward config, vault verification state, and draft epochs only. It keeps `execution_blocked = true` on drafted epochs.
