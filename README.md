@@ -46,6 +46,25 @@ The current dev server uses Vite at `http://127.0.0.1:5173`.
 
 Copy `.env.example` to `.env` and fill in the deployed protocol program details before connecting to live CryptoSeeds program state. The public RYP mint is already configured.
 
+## Checks
+
+Deterministic app checks:
+
+```bash
+npm run visual:audit
+npm test
+npm run build
+```
+
+Windows host-side protocol checks:
+
+```powershell
+npm run protocol:check:win
+npm run protocol:test:win
+```
+
+GitHub Actions runs app and host-side protocol checks on pushes and pull requests. The public RYP mint authority check runs as a scheduled/manual external audit because it depends on public Solana RPC availability.
+
 ## Protocol Development
 
 The protocol scaffold is Anchor/Rust based:
