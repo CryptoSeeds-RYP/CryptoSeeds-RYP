@@ -34,12 +34,26 @@ describe("microverse visual asset registry", () => {
       expect(landmark.y).toBeLessThan(1);
       expect(landmark.scale).toBeGreaterThan(0);
       expect(landmark.assetPath).toMatch(/^\/assets\/landmarks\//);
+      expect(landmark.gate.story.length).toBeGreaterThan(30);
+      expect(landmark.gate.unlockHint.length).toBeGreaterThan(20);
     });
   });
 
   it("maps MVP landmarks to app destinations", () => {
     const destinations = MICROVERSE_LANDMARKS.flatMap((landmark) => landmark.destination ?? []);
     expect(destinations).toEqual(["homestead", "explorer", "governance", "harvest", "seedbot"]);
+  });
+
+  it("keeps future districts visible as story gates instead of live destinations", () => {
+    const futureDistricts = MICROVERSE_LANDMARKS.filter((landmark) => !landmark.destination);
+
+    expect(futureDistricts.map((landmark) => landmark.id)).toEqual([
+      "stewards-glade",
+      "lorehouse",
+      "treasury-grove",
+    ]);
+    expect(futureDistricts.every((landmark) => landmark.gate.status !== "OPEN")).toBe(true);
+    expect(MICROVERSE_LANDMARKS.find((landmark) => landmark.id === "seedbot-terminal")?.gate.status).toBe("ACCESS_LOCKED");
   });
 
   it("maps every project lifecycle state to a runtime tile asset", () => {

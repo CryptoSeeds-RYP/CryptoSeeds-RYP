@@ -58,6 +58,8 @@ type PlotMarkerRuntime = {
 
 type LandmarkSpriteRuntime = {
   container: Container;
+  closedOverlay?: Graphics;
+  gateStatus: MicroVerseLandmark["gate"]["status"];
   glow: Graphics;
   ring: Graphics;
   label: Text;
@@ -126,7 +128,7 @@ export function MicroVerseScene({
   scene: MicroVerseSceneState;
   onPlotFocus?: (plotId: string | null) => void;
   onPlotSelect?: (projectId: string) => void;
-  onLandmarkFocus?: (location: LocationKey | null) => void;
+  onLandmarkFocus?: (landmarkId: string | null) => void;
   onLandmarkSelect?: (location: LocationKey) => void;
 }) {
   const hostRef = useRef<HTMLDivElement | null>(null);
@@ -418,7 +420,7 @@ async function renderScene({
   isCurrent: () => boolean;
   keys: Set<string>;
   navigationMode: MicroVerseNavigationMode;
-  onLandmarkFocus: (location: LocationKey | null) => void;
+  onLandmarkFocus: (landmarkId: string | null) => void;
   onLandmarkSelect: (location: LocationKey) => void;
   onPlotFocus: (plotId: string | null) => void;
   onPlotSelect: (projectId: string) => void;
@@ -456,7 +458,7 @@ async function buildWorld(
   scene: MicroVerseSceneState,
   keys: Set<string>,
   navigationMode: MicroVerseNavigationMode,
-  onLandmarkFocus: (location: LocationKey | null) => void,
+  onLandmarkFocus: (landmarkId: string | null) => void,
   onLandmarkSelect: (location: LocationKey) => void,
   onPlotFocus: (plotId: string | null) => void,
   onPlotSelect: (projectId: string) => void,
@@ -639,15 +641,19 @@ function animateScene(runtime: WorldRuntime, deltaSeconds: number, time: number)
     const pulse = Math.sin(time * 1.45 + landmark.phase) * 0.018 * motionScale;
     const selected = Boolean(landmark.destination && landmark.destination === runtime.selectedLocation);
     const active = landmark.hovered || selected;
-    const targetScale = active ? landmark.baseScale * 1.2 : landmark.baseScale * (1 + pulse);
+    const closed = landmark.gateStatus !== "OPEN";
+    const targetScale = active ? landmark.baseScale * (closed ? 1.12 : 1.2) : landmark.baseScale * (1 + pulse);
     const nextScale = landmark.container.scale.x + (targetScale - landmark.container.scale.x) * 0.18;
     landmark.container.scale.set(nextScale);
     landmark.container.zIndex = active ? 80 : 32 + landmark.container.y / 1000;
-    landmark.glow.alpha = active ? 0.54 : 0.26 + Math.sin(time * 1.2 + landmark.phase) * 0.04 * motionScale;
-    landmark.ring.alpha = active ? 0.92 : 0.52;
+    landmark.glow.alpha = closed ? (active ? 0.24 : 0.13) : active ? 0.54 : 0.26 + Math.sin(time * 1.2 + landmark.phase) * 0.04 * motionScale;
+    landmark.ring.alpha = closed ? (active ? 0.72 : 0.36) : active ? 0.92 : 0.52;
     landmark.label.alpha = active ? 1 : 0.86;
+    if (landmark.closedOverlay) landmark.closedOverlay.alpha = active ? 0.96 : 0.72;
     if (landmark.sprite) {
-      landmark.sprite.alpha = active ? 1 : 0.84 + Math.sin(time * 1.1 + landmark.phase) * 0.035 * motionScale;
+      landmark.sprite.alpha = closed
+        ? active ? 0.62 : 0.44
+        : active ? 1 : 0.84 + Math.sin(time * 1.1 + landmark.phase) * 0.035 * motionScale;
     }
   });
 
@@ -762,7 +768,9 @@ function focusStrategicCamera(runtime: WorldRuntime, target: MicroVerseCameraFoc
   const landmark =
     target === "home"
       ? MICROVERSE_LANDMARKS.find((candidate) => candidate.id === "homestead")
-      : MICROVERSE_LANDMARKS.find((candidate) => candidate.destination === target);
+      : target.startsWith("landmark:")
+        ? MICROVERSE_LANDMARKS.find((candidate) => candidate.id === target.slice("landmark:".length))
+        : MICROVERSE_LANDMARKS.find((candidate) => candidate.destination === target);
   if (!landmark) return;
   runtime.selectedLocation = landmark.destination ?? null;
 
@@ -1099,7 +1107,7 @@ function buildArchitectureLayer(
   lanterns: Lantern[],
   landmarkTextures: Map<string, Texture>,
   landmarkSprites: LandmarkSpriteRuntime[],
-  onLandmarkFocus: (location: LocationKey | null) => void,
+  onLandmarkFocus: (landmarkId: string | null) => void,
   onLandmarkSelect: (location: LocationKey) => void,
 ) {
   const layer = new Container();
@@ -1180,7 +1188,7 @@ function buildLandmarkSprite(
   landmark: MicroVerseLandmark,
   texture: Texture,
   worldSize: Point,
-  onLandmarkFocus: (location: LocationKey | null) => void,
+  onLandmarkFocus: (landmarkId: string | null) => void,
   onLandmarkSelect: (location: LocationKey) => void,
 ): LandmarkSpriteRuntime {
   const container = new Container();
@@ -1191,6 +1199,7 @@ function buildLandmarkSprite(
   const districtHeight = districtZoneHeight(landmark);
   const glow = new Graphics();
   const ring = new Graphics();
+  const closedOverlay = landmark.gate.status === "OPEN" ? undefined : buildClosedDistrictOverlay(landmark, districtWidth, districtHeight);
   const hitArea = new Graphics();
   const label = new Text({
     text: landmark.label,
@@ -1206,6 +1215,8 @@ function buildLandmarkSprite(
   });
   const runtime: LandmarkSpriteRuntime = {
     container,
+    closedOverlay,
+    gateStatus: landmark.gate.status,
     glow,
     ring,
     label,
@@ -1220,7 +1231,7 @@ function buildLandmarkSprite(
   container.y = worldSize.y * landmark.y + 72 * landmark.scale;
   container.label = `${landmark.id} district`;
   container.eventMode = "static";
-  container.cursor = landmark.destination ? "pointer" : "default";
+  container.cursor = landmark.destination ? "pointer" : "help";
 
   hitArea.ellipse(0, 0, districtWidth, districtHeight).fill({ color: 0xffffff, alpha: 0.001 });
   glow.ellipse(0, 8 * landmark.scale, districtWidth * 1.28, districtHeight * 1.48).fill({
@@ -1245,16 +1256,18 @@ function buildLandmarkSprite(
   sprite.anchor.set(0.5, 0.82);
   sprite.y = -districtHeight * 0.18;
   sprite.scale.set(spriteScale);
-  sprite.alpha = 0.72;
+  sprite.alpha = landmark.gate.status === "OPEN" ? 0.72 : 0.46;
   sprite.label = landmark.id;
   label.anchor.set(0.5, 0);
   label.y = districtHeight * 0.28;
   label.alpha = 0.86;
 
-  container.addChild(hitArea, glow, sprite, ring, label);
+  container.addChild(hitArea, glow, sprite, ring);
+  if (closedOverlay) container.addChild(closedOverlay);
+  container.addChild(label);
   container.on("pointerover", () => {
     runtime.hovered = true;
-    if (landmark.destination) onLandmarkFocus(landmark.destination);
+    onLandmarkFocus(landmark.id);
   });
   container.on("pointerout", () => {
     runtime.hovered = false;
@@ -1272,6 +1285,41 @@ function buildLandmarkSprite(
   }
 
   return runtime;
+}
+
+function buildClosedDistrictOverlay(landmark: MicroVerseLandmark, districtWidth: number, districtHeight: number) {
+  const overlay = new Graphics();
+  const gateColor = landmark.gate.status === "REVIEW_GATED" ? 0xffd66b : 0xaab7c8;
+
+  overlay.ellipse(0, 0, districtWidth * 0.9, districtHeight * 0.72).fill({ color: 0x071015, alpha: 0.22 });
+  overlay.ellipse(0, 0, districtWidth * 0.92, districtHeight * 0.74).stroke({
+    color: gateColor,
+    alpha: 0.42,
+    width: Math.max(2, 3 * landmark.scale),
+  });
+  overlay.rect(-districtWidth * 0.28, districtHeight * 0.05, districtWidth * 0.56, 15 * landmark.scale).fill({
+    color: 0x1e2f35,
+    alpha: 0.88,
+  });
+  overlay.rect(-districtWidth * 0.28, districtHeight * 0.05, districtWidth * 0.56, 15 * landmark.scale).stroke({
+    color: gateColor,
+    alpha: 0.54,
+    width: Math.max(1, 2 * landmark.scale),
+  });
+  overlay.circle(0, districtHeight * 0.05 + 8 * landmark.scale, 14 * landmark.scale).fill({
+    color: 0x091b1e,
+    alpha: 0.95,
+  });
+  overlay.circle(0, districtHeight * 0.05 + 8 * landmark.scale, 14 * landmark.scale).stroke({
+    color: gateColor,
+    alpha: 0.72,
+    width: Math.max(2, 2.5 * landmark.scale),
+  });
+  overlay.moveTo(-5 * landmark.scale, districtHeight * 0.05 + 9 * landmark.scale)
+    .lineTo(5 * landmark.scale, districtHeight * 0.05 + 9 * landmark.scale)
+    .stroke({ color: MICROVERSE_PALETTE.ivory, alpha: 0.7, width: Math.max(1, 2 * landmark.scale), cap: "round" });
+
+  return overlay;
 }
 
 function landmarkSpriteWidth(landmark: MicroVerseLandmark) {

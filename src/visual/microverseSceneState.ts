@@ -31,7 +31,7 @@ export type MicroVerseSceneState = {
 
 export type MicroVerseNavigationMode = "STRATEGY" | "CHARACTER";
 
-export type MicroVerseCameraFocus = "home" | LocationKey;
+export type MicroVerseCameraFocus = "home" | LocationKey | `landmark:${string}`;
 
 export type MicroVerseCameraFocusRequest = {
   target: MicroVerseCameraFocus;
