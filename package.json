@@ -20,6 +20,7 @@
     "wsl:check": "powershell -ExecutionPolicy Bypass -File scripts/check-wsl-prereqs.ps1",
     "wsl:setup": "powershell -ExecutionPolicy Bypass -File scripts/setup-wsl-solana.ps1",
     "copy:audit": "node scripts/audit-copy-guardrails.mjs",
+    "ops:check": "node scripts/check-ops-readiness.mjs",
     "token:check": "node scripts/check-ryp-mint.mjs",
     "visual:audit": "node scripts/audit-visual-assets.mjs"
   },

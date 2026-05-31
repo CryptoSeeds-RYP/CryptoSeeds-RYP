@@ -1,5 +1,6 @@
-import { AlertTriangle, BadgeCheck, Clock3, Landmark, ShieldCheck, Vote, WalletCards } from "lucide-react";
+import { AlertTriangle, BadgeCheck, Bot, Clock3, Landmark, ListChecks, ShieldCheck, Vote, WalletCards } from "lucide-react";
 import { ViewHeader } from "../components/ViewHeader";
+import { agentSafetyRules, maintenanceRunbook } from "../domain/operations";
 import {
   authorityControls,
   platformBoundaries,
@@ -30,6 +31,48 @@ export function GovernanceView({ votingActive }: { votingActive: boolean }) {
               <strong>{boundary.label}</strong>
               <p>{boundary.detail}</p>
             </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="governance-section">
+        <div className="view-header">
+          <div>
+            <ListChecks size={20} />
+            <strong>Ops Console</strong>
+          </div>
+          <span>Non-specialist operator mode</span>
+        </div>
+        <div className="authority-grid ops-grid">
+          {maintenanceRunbook.slice(0, 6).map((item) => (
+            <article className={`authority-card ops-card ${item.automationMode.toLowerCase()}`} key={item.id}>
+              <div className="authority-card-top">
+                <ListChecks size={17} />
+                <span>{formatLabel(item.cadence)}</span>
+              </div>
+              <strong>{item.label}</strong>
+              <p>{item.operatorAction}</p>
+              <em>{formatLabel(item.automationMode)}{item.script ? ` / ${item.script}` : ""}</em>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="governance-section">
+        <div className="view-header">
+          <div>
+            <Bot size={20} />
+            <strong>AI Agent Boundaries</strong>
+          </div>
+          <span>Assistive, not custodial</span>
+        </div>
+        <div className="policy-strip agent-policy-strip">
+          {agentSafetyRules.map((rule) => (
+            <div className={rule.allowed ? "allowed" : "blocked"} key={rule.id}>
+              <span>{rule.allowed ? "Allowed" : "Blocked"}</span>
+              <strong>{rule.label}</strong>
+              <em>{rule.detail}</em>
+            </div>
           ))}
         </div>
       </section>
