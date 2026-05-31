@@ -178,6 +178,9 @@ export function parseRypAmountToBaseUnits(amountUi: number | string, decimals: n
 
   const paddedFraction = fraction.padEnd(decimals, "0");
   const baseUnits = BigInt(whole) * 10n ** BigInt(decimals) + BigInt(paddedFraction || "0");
+  if (baseUnits === 0n) {
+    throw new Error("RYP amount must be greater than zero");
+  }
   assertU64(baseUnits);
   return baseUnits.toString();
 }

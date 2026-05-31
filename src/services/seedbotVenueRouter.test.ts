@@ -94,4 +94,47 @@ describe("seedbot venue router", () => {
     expect(plan.blockedReasons).toEqual(["Antarctic Exchange is blocked pending venue due diligence."]);
     expect(plan.routes[0].orderPreview).toEqual([]);
   });
+
+  it("downgrades signed execution requests while the feature flag is disabled", () => {
+    const strategy = seedBotStrategies.find((item) => item.preferredVenueId === "HYPERLIQUID")!;
+    const plan = buildSeedBotRoutePlan({ strategy, mode: "WALLET_SIGNED" });
+
+    expect(plan.mode).toBe("DRY_RUN");
+    expect(plan.routes[0].mode).toBe("DRY_RUN");
+    expect(plan.blockedReasons).toContain("SeedBot signed execution feature flag is disabled.");
+  });
+
+  it("blocks malformed allocation weights before route execution", () => {
+    const strategy: SeedBotStrategy = {
+      id: "bad-weights",
+      name: "Bad Weights",
+      summary: "Bad weight test",
+      risk: "HIGH",
+      minimumAccess: "FRUIT",
+      preferredVenueId: "JUPITER",
+      performance: [{ window: "7D", returnPercent: 0, points: [0, 0] }],
+      feeModel: seedBotPerformanceFeeModel,
+      allocationModes: ["BASKET"],
+      assets: [
+        {
+          symbol: "SOL",
+          chain: "SOLANA",
+          walletRoute: "PHANTOM",
+          venueId: "JUPITER",
+          targetWeightPercent: 80,
+        },
+        {
+          symbol: "RYP",
+          chain: "SOLANA",
+          walletRoute: "PHANTOM",
+          venueId: "JUPITER",
+          targetWeightPercent: 10,
+        },
+      ],
+    };
+
+    const plan = buildSeedBotRoutePlan({ strategy });
+
+    expect(plan.blockedReasons).toContain("SeedBot strategy target weights must total 100%; received 90%.");
+  });
 });

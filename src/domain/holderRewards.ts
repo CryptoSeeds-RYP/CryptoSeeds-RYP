@@ -276,7 +276,16 @@ function validateRewardEpochInput(input: HolderRewardEpochInput) {
   if (input.minimumNetPayoutBaseUnits < 0n) {
     throw new Error("Minimum net payout cannot be negative.");
   }
+  const seenWallets = new Set<string>();
   for (const entry of input.entries) {
+    const walletKey = entry.walletAddress.trim();
+    if (!walletKey) {
+      throw new Error("Snapshot wallet address cannot be empty.");
+    }
+    if (seenWallets.has(walletKey)) {
+      throw new Error(`Duplicate snapshot wallet address: ${entry.walletAddress}.`);
+    }
+    seenWallets.add(walletKey);
     if (entry.rypBalanceBaseUnits < 0n) {
       throw new Error(`Snapshot balance cannot be negative for ${entry.walletAddress}.`);
     }

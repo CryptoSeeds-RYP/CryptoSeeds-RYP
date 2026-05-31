@@ -62,6 +62,48 @@ describe("solana broadcast readiness", () => {
     expect(readiness.blockers.join(" ")).toContain("program id does not match");
   });
 
+  it("requires a complete signed receipt before broadcast review", () => {
+    const devnetProgramId = Keypair.generate().publicKey.toBase58();
+    const plan = withProgramId(
+      buildStakeRypTransactionPlan({ ownerAddress: walletAddress, tier: "SEED" }),
+      devnetProgramId,
+    );
+    const readiness = buildSolanaBroadcastReadiness({
+      config: readyConfig({ cluster: "devnet", protocolDeployment: "devnet", protocolProgramId: devnetProgramId }),
+      plan,
+      signature: {
+        message: "Signed but incomplete",
+        signatureVerified: true,
+        status: "SIGNED",
+        warnings: [],
+      },
+    });
+
+    expect(readiness.status).toBe("BLOCKED");
+    expect(readiness.blockers).toContain("Wallet signature receipt is missing the fee payer.");
+    expect(readiness.blockers).toContain("Wallet signature receipt is missing the wallet address.");
+    expect(readiness.blockers).toContain("Wallet signature receipt is missing the signed message fingerprint.");
+  });
+
+  it("blocks signed receipts from a different wallet even when the fee payer field matches", () => {
+    const devnetProgramId = Keypair.generate().publicKey.toBase58();
+    const plan = withProgramId(
+      buildStakeRypTransactionPlan({ ownerAddress: walletAddress, tier: "SEED" }),
+      devnetProgramId,
+    );
+    const readiness = buildSolanaBroadcastReadiness({
+      config: readyConfig({ cluster: "devnet", protocolDeployment: "devnet", protocolProgramId: devnetProgramId }),
+      plan,
+      signature: signedReceipt({
+        feePayer: plan.feePayer,
+        walletAddress: Keypair.generate().publicKey.toBase58(),
+      }),
+    });
+
+    expect(readiness.status).toBe("BLOCKED");
+    expect(readiness.blockers.join(" ")).toContain("wallet address does not match");
+  });
+
   it("blocks mainnet until a later launch review replaces this gate", () => {
     const mainnetProgramId = Keypair.generate().publicKey.toBase58();
     const plan = withProgramId(
@@ -93,7 +135,13 @@ function readyConfig(
   };
 }
 
-function signedReceipt({ feePayer }: { feePayer: string }): SolanaWalletSignatureReceipt {
+function signedReceipt({
+  feePayer,
+  walletAddress = feePayer,
+}: {
+  feePayer: string;
+  walletAddress?: string;
+}): SolanaWalletSignatureReceipt {
   return {
     feePayer,
     message: "Signed",
@@ -102,7 +150,7 @@ function signedReceipt({ feePayer }: { feePayer: string }): SolanaWalletSignatur
     signatureVerified: true,
     signedAt: "2026-05-31T00:00:00.000Z",
     status: "SIGNED",
-    walletAddress: feePayer,
+    walletAddress,
     warnings: [],
   };
 }

@@ -294,7 +294,7 @@ function nextLifecycleStatus(status: TransactionIntentStatus): TransactionIntent
   if (status === "DRAFT") return "DRAFT";
   if (status === "READY") return "AWAITING_SIGNATURE";
   if (status === "AWAITING_SIGNATURE") return "SIGNED";
-  if (status === "SIGNED") return "BROADCAST";
+  if (status === "SIGNED") return "SIGNED";
   if (status === "BROADCAST") return "CONFIRMED";
   return status;
 }

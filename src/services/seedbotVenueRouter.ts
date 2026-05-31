@@ -47,19 +47,26 @@ export function buildSeedBotRoutePlan({
   strategy: SeedBotStrategy;
   mode?: SeedBotExecutionMode;
 }): SeedBotRoutePlan {
+  const requestedMode = mode;
+  const executionBlocked = requestedMode === "WALLET_SIGNED" && !appConfig.seedBotSignedExecutionEnabled;
+  const routeMode = executionBlocked ? "DRY_RUN" : requestedMode;
   const venueIds = Array.from(new Set(strategy.assets.map((asset) => asset.venueId)));
   const routes = venueIds
-    .map((venueId) => buildVenueRoute({ strategy, venueId, mode }))
+    .map((venueId) => buildVenueRoute({ strategy, venueId, mode: routeMode }))
     .filter((route): route is SeedBotVenueRoute => Boolean(route));
-  const blockedReasons = routes.flatMap((route) => {
-    const venue = venueById(route.venueId);
-    return venue?.apiReady ? [] : [`${route.venueName} is blocked pending venue due diligence.`];
-  });
+  const blockedReasons = [
+    ...validateStrategyAssets(strategy.assets),
+    ...(executionBlocked ? ["SeedBot signed execution feature flag is disabled."] : []),
+    ...routes.flatMap((route) => {
+      const venue = venueById(route.venueId);
+      return venue?.apiReady ? [] : [`${route.venueName} is blocked pending venue due diligence.`];
+    }),
+  ];
 
   return {
     strategyId: strategy.id,
     strategyName: strategy.name,
-    mode,
+    mode: routeMode,
     routes,
     blockedReasons,
   };
@@ -215,4 +222,24 @@ function buildGrvtRoute({
       "Keep GRVT as secondary pilot until adapter is proven.",
     ],
   };
+}
+
+function validateStrategyAssets(assets: SeedBotStrategyAsset[]) {
+  const blockers: string[] = [];
+  if (assets.length === 0) {
+    blockers.push("SeedBot strategy has no routeable assets.");
+    return blockers;
+  }
+
+  const totalWeightPercent = assets.reduce((total, asset) => total + asset.targetWeightPercent, 0);
+  for (const asset of assets) {
+    if (!Number.isFinite(asset.targetWeightPercent) || asset.targetWeightPercent <= 0 || asset.targetWeightPercent > 100) {
+      blockers.push(`${asset.symbol} target weight must be greater than 0 and no more than 100%.`);
+    }
+  }
+  if (totalWeightPercent !== 100) {
+    blockers.push(`SeedBot strategy target weights must total 100%; received ${totalWeightPercent}%.`);
+  }
+
+  return blockers;
 }

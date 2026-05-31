@@ -127,4 +127,21 @@ describe("holder rewards", () => {
     expect(holderRewardTierForBalance(500n * RYP).tier).toBe("SMALL");
     expect(holderRewardTierForBalance(1n).tier).toBe("MICRO");
   });
+
+  it("rejects duplicate holder snapshot rows before payout math", () => {
+    expect(() =>
+      buildHolderRewardEpoch({
+        id: "epoch-duplicate",
+        rewardMint: "RYP",
+        rewardPoolBaseUnits: 100_000n,
+        snapshotTakenAt: "2026-06-07T00:00:00.000Z",
+        estimatedDeliveryCostPerPayoutBaseUnits: 1_000n,
+        minimumNetPayoutBaseUnits: 2_000n,
+        entries: [
+          { walletAddress: "holder", rypBalanceBaseUnits: 20_000n * RYP },
+          { walletAddress: "holder", rypBalanceBaseUnits: 5_000n * RYP },
+        ],
+      }),
+    ).toThrow("Duplicate snapshot wallet address");
+  });
 });

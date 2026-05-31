@@ -420,6 +420,12 @@ pub mod cryptoseeds_protocol {
             reserved_delivery_cost_amount,
             rolled_forward_amount,
         )?;
+        let clock = Clock::get()?;
+        validate_reward_snapshot_timing(
+            snapshot_taken_at,
+            clock.unix_timestamp,
+            ctx.accounts.reward_config.epoch_cadence_seconds,
+        )?;
 
         let reward_config_key = ctx.accounts.reward_config.key();
         let reward_mint = ctx.accounts.reward_config.ryp_mint;
@@ -454,7 +460,6 @@ pub mod cryptoseeds_protocol {
             RewardVaultRole::Rollover,
         )?;
 
-        let clock = Clock::get()?;
         let reward_epoch = &mut ctx.accounts.reward_epoch;
         reward_epoch.reward_config = reward_config_key;
         reward_epoch.epoch_id = epoch_id;
@@ -1037,6 +1042,8 @@ pub enum CryptoSeedsError {
     RewardEpochUnbalanced,
     #[msg("Reward pool amount is invalid.")]
     InvalidRewardPool,
+    #[msg("Reward snapshot timing is outside the configured epoch cadence.")]
+    InvalidRewardSnapshotTiming,
 }
 
 fn validate_thresholds(thresholds: &[u64; 5]) -> Result<()> {
@@ -1052,11 +1059,17 @@ fn validate_thresholds(thresholds: &[u64; 5]) -> Result<()> {
 }
 
 fn validate_fee_reductions(base_fee_bps: u16, reductions: &[u16; 5]) -> Result<()> {
-    for reduction in reductions {
+    for (index, reduction) in reductions.iter().enumerate() {
         require!(
             *reduction <= base_fee_bps,
             CryptoSeedsError::InvalidFeeReduction
         );
+        if index > 0 {
+            require!(
+                *reduction >= reductions[index - 1],
+                CryptoSeedsError::InvalidFeeReduction
+            );
+        }
     }
 
     Ok(())
@@ -1133,6 +1146,26 @@ fn validate_reward_epoch_accounting(
     require!(
         accounted == reward_pool_amount,
         CryptoSeedsError::RewardEpochUnbalanced
+    );
+
+    Ok(())
+}
+
+fn validate_reward_snapshot_timing(
+    snapshot_taken_at: i64,
+    created_at: i64,
+    epoch_cadence_seconds: i64,
+) -> Result<()> {
+    require!(
+        snapshot_taken_at <= created_at,
+        CryptoSeedsError::InvalidRewardSnapshotTiming
+    );
+    let snapshot_age_seconds = created_at
+        .checked_sub(snapshot_taken_at)
+        .ok_or(CryptoSeedsError::MathOverflow)?;
+    require!(
+        snapshot_age_seconds <= epoch_cadence_seconds,
+        CryptoSeedsError::InvalidRewardSnapshotTiming
     );
 
     Ok(())
@@ -1242,6 +1275,7 @@ mod tests {
     fn blocks_fee_reductions_above_base_fee() {
         assert!(validate_fee_reductions(350, &[0, 35, 70, 105, 140]).is_ok());
         assert!(validate_fee_reductions(350, &[0, 35, 70, 105, 351]).is_err());
+        assert!(validate_fee_reductions(350, &[0, 70, 35, 105, 140]).is_err());
     }
 
     #[test]
@@ -1262,6 +1296,16 @@ mod tests {
         assert!(validate_reward_epoch_accounting(1_000, 700, 100, 200).is_ok());
         assert!(validate_reward_epoch_accounting(1_000, 700, 100, 199).is_err());
         assert!(validate_reward_epoch_accounting(0, 0, 0, 0).is_err());
+    }
+
+    #[test]
+    fn validates_reward_snapshot_timing_against_cadence() {
+        let now = 1_800_000_000;
+        let weekly_cadence = 7 * 24 * 60 * 60;
+
+        assert!(validate_reward_snapshot_timing(now - weekly_cadence, now, weekly_cadence).is_ok());
+        assert!(validate_reward_snapshot_timing(now + 1, now, weekly_cadence).is_err());
+        assert!(validate_reward_snapshot_timing(now - weekly_cadence - 1, now, weekly_cadence).is_err());
     }
 
     #[test]

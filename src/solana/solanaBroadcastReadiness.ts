@@ -56,8 +56,20 @@ function broadcastBlockers({
   if (!signature) blockers.push("No wallet signature receipt is available.");
   if (signature && signature.status !== "SIGNED") blockers.push("Wallet signature receipt is not signed.");
   if (signature && !signature.signatureVerified) blockers.push("Wallet signature receipt is not verified.");
-  if (plan && signature?.feePayer && plan.feePayer !== signature.feePayer) {
-    blockers.push("Wallet signature fee payer does not match the prepared transaction plan.");
+  if (plan && signature) {
+    if (!signature.feePayer) {
+      blockers.push("Wallet signature receipt is missing the fee payer.");
+    } else if (plan.feePayer !== signature.feePayer) {
+      blockers.push("Wallet signature fee payer does not match the prepared transaction plan.");
+    }
+    if (!signature.walletAddress) {
+      blockers.push("Wallet signature receipt is missing the wallet address.");
+    } else if (plan.feePayer !== signature.walletAddress) {
+      blockers.push("Wallet signature wallet address does not match the prepared transaction fee payer.");
+    }
+    if (!signature.messageFingerprint) {
+      blockers.push("Wallet signature receipt is missing the signed message fingerprint.");
+    }
   }
   if (!config.solanaBroadcastEnabled) blockers.push("Solana broadcast is disabled by environment flag.");
   if (config.demoMode) blockers.push("Demo mode must be disabled before broadcast review.");

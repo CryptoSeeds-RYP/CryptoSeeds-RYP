@@ -115,18 +115,17 @@ describe("transaction intents", () => {
     expect(intent.accounts.some((account) => account.label.includes("Hyperliquid"))).toBe(true);
   });
 
-  it("advances and resets local lifecycle state without creating real execution", () => {
+  it("advances local lifecycle state only up to signature collection", () => {
     const readyIntent = buildStakePreviewIntent(walletAddress, "SPROUT");
     const awaitingSignature = advanceTransactionIntent(readyIntent);
     const signed = advanceTransactionIntent(awaitingSignature);
     const broadcast = advanceTransactionIntent(signed);
-    const confirmed = advanceTransactionIntent(broadcast);
 
     expect(awaitingSignature.status).toBe("AWAITING_SIGNATURE");
     expect(signed.status).toBe("SIGNED");
-    expect(broadcast.status).toBe("BROADCAST");
-    expect(confirmed.status).toBe("CONFIRMED");
-    expect(resetTransactionIntent(confirmed).status).toBe("READY");
+    expect(broadcast.status).toBe("SIGNED");
+    expect(broadcast.lifecycle.find((step) => step.id === "broadcast")?.status).toBe("CURRENT");
+    expect(resetTransactionIntent(broadcast).status).toBe("READY");
   });
 
   it("marks real signature receipts as signed while keeping broadcast blocked", () => {
