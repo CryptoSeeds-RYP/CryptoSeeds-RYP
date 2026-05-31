@@ -31,6 +31,9 @@ jobs:
       - name: Audit visual assets
         run: npm run visual:audit
 
+      - name: Audit source copy guardrails
+        run: npm run copy:audit
+
       - name: Run unit tests
         run: npm test
 

@@ -12,6 +12,7 @@
     "protocol:check:win": "powershell -ExecutionPolicy Bypass -File scripts/check-anchor-windows.ps1",
     "protocol:test:win": "powershell -ExecutionPolicy Bypass -File scripts/test-anchor-windows.ps1",
     "protocol:test": "anchor test",
+    "copy:audit": "node scripts/audit-copy-guardrails.mjs",
     "token:check": "node scripts/check-ryp-mint.mjs",
     "visual:audit": "node scripts/audit-visual-assets.mjs"
   },

@@ -52,6 +52,7 @@ Deterministic app checks:
 
 ```bash
 npm run visual:audit
+npm run copy:audit
 npm test
 npm run build
 ```
