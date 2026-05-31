@@ -1,0 +1,52 @@
+# Platform Authority Model
+
+CryptoSeeds should operate as a self-custodial platform and interface layer. Users keep their assets in their own wallets. Project owners, operators, and charities should use disclosed receiving wallets or contracts. The CryptoSeeds treasury should be independent from founder, operator, project-owner, charity, and user wallets.
+
+## Boundaries
+
+| Boundary | Target Posture |
+| --- | --- |
+| User assets | User wallets only; no platform custody |
+| Project-owner funds | Disclosed project-owner wallets or contracts |
+| Charity flows | Separate donation wallets/contracts with no financial-return promise |
+| Treasury | Independent wallets, public labels, reporting cadence |
+| Platform fees | Transparent preview before wallet approval |
+| Founder/project-owner token holdings | Disclosed allocation, lockup/vesting expectations, conflict notes |
+
+## Authority Controls
+
+| Control | MVP State | Target Control |
+| --- | --- | --- |
+| Emergency pause | Localnet admin authority | Multisig authority with public incident log |
+| Fee parameters | Configurable | Multisig plus timelock before non-emergency changes |
+| Project registry | Disclosure required | Operator disclosure, document hashes, risk labels, governance approval |
+| Treasury wallets | Disclosure required | Independent multisig wallets with labels and reporting cadence |
+| SeedBot permissions | Disabled | Revocable permission registry before guarded automation |
+
+No authority control should custody user funds. Any authority that can affect user rights, fee parameters, project visibility, or automation permissions should emit logs and have a public policy before launch.
+
+## Fee Memory
+
+- Base platform/network fee: 350 bps.
+- Tier effective fees:
+  - Seed: 350 bps.
+  - Sprout: 315 bps.
+  - Sapling: 280 bps.
+  - Tree: 245 bps.
+  - Fruit: 210 bps.
+- Split buckets: holders, stakers, independent treasury.
+- Exact split percentages: configurable and not final.
+- SeedBot success-fee preview: 1200 bps on realized positive strategy PnL only, split 40% dev / 60% treasury, disabled for live use pending review.
+
+## Review Gates
+
+The following stay disabled, design-only, or disclosure-gated until reviewed:
+
+- SeedBot success fees.
+- Guarded automation.
+- Project financial rights.
+- Tokenized SPV/equity/debt/revenue mechanics.
+- Founder, operator, advisor, treasury, and community token allocation disclosures.
+- Fiat on/off ramps.
+- Leverage, perps, margin, copy trading, or strategy marketplace features.
+

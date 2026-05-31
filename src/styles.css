@@ -635,6 +635,9 @@ button:disabled {
 .project-slot,
 .review-block,
 .ledger-item,
+.governance-section,
+.authority-card,
+.policy-strip,
 .proposal-card,
 .terminal-panel {
   border: 1px solid rgba(236, 218, 157, 0.16);
@@ -1308,6 +1311,82 @@ button:disabled {
   color: #d8decf;
 }
 
+.governance-section {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+}
+
+.authority-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.authority-card {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  min-height: 156px;
+  padding: 14px;
+}
+
+.authority-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.authority-card-top svg {
+  color: #ecd882;
+}
+
+.authority-card strong,
+.policy-strip strong {
+  color: #fff8df;
+  line-height: 1.3;
+}
+
+.authority-card p {
+  margin: 0;
+  color: #d8decf;
+  line-height: 1.45;
+}
+
+.authority-card span,
+.policy-strip span {
+  color: #aeb9aa;
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.authority-card.disabled,
+.authority-card.review-blocked_until_review {
+  border-color: rgba(255, 163, 123, 0.36);
+  background: rgba(78, 43, 35, 0.58);
+}
+
+.authority-card.configurable,
+.authority-card.disclosure_required,
+.authority-card.review-disclosure_required {
+  border-color: rgba(236, 216, 130, 0.32);
+  background: rgba(76, 63, 30, 0.58);
+}
+
+.policy-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  padding: 14px;
+}
+
+.policy-strip div {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
 .vote-row {
   gap: 8px;
   margin-top: auto;
@@ -1868,6 +1947,8 @@ button:disabled {
   .metric-row,
   .visual-state-grid,
   .project-slot-grid,
+  .authority-grid,
+  .policy-strip,
   .project-grid,
   .project-detail-grid,
   .project-review-grid,
