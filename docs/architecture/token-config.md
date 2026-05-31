@@ -24,10 +24,12 @@ Live mainnet RPC sanity check:
 Current environment keys:
 
 ```bash
-VITE_SOLANA_CLUSTER=mainnet-beta
-VITE_SOLANA_RPC_URL=https://api.mainnet-beta.solana.com
+VITE_SOLANA_CLUSTER=localnet
+VITE_SOLANA_RPC_URL=http://127.0.0.1:8899
 VITE_RYP_MINT_ADDRESS=CFPzKkPYqpyfNJp3WDB4dykMemfhwYrV9cgNUy7nsoPD
 VITE_RYP_DECIMALS=6
+VITE_CRYPTOSEEDS_PROGRAM_DEPLOYMENT=placeholder
+VITE_SOLANA_BROADCAST_ENABLED=false
 ```
 
 ## Notes

@@ -8,6 +8,7 @@
     "build": "tsc && vite build",
     "preview": "vite preview --host 127.0.0.1",
     "test": "vitest run",
+    "devnet:readiness": "node scripts/check-devnet-readiness.mjs",
     "protocol:build": "anchor build --ignore-keys",
     "protocol:build:wsl": "powershell -ExecutionPolicy Bypass -File scripts/build-anchor-wsl.ps1",
     "protocol:check:win": "powershell -ExecutionPolicy Bypass -File scripts/check-anchor-windows.ps1",

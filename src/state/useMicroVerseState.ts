@@ -22,6 +22,7 @@ import {
   requestPreparedSolanaSignature,
   simulatePreparedSolanaTransaction,
 } from "../solana/solanaTransactionBoundary";
+import { buildSolanaBroadcastReadiness } from "../solana/solanaBroadcastReadiness";
 
 export function useMicroVerseState() {
   const { connection } = useConnection();
@@ -173,8 +174,13 @@ export function useMicroVerseState() {
       setIntent((current) => {
         if (current.id !== intentAtRequest.id) return current;
         const signedIntent = markSignedBroadcastDisabled(current);
+        const solanaBroadcastReadiness = buildSolanaBroadcastReadiness({
+          plan: intentAtRequest.preparedSolanaTransaction,
+          signature,
+        });
         return {
           ...current,
+          solanaBroadcastReadiness,
           solanaSignature: signature,
           status: signature.status === "SIGNED" ? signedIntent.status : current.status,
           lifecycle: signature.status === "SIGNED" ? signedIntent.lifecycle : current.lifecycle,

@@ -105,6 +105,19 @@ export type SolanaWalletSignatureReceipt = {
   warnings: string[];
 };
 
+export type SolanaBroadcastReadinessStatus = "BLOCKED" | "READY_FOR_REVIEW";
+
+export type SolanaBroadcastReadinessPreview = {
+  status: SolanaBroadcastReadinessStatus;
+  message: string;
+  action?: PreparedSolanaTransactionPlan["action"];
+  blockers: string[];
+  cluster: string;
+  programId: string;
+  signatureStatus?: SolanaWalletSignatureStatus;
+  warnings: string[];
+};
+
 export type RiskAcknowledgement = {
   id: string;
   label: string;
@@ -133,6 +146,7 @@ export type TransactionIntent = {
   preparedSolanaTransaction?: PreparedSolanaTransactionPlan;
   solanaBoundary?: SolanaWalletBoundaryPreview;
   solanaSignature?: SolanaWalletSignatureReceipt;
+  solanaBroadcastReadiness?: SolanaBroadcastReadinessPreview;
   lifecycle: TransactionLifecycleStep[];
   riskSummary: string;
   expectedResult: string;

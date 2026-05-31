@@ -220,6 +220,7 @@ export function resetTransactionIntent(intent: TransactionIntent): TransactionIn
   return {
     ...intent,
     solanaBoundary: undefined,
+    solanaBroadcastReadiness: undefined,
     solanaSignature: undefined,
     status: resetStatus,
     lifecycle: buildLifecycle(resetStatus),

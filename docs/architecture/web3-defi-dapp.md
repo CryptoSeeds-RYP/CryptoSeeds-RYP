@@ -64,6 +64,8 @@ The UI should show:
 
 For Solana staking actions, the app should simulate the prepared transaction before requesting a wallet signature. The returned signed message must match the simulated unsigned message exactly, and signed transaction bytes should not be stored or broadcast until a separate reviewed broadcast boundary exists.
 
+Broadcast readiness should be explicit, not implied by a signature. A signed receipt can show that the wallet approved the simulated message, but broadcast remains blocked unless environment, cluster, program id, deployment status, and review gates all pass.
+
 Examples:
 
 - Stake RYP

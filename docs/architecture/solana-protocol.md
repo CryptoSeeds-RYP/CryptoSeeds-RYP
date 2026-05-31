@@ -64,7 +64,14 @@ The next client boundary is `src/solana/solanaTransactionBoundary.ts`:
 - Blocks demo/disconnected wallets and fee-payer mismatches before any signature request
 - Runs RPC simulation with `sigVerify: false` and no wallet signature
 - Requests a wallet signature only after simulation passes, then stores a receipt rather than signed transaction bytes
+- Rejects signed receipts if the wallet returns a different message than the simulated preview
 - Keeps broadcast disabled until a later explicit signing and send boundary is reviewed
+
+Broadcast readiness is modeled separately in `src/solana/solanaBroadcastReadiness.ts`. It checks the signed receipt, demo mode, broadcast flag, program deployment status, placeholder program id, cluster/deployment match, and prepared instruction program ids. The repo-level command is:
+
+```bash
+npm run devnet:readiness
+```
 
 ## Deferred Modules
 

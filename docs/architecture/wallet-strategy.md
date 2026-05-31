@@ -46,6 +46,8 @@ If future bridging or multichain access is added, the transaction preview must c
 
 Solana wallet signatures must be requested only after a prepared transaction passes the simulation boundary. The signed transaction message must match the simulated unsigned message exactly. If the wallet adapter returns a changed message, unverifiable signature, changed fee payer, or missing preview, the app must fail closed and keep broadcast disabled.
 
+Broadcast readiness is a separate gate. A valid signature is necessary but not sufficient. The app must also verify the program id is no longer the placeholder, deployment status matches the selected cluster, demo mode is off, broadcast is explicitly enabled, and mainnet remains blocked until final launch review.
+
 ## Sources
 
 - Phantom Wallet Standard documentation: https://docs.phantom.com/developer-powertools/wallet-standard

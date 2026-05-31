@@ -160,6 +160,25 @@ export function TransactionPanel({
         </section>
       )}
 
+      {intent.solanaBroadcastReadiness && (
+        <section className={`transaction-subsection solana-broadcast-readiness ${intent.solanaBroadcastReadiness.status.toLowerCase()}`}>
+          <div className="panel-title">
+            <ShieldCheck size={16} />
+            <strong>Broadcast Readiness</strong>
+          </div>
+          <StateLine label="Readiness" value={formatLabel(intent.solanaBroadcastReadiness.status)} />
+          <StateLine label="Cluster" value={intent.solanaBroadcastReadiness.cluster} />
+          <StateLine label="Program" value={shorten(intent.solanaBroadcastReadiness.programId)} />
+          <span>{intent.solanaBroadcastReadiness.message}</span>
+          {intent.solanaBroadcastReadiness.blockers.map((blocker) => (
+            <span key={blocker}>{blocker}</span>
+          ))}
+          {intent.solanaBroadcastReadiness.warnings.map((warning) => (
+            <span key={warning}>{warning}</span>
+          ))}
+        </section>
+      )}
+
       {intent.acknowledgement && (
         <section className="transaction-subsection acknowledgement-summary">
           <div className="panel-title">
