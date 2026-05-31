@@ -15,8 +15,9 @@ The current local machine has two verification paths:
 
 - Windows host-side Rust checks through `npm run protocol:check:win` and `npm run protocol:test:win`.
 - WSL Solana/Anchor checks through `npm run protocol:build:wsl` and `npm run protocol:test:wsl`.
+- WSL local validator smoke checks through `npm run protocol:smoke:localnet:wsl`.
 
-The WSL route is the primary local path for Anchor builds. Full deployment verification still needs a synced program id and local validator/devnet deployment review.
+The WSL route is the primary local path for Anchor builds. The localnet smoke check preloads the compiled SBF program with `solana-test-validator --bpf-program`, creates a test RYP-like mint, initializes config, stakes, and unstakes. Full public deployment verification still needs a synced devnet/mainnet program id and key-management review.
 
 ## First Program
 

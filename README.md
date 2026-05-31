@@ -69,6 +69,7 @@ WSL Anchor protocol checks:
 ```powershell
 npm run protocol:build:wsl
 npm run protocol:test:wsl
+npm run protocol:smoke:localnet:wsl
 ```
 
 GitHub Actions runs app and host-side protocol checks on pushes and pull requests. The public RYP mint authority check runs as a scheduled/manual external audit because it depends on public Solana RPC availability.
@@ -83,6 +84,8 @@ npm run protocol:test
 ```
 
 Rust, Cargo, Solana/Agave tooling, Anchor, and Node must be installed before protocol builds can run locally. The current Windows machine has a working Ubuntu 24.04 WSL2 route; see `docs/setup/wsl-solana-status.md`.
+
+`protocol:smoke:localnet:wsl` builds the Anchor program, starts a disposable local Solana validator, preloads the program at the declared Anchor id, creates a test RYP-like mint, initializes protocol config, stakes Seed-tier tokens, then unstakes them.
 
 ## Guardrails
 

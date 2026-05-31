@@ -45,6 +45,7 @@ WSL Solana/Anchor checks from Windows PowerShell:
 ```powershell
 npm run protocol:build:wsl
 npm run protocol:test:wsl
+npm run protocol:smoke:localnet:wsl
 ```
 
 Native Linux/WSL commands:
@@ -71,4 +72,5 @@ The WSL route is now the primary Solana/Anchor path.
 
 - `npm run protocol:build:wsl` passes.
 - `npm run protocol:test:wsl` passes.
+- `npm run protocol:smoke:localnet:wsl` passes against a disposable local validator.
 - `npm run protocol:check:win` and `npm run protocol:test:win` remain useful host-side Rust checks.
