@@ -77,6 +77,8 @@ The fee router must:
 - keep holder, staker, and treasury buckets visible,
 - validate that configured split shares total 10,000 bps,
 - allocate rounding remainder deterministically,
+- support net-of-cost holder payouts where delivery costs are deducted from each holder's allocation,
+- roll dusty allocations forward into monthly, quarterly, or claim-only windows,
 - emit events for indexers,
 - avoid hidden custody or hidden fee movement,
 - keep SeedBot success-fee logic separate and review-gated.

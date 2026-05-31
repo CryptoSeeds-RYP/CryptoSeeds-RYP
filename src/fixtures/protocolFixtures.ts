@@ -324,6 +324,14 @@ export const rewards: Reward[] = [
     status: "READY",
   },
   {
+    id: "holder-reward-roll-forward",
+    type: "FEE_SHARE",
+    label: "Passive holder reward window",
+    source: "Weekly holder snapshot / net-of-cost payout",
+    status: "PENDING",
+    amount: "Roll-forward estimate",
+  },
+  {
     id: "governance-badge",
     type: "GOVERNANCE",
     label: "Governance participation mark",

@@ -1374,6 +1374,7 @@ button:disabled {
 .authority-card.review-disclosure_required,
 .authority-card.ops-card.approval_required,
 .authority-card.ops-card.draft_only,
+.authority-card.holder-tier-card,
 .authority-card.fee-route-card.configurable_not_final,
 .authority-card.fee-route-card.draft_preview,
 .authority-card.admin-action-card.review_gated,

@@ -308,7 +308,18 @@ Avoid:
 - money grows here
 - safe investment
 
-Holder rewards accumulate indefinitely until claimed. If unclaimed after 1 year, they may be redistributed back into the ecosystem. This must be implemented carefully and represented clearly.
+Holder rewards should be treated as Passive Holder Rewards, separate from staking rewards. Users can keep RYP in their own wallets and still be eligible for the holder-fee bucket when platform fees fund it.
+
+Passive Holder Rewards should use weekly snapshots but net-of-cost payout logic:
+
+- gross holder allocation is calculated from the snapshot,
+- delivery costs are deducted from the holder's own allocation,
+- CryptoSeeds does not subsidize payout delivery from dev or treasury funds,
+- small allocations roll forward instead of being paid as dust,
+- larger holders can clear weekly if their net payout is meaningful,
+- smaller holders may use monthly, quarterly, or claim-only windows.
+
+Holder rewards may accumulate until claimed or batched. If unclaimed after 1 year, they may be redistributed back into the ecosystem. This must be implemented carefully and represented clearly.
 
 ## NFT Identity
 

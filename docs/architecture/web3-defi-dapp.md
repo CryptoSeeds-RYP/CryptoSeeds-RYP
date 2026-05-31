@@ -90,6 +90,8 @@ Staking is the core access mechanism. It drives tiers, Golden Key NFT status, Vo
 
 Rewards should be claimable, transparent, and conservative. The UI should distinguish staking rewards, fee-share rewards, project updates, NFT achievements, airdrops, and donation impact updates.
 
+Passive Holder Rewards are a separate holder bucket for self-custodial RYP holders who do not stake. The weekly engine should deduct delivery costs from each holder's gross allocation, roll small allocations forward, and use less frequent payout windows for small holders so the system is not subsidized by dev or treasury funds.
+
 ### Treasury and Fees
 
 The RYP token-transfer fee target is 1% and should use the same holder, staker, and independent treasury bucket model as the platform/action fee policy.
