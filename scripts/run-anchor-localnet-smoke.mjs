@@ -44,6 +44,15 @@ const REWARD_ROLES = [
 ];
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const rewardAccountLayouts = JSON.parse(
+  await readFile(path.join(repoRoot, "src", "solana", "protocolAccountLayouts.json"), "utf8"),
+);
+const rewardAccountOffsets = Object.fromEntries(
+  Object.entries(rewardAccountLayouts).map(([accountName, layout]) => [
+    accountName,
+    Object.fromEntries(layout.fields.map((field) => [field.name, field.offset])),
+  ]),
+);
 const programId = new PublicKey(await readProgramId());
 const programSoPath = resolveProgramSoPath();
 const ledgerPath = path.join(repoRoot, "target", "localnet-smoke-ledger");
@@ -965,53 +974,78 @@ function parseStakePosition(data) {
 }
 
 function parseRewardConfig(data) {
+  assertRewardAccountLayout(data, "RewardConfig");
+  const offset = rewardAccountOffsets.RewardConfig;
+
   return {
-    authority: new PublicKey(data.subarray(8, 40)),
-    protocolConfig: new PublicKey(data.subarray(40, 72)),
-    rypMint: new PublicKey(data.subarray(72, 104)),
-    epochCadenceSeconds: data.readBigInt64LE(104),
-    holderSplitBps: data.readUInt16LE(112),
-    stakerSplitBps: data.readUInt16LE(114),
-    treasurySplitBps: data.readUInt16LE(116),
-    registeredVaultRolesMask: data.readUInt8(118),
-    verifiedVaultRolesMask: data.readUInt8(119),
-    totalEpochDrafts: data.readBigUInt64LE(120),
-    paused: data.readUInt8(128) === 1,
-    draftOnly: data.readUInt8(129) === 1,
-    bump: data.readUInt8(130),
+    authority: new PublicKey(data.subarray(offset.authority, offset.authority + 32)),
+    protocolConfig: new PublicKey(data.subarray(offset.protocol_config, offset.protocol_config + 32)),
+    rypMint: new PublicKey(data.subarray(offset.ryp_mint, offset.ryp_mint + 32)),
+    epochCadenceSeconds: data.readBigInt64LE(offset.epoch_cadence_seconds),
+    holderSplitBps: data.readUInt16LE(offset.holder_split_bps),
+    stakerSplitBps: data.readUInt16LE(offset.staker_split_bps),
+    treasurySplitBps: data.readUInt16LE(offset.treasury_split_bps),
+    registeredVaultRolesMask: data.readUInt8(offset.registered_vault_roles_mask),
+    verifiedVaultRolesMask: data.readUInt8(offset.verified_vault_roles_mask),
+    totalEpochDrafts: data.readBigUInt64LE(offset.total_epoch_drafts),
+    paused: data.readUInt8(offset.paused) === 1,
+    draftOnly: data.readUInt8(offset.draft_only) === 1,
+    bump: data.readUInt8(offset.bump),
   };
 }
 
 function parseRewardVaultState(data) {
+  assertRewardAccountLayout(data, "RewardVaultState");
+  const offset = rewardAccountOffsets.RewardVaultState;
+
   return {
-    rewardConfig: new PublicKey(data.subarray(8, 40)),
-    role: data.readUInt8(40),
-    rewardMint: new PublicKey(data.subarray(41, 73)),
-    vaultAddress: new PublicKey(data.subarray(73, 105)),
-    custodyModel: data.readUInt8(105),
-    verificationStatus: data.readUInt8(106),
-    metadataHash: data.subarray(107, 139),
-    receivesUserFunds: data.readUInt8(139) === 1,
-    bump: data.readUInt8(140),
+    rewardConfig: new PublicKey(data.subarray(offset.reward_config, offset.reward_config + 32)),
+    role: data.readUInt8(offset.role),
+    rewardMint: new PublicKey(data.subarray(offset.reward_mint, offset.reward_mint + 32)),
+    vaultAddress: new PublicKey(data.subarray(offset.vault_address, offset.vault_address + 32)),
+    custodyModel: data.readUInt8(offset.custody_model),
+    verificationStatus: data.readUInt8(offset.verification_status),
+    metadataHash: data.subarray(offset.metadata_hash, offset.metadata_hash + 32),
+    receivesUserFunds: data.readUInt8(offset.receives_user_funds) === 1,
+    bump: data.readUInt8(offset.bump),
   };
 }
 
 function parseRewardEpoch(data) {
+  assertRewardAccountLayout(data, "RewardEpoch");
+  const offset = rewardAccountOffsets.RewardEpoch;
+
   return {
-    rewardConfig: new PublicKey(data.subarray(8, 40)),
-    epochId: data.readBigUInt64LE(40),
-    snapshotTakenAt: data.readBigInt64LE(48),
-    createdAt: data.readBigInt64LE(56),
-    rewardMint: new PublicKey(data.subarray(64, 96)),
-    rewardPoolAmount: data.readBigUInt64LE(96),
-    distributedNetAmount: data.readBigUInt64LE(104),
-    reservedDeliveryCostAmount: data.readBigUInt64LE(112),
-    rolledForwardAmount: data.readBigUInt64LE(120),
-    exclusionListHash: data.subarray(128, 160),
-    status: data.readUInt8(160),
-    executionBlocked: data.readUInt8(161) === 1,
-    bump: data.readUInt8(162),
+    rewardConfig: new PublicKey(data.subarray(offset.reward_config, offset.reward_config + 32)),
+    epochId: data.readBigUInt64LE(offset.epoch_id),
+    snapshotTakenAt: data.readBigInt64LE(offset.snapshot_taken_at),
+    createdAt: data.readBigInt64LE(offset.created_at),
+    rewardMint: new PublicKey(data.subarray(offset.reward_mint, offset.reward_mint + 32)),
+    rewardPoolAmount: data.readBigUInt64LE(offset.reward_pool_amount),
+    distributedNetAmount: data.readBigUInt64LE(offset.distributed_net_amount),
+    reservedDeliveryCostAmount: data.readBigUInt64LE(offset.reserved_delivery_cost_amount),
+    rolledForwardAmount: data.readBigUInt64LE(offset.rolled_forward_amount),
+    exclusionListHash: data.subarray(offset.exclusion_list_hash, offset.exclusion_list_hash + 32),
+    status: data.readUInt8(offset.status),
+    executionBlocked: data.readUInt8(offset.execution_blocked) === 1,
+    bump: data.readUInt8(offset.bump),
   };
+}
+
+function assertRewardAccountLayout(data, accountName) {
+  const layout = rewardAccountLayouts[accountName];
+  if (data.length < layout.minimumLength) {
+    throw new Error(`${accountName} localnet account is too small: expected at least ${layout.minimumLength} bytes.`);
+  }
+
+  const actualDiscriminator = bytesToHex([...data.subarray(0, 8)]);
+  if (actualDiscriminator !== layout.discriminatorHex) {
+    throw new Error(`${accountName} localnet discriminator mismatch: expected ${layout.discriminatorHex}.`);
+  }
+}
+
+function bytesToHex(bytes) {
+  return bytes.map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
 function discriminator(name) {
