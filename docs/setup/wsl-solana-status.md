@@ -84,7 +84,12 @@ Current protocol unit-test result:
 `protocol:smoke:localnet:wsl` starts a disposable local Solana validator and verifies:
 
 - `initialize_config`
+- rejected duplicate tier thresholds
+- rejected below-Seed stake
 - `stake_ryp`
+- rejected mismatched-owner unstake
+- rejected non-authority pause
+- pause enforcement for stake and unstake
 - `unstake_ryp`
 
 The localnet smoke test preloads the compiled SBF program with `solana-test-validator --bpf-program`, so it does not require committing or funding a local program keypair.

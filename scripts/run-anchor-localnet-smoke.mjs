@@ -57,17 +57,20 @@ process.exit(0);
 async function runSmoke(connection) {
   const authority = Keypair.generate();
   const owner = Keypair.generate();
+  const intruder = Keypair.generate();
   const mint = Keypair.generate();
   log("funding authority and owner wallets");
   await fund(connection, authority.publicKey, 10);
   await fund(connection, owner.publicKey, 10);
+  await fund(connection, intruder.publicKey, 10);
 
   const [config] = PublicKey.findProgramAddressSync([Buffer.from("config")], programId);
   const [position] = PublicKey.findProgramAddressSync([Buffer.from("stake-position"), owner.publicKey.toBuffer()], programId);
   const ownerRypAccount = deriveAssociatedTokenAddress({ mint: mint.publicKey, owner: owner.publicKey });
+  const intruderRypAccount = deriveAssociatedTokenAddress({ mint: mint.publicKey, owner: intruder.publicKey });
   const rypVault = deriveAssociatedTokenAddress({ mint: mint.publicKey, owner: config });
 
-  log("creating test mint and owner token account");
+  log("creating test mint and token accounts");
   await createMint(connection, { authority, mint });
   await createAssociatedTokenAccount(connection, {
     mint: mint.publicKey,
@@ -75,12 +78,33 @@ async function runSmoke(connection) {
     payer: authority,
     tokenAccount: ownerRypAccount,
   });
+  await createAssociatedTokenAccount(connection, {
+    mint: mint.publicKey,
+    owner: intruder.publicKey,
+    payer: authority,
+    tokenAccount: intruderRypAccount,
+  });
   await mintTo(connection, {
     amount: SEED_STAKE_AMOUNT,
     authority,
     destination: ownerRypAccount,
     mint: mint.publicKey,
   });
+
+  log("asserting invalid config thresholds are rejected");
+  await expectFailure(
+    "initialize_config rejects duplicate tier thresholds",
+    () =>
+      initializeConfig(connection, {
+        authority,
+        config,
+        mint: mint.publicKey,
+        rypVault,
+        tierThresholds: [5n, 20n, 20n, 100n, 150n],
+      }),
+    "custom program error: 0x1774",
+  );
+  await assertMissingAccount(connection, config, "config after rejected initialize_config");
 
   log("calling initialize_config");
   await initializeConfig(connection, {
@@ -97,6 +121,24 @@ async function runSmoke(connection) {
   assertEqual("base fee bps", initializedConfig.baseFeeBps, BASE_FEE_BPS);
   assertEqual("initial total staked", initializedConfig.totalStaked, 0n);
   assertEqual("initial pause state", initializedConfig.paused, false);
+
+  log("asserting below-tier stake is rejected");
+  await expectFailure(
+    "stake_ryp rejects below Seed tier amount",
+    () =>
+      stakeRyp(connection, {
+        amount: 1n,
+        config,
+        mint: mint.publicKey,
+        owner,
+        ownerRypAccount,
+        position,
+        rypVault,
+      }),
+    "custom program error: 0x1776",
+  );
+  await assertMissingAccount(connection, position, "position after below-tier stake");
+  assertEqual("vault balance after rejected below-tier stake", await readTokenBalance(connection, rypVault), 0n);
 
   log("calling stake_ryp");
   await stakeRyp(connection, {
@@ -119,6 +161,66 @@ async function runSmoke(connection) {
   assertEqual("golden key active", stakedPosition.goldenKeyActive, true);
   assertEqual("voting rights initially inactive", stakedPosition.votingRightsActive, false);
   assertEqual("vault balance after stake", stakedVaultBalance, SEED_STAKE_AMOUNT);
+
+  log("asserting unauthorized unstake is rejected");
+  await expectFailure(
+    "unstake_ryp rejects mismatched owner/position",
+    () =>
+      unstakeRyp(connection, {
+        amount: 1n,
+        config,
+        mint: mint.publicKey,
+        owner: intruder,
+        ownerRypAccount: intruderRypAccount,
+        position,
+        rypVault,
+      }),
+    "A seeds constraint was violated",
+  );
+  assertEqual("vault balance after rejected unauthorized unstake", await readTokenBalance(connection, rypVault), SEED_STAKE_AMOUNT);
+
+  log("asserting unauthorized pause is rejected");
+  await expectFailure(
+    "set_pause rejects non-authority signer",
+    () => setPause(connection, { authority: intruder, config, paused: true }),
+    "custom program error: 0x1772",
+  );
+  assertEqual("pause state after unauthorized set_pause", parseProtocolConfig(await getAccountData(connection, config)).paused, false);
+
+  log("asserting pause blocks staking and unstaking");
+  await setPause(connection, { authority, config, paused: true });
+  assertEqual("pause state after authority pause", parseProtocolConfig(await getAccountData(connection, config)).paused, true);
+  await expectFailure(
+    "stake_ryp rejects while paused",
+    () =>
+      stakeRyp(connection, {
+        amount: SEED_STAKE_AMOUNT,
+        config,
+        mint: mint.publicKey,
+        owner,
+        ownerRypAccount,
+        position,
+        rypVault,
+      }),
+    "custom program error: 0x1771",
+  );
+  await expectFailure(
+    "unstake_ryp rejects while paused",
+    () =>
+      unstakeRyp(connection, {
+        amount: 1n,
+        config,
+        mint: mint.publicKey,
+        owner,
+        ownerRypAccount,
+        position,
+        rypVault,
+      }),
+    "custom program error: 0x1771",
+  );
+  assertEqual("vault balance after paused attempts", await readTokenBalance(connection, rypVault), SEED_STAKE_AMOUNT);
+  await setPause(connection, { authority, config, paused: false });
+  assertEqual("pause state after authority unpause", parseProtocolConfig(await getAccountData(connection, config)).paused, false);
 
   log("calling unstake_ryp");
   await unstakeRyp(connection, {
@@ -150,20 +252,40 @@ async function runSmoke(connection) {
     config: config.toBase58(),
     position: position.toBase58(),
     rypVault: rypVault.toBase58(),
-    checked: ["initialize_config", "stake_ryp", "unstake_ryp"],
+    checked: [
+      "initialize_config",
+      "reject_invalid_thresholds",
+      "reject_below_tier_stake",
+      "stake_ryp",
+      "reject_unauthorized_unstake",
+      "reject_unauthorized_pause",
+      "pause_blocks_stake_and_unstake",
+      "unstake_ryp",
+    ],
   };
 }
 
-async function initializeConfig(connection, { authority, config, mint, rypVault }) {
+async function initializeConfig(
+  connection,
+  {
+    authority,
+    baseFeeBps = BASE_FEE_BPS,
+    config,
+    mint,
+    rypVault,
+    tierFeeReductions = TIER_FEE_REDUCTIONS,
+    tierThresholds = TIER_THRESHOLDS,
+  },
+) {
   const data = Buffer.alloc(8 + 2 + 5 * 8 + 5 * 2);
   discriminator("initialize_config").copy(data, 0);
-  data.writeUInt16LE(BASE_FEE_BPS, 8);
+  data.writeUInt16LE(baseFeeBps, 8);
   let offset = 10;
-  for (const threshold of TIER_THRESHOLDS) {
+  for (const threshold of tierThresholds) {
     data.writeBigUInt64LE(threshold, offset);
     offset += 8;
   }
-  for (const reduction of TIER_FEE_REDUCTIONS) {
+  for (const reduction of tierFeeReductions) {
     data.writeUInt16LE(reduction, offset);
     offset += 2;
   }
@@ -179,6 +301,19 @@ async function initializeConfig(connection, { authority, config, mint, rypVault 
       accountMeta(ASSOCIATED_TOKEN_PROGRAM_ID, false, false),
       accountMeta(SystemProgram.programId, false, false),
     ],
+    data,
+  });
+
+  await sendAndConfirm(connection, new Transaction().add(instruction), [authority]);
+}
+
+async function setPause(connection, { authority, config, paused }) {
+  const data = Buffer.alloc(9);
+  discriminator("set_pause").copy(data, 0);
+  data.writeUInt8(paused ? 1 : 0, 8);
+  const instruction = new TransactionInstruction({
+    programId,
+    keys: [accountMeta(authority.publicKey, true, false), accountMeta(config, false, true)],
     data,
   });
 
@@ -327,6 +462,13 @@ async function getAccountData(connection, publicKey) {
   return accountInfo.data;
 }
 
+async function assertMissingAccount(connection, publicKey, label) {
+  const accountInfo = await connection.getAccountInfo(publicKey, "confirmed");
+  if (accountInfo) {
+    throw new Error(`${label}: expected account to be missing`);
+  }
+}
+
 function parseProtocolConfig(data) {
   return {
     authority: new PublicKey(data.subarray(8, 40)),
@@ -374,6 +516,21 @@ function assertEqual(label, actual, expected) {
   if (actual !== expected) {
     throw new Error(`${label}: expected ${expected.toString()}, received ${actual.toString()}`);
   }
+}
+
+async function expectFailure(label, action, expectedMessage) {
+  try {
+    await action();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (expectedMessage && !message.includes(expectedMessage)) {
+      throw new Error(`${label}: expected failure including "${expectedMessage}", received "${message}"`);
+    }
+    log(`${label}: rejected as expected`);
+    return;
+  }
+
+  throw new Error(`${label}: expected transaction failure`);
 }
 
 async function readProgramId() {

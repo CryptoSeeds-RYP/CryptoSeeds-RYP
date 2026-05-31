@@ -85,7 +85,7 @@ npm run protocol:test
 
 Rust, Cargo, Solana/Agave tooling, Anchor, and Node must be installed before protocol builds can run locally. The current Windows machine has a working Ubuntu 24.04 WSL2 route; see `docs/setup/wsl-solana-status.md`.
 
-`protocol:smoke:localnet:wsl` builds the Anchor program, starts a disposable local Solana validator, preloads the program at the declared Anchor id, creates a test RYP-like mint, initializes protocol config, stakes Seed-tier tokens, then unstakes them.
+`protocol:smoke:localnet:wsl` builds the Anchor program, starts a disposable local Solana validator, preloads the program at the declared Anchor id, creates a test RYP-like mint, checks invalid config and unauthorized action rejections, initializes protocol config, stakes Seed-tier tokens, verifies pause enforcement, then unstakes them.
 
 ## Guardrails
 

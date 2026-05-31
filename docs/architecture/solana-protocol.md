@@ -17,7 +17,7 @@ The current local machine has two verification paths:
 - WSL Solana/Anchor checks through `npm run protocol:build:wsl` and `npm run protocol:test:wsl`.
 - WSL local validator smoke checks through `npm run protocol:smoke:localnet:wsl`.
 
-The WSL route is the primary local path for Anchor builds. The localnet smoke check preloads the compiled SBF program with `solana-test-validator --bpf-program`, creates a test RYP-like mint, initializes config, stakes, and unstakes. Full public deployment verification still needs a synced devnet/mainnet program id and key-management review.
+The WSL route is the primary local path for Anchor builds. The localnet smoke check preloads the compiled SBF program with `solana-test-validator --bpf-program`, creates a test RYP-like mint, checks invalid config and unauthorized action rejections, initializes config, stakes, verifies pause enforcement, and unstakes. Full public deployment verification still needs a synced devnet/mainnet program id and key-management review.
 
 ## First Program
 
@@ -38,6 +38,8 @@ Current scope:
 - Unstake RYP
 - Emergency pause
 - Emit protocol events
+
+Current localnet security coverage includes rejected duplicate tier thresholds, rejected below-Seed staking, rejected mismatched-owner unstaking, rejected non-authority pause attempts, and pause enforcement for both stake and unstake paths.
 
 Client preparation now has a TypeScript planning layer at `src/solana/protocolTransactionPlan.ts`:
 
@@ -98,3 +100,4 @@ For the first build, a single `cryptoseeds_protocol` program is acceptable while
 - Store token thresholds in base units
 - Use wallet-approved transactions only
 - Review all CPI signer seeds carefully before deployment
+- Keep localnet rejection tests current for config, stake, unstake, pause, and voting-right paths

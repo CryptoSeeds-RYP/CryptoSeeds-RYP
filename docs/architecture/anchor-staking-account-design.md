@@ -180,3 +180,14 @@ Do not include these in the first staking program deployment:
 - Governance proposal storage
 - SeedBot permissions
 - Treasury distribution
+
+## Current Localnet Coverage
+
+`npm run protocol:smoke:localnet:wsl` verifies the first staking happy path and several rejection paths against a disposable Solana validator:
+
+- invalid duplicate tier thresholds are rejected before config creation
+- below-Seed stake amounts are rejected before position creation or vault transfer
+- mismatched-owner unstake attempts are rejected
+- non-authority pause attempts are rejected
+- paused protocol state blocks stake and unstake
+- full unstake returns the vault balance and resets position state
