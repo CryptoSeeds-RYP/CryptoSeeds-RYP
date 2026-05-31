@@ -124,6 +124,7 @@ Frontend read-only model:
 The Admin Dashboard can derive and decode reward config, vault state, and draft epoch accounts for inspection. It does not expose reward setup, claim, payout, or vault-movement transaction builders.
 Reward account decoders verify Anchor account discriminators before reading account fields.
 The localnet Anchor smoke script uses the same layout manifest when parsing live reward accounts.
+The smoke result includes an `adminRewardInspection` report that mirrors the Admin Dashboard's read-only inspection posture against live localnet accounts.
 
 Localnet inspection:
 

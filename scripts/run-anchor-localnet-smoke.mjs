@@ -162,7 +162,7 @@ async function runSmoke(connection) {
   assertEqual("initial total staked", initializedConfig.totalStaked, 0n);
   assertEqual("initial pause state", initializedConfig.paused, false);
 
-  await runRewardSmoke(connection, {
+  const adminRewardInspection = await runRewardSmoke(connection, {
     authority,
     config,
     intruder,
@@ -390,6 +390,7 @@ async function runSmoke(connection) {
     mint: mint.publicKey.toBase58(),
     config: config.toBase58(),
     rewardConfig: rewardConfig.toBase58(),
+    adminRewardInspection,
     position: position.toBase58(),
     rypVault: rypVault.toBase58(),
     checked: [
@@ -405,6 +406,7 @@ async function runSmoke(connection) {
       "reject_non_authority_reward_verify",
       "reject_unbalanced_reward_epoch",
       "draft_reward_epoch",
+      "admin_reward_inspection_report",
       "reject_below_tier_stake",
       "stake_ryp",
       "reject_early_voting_activation",
@@ -584,6 +586,82 @@ async function runRewardSmoke(
       }),
     "custom program error",
   );
+
+  const adminRewardInspection = await buildAdminRewardInspectionReport(connection, {
+    rewardConfig,
+    rewardEpoch,
+    rewardVaultStates,
+  });
+  assertEqual("admin reward inspector config status", adminRewardInspection.rewardConfig.status, "DECODED");
+  assertEqual("admin reward inspector epoch status", adminRewardInspection.epoch.status, "DECODED");
+  assertEqual("admin reward inspector decoded vault count", adminRewardInspection.vaults.length, REWARD_ROLES.length);
+  assertEqual("admin reward inspector execution mode", adminRewardInspection.executionMode, "READ_ONLY");
+  assertEqual("admin reward inspector no reward execution", adminRewardInspection.rewardExecutionExposed, false);
+
+  return adminRewardInspection;
+}
+
+async function buildAdminRewardInspectionReport(connection, { rewardConfig, rewardEpoch, rewardVaultStates }) {
+  const decodedRewardConfig = parseRewardConfig(await getAccountData(connection, rewardConfig));
+  const decodedRewardEpoch = parseRewardEpoch(await getAccountData(connection, rewardEpoch));
+  const vaults = [];
+
+  for (const role of REWARD_ROLES) {
+    const decoded = parseRewardVaultState(await getAccountData(connection, rewardVaultStates[role.key]));
+    vaults.push({
+      address: rewardVaultStates[role.key].toBase58(),
+      custodyModel: rewardVaultCustodyModelLabel(decoded.custodyModel),
+      label: role.name,
+      receivesUserFunds: decoded.receivesUserFunds,
+      role: rewardVaultRoleLabel(decoded.role),
+      status: "DECODED",
+      vaultAddress: decoded.vaultAddress.toBase58(),
+      verificationStatus: rewardVaultVerificationStatusLabel(decoded.verificationStatus),
+    });
+  }
+
+  const unverifiedVaults = vaults.filter((vault) => vault.verificationStatus !== "VERIFIED");
+  const userFundVaults = vaults.filter((vault) => vault.receivesUserFunds);
+  if (unverifiedVaults.length > 0) {
+    throw new Error(`Admin reward inspector found unverified vaults: ${unverifiedVaults.map((vault) => vault.label).join(", ")}`);
+  }
+  if (userFundVaults.length > 0) {
+    throw new Error(`Admin reward inspector found vaults marked as user-fund receivers: ${userFundVaults.map((vault) => vault.label).join(", ")}`);
+  }
+
+  return {
+    executionMode: "READ_ONLY",
+    rewardExecutionExposed: false,
+    warnings: [
+      "Reward account inspection is read-only.",
+      "No reward setup, claim, payout, or vault movement action is exposed in the Admin Dashboard.",
+    ],
+    rewardConfig: {
+      address: rewardConfig.toBase58(),
+      decoded: {
+        draftOnly: decodedRewardConfig.draftOnly,
+        holderSplitBps: decodedRewardConfig.holderSplitBps,
+        registeredVaultRolesMask: decodedRewardConfig.registeredVaultRolesMask,
+        stakerSplitBps: decodedRewardConfig.stakerSplitBps,
+        treasurySplitBps: decodedRewardConfig.treasurySplitBps,
+        verifiedVaultRolesMask: decodedRewardConfig.verifiedVaultRolesMask,
+      },
+      status: "DECODED",
+    },
+    epoch: {
+      address: rewardEpoch.toBase58(),
+      decoded: {
+        distributedNetAmount: decodedRewardEpoch.distributedNetAmount.toString(),
+        epochId: decodedRewardEpoch.epochId.toString(),
+        executionBlocked: decodedRewardEpoch.executionBlocked,
+        rewardPoolAmount: decodedRewardEpoch.rewardPoolAmount.toString(),
+        rolledForwardAmount: decodedRewardEpoch.rolledForwardAmount.toString(),
+        status: rewardEpochStatusLabel(decodedRewardEpoch.status),
+      },
+      status: "DECODED",
+    },
+    vaults,
+  };
 }
 
 async function initializeRewardConfig(
@@ -1030,6 +1108,37 @@ function parseRewardEpoch(data) {
     executionBlocked: data.readUInt8(offset.execution_blocked) === 1,
     bump: data.readUInt8(offset.bump),
   };
+}
+
+function rewardVaultRoleLabel(variant) {
+  if (variant === 0) return "HOLDER_REWARD";
+  if (variant === 1) return "STAKER_REWARD";
+  if (variant === 2) return "INDEPENDENT_TREASURY";
+  if (variant === 3) return "DELIVERY_COST_RESERVE";
+  if (variant === 4) return "ROLLOVER";
+  return "UNKNOWN";
+}
+
+function rewardVaultCustodyModelLabel(variant) {
+  if (variant === 0) return "PROGRAM_CONTROLLED";
+  if (variant === 1) return "TREASURY_CONTROLLED";
+  if (variant === 2) return "DISCLOSURE_PENDING";
+  return "UNKNOWN";
+}
+
+function rewardVaultVerificationStatusLabel(variant) {
+  if (variant === 0) return "DRAFT";
+  if (variant === 1) return "PENDING_VERIFICATION";
+  if (variant === 2) return "VERIFIED";
+  if (variant === 3) return "DISABLED";
+  return "UNKNOWN";
+}
+
+function rewardEpochStatusLabel(variant) {
+  if (variant === 0) return "DRAFTED";
+  if (variant === 1) return "REVIEWED";
+  if (variant === 2) return "CANCELLED";
+  return "UNKNOWN";
 }
 
 function assertRewardAccountLayout(data, accountName) {
