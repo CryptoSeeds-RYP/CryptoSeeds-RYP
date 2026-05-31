@@ -21,7 +21,7 @@ $repoRoot = Join-Path $PSScriptRoot ".."
 $wslRepoRoot = ConvertTo-WslPath $repoRoot
 $linuxPath = "/root/.cargo/bin:/root/.local/share/solana/install/active_release/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 $escapedRepoRoot = $wslRepoRoot.Replace("'", "'\''")
-$command = "export PATH=$linuxPath; cd '$escapedRepoRoot' && anchor build --ignore-keys && node scripts/run-anchor-localnet-smoke.mjs"
+$command = "export PATH=$linuxPath; cd '$escapedRepoRoot' && anchor build --ignore-keys && node scripts/check-protocol-idl-drift.mjs && node scripts/run-anchor-localnet-smoke.mjs"
 
 wsl.exe -d $Distro -- bash -lc $command
 if ($LASTEXITCODE -ne 0) {

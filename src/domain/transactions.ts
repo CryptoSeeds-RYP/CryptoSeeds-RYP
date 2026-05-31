@@ -38,6 +38,7 @@ export type TransactionProgramReference = {
 };
 
 export type TransactionAccountReference = {
+  anchorName?: string;
   label: string;
   address?: string;
   role: string;

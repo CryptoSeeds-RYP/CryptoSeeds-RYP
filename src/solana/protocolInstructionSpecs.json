@@ -1,0 +1,39 @@
+{
+  "stake_ryp": {
+    "discriminatorHex": "b746a41746842ce8",
+    "args": ["amount"],
+    "accounts": [
+      { "name": "owner", "label": "Owner", "role": "Signer and fee payer", "signer": true, "writable": true },
+      { "name": "config", "label": "Protocol config", "role": "Config PDA", "signer": false, "writable": true },
+      { "name": "ryp_mint", "label": "RYP mint", "role": "Token mint reference", "signer": false, "writable": false },
+      { "name": "owner_ryp_account", "label": "Owner RYP account", "role": "Source token account", "signer": false, "writable": true },
+      { "name": "ryp_vault", "label": "RYP vault", "role": "Protocol staking vault", "signer": false, "writable": true },
+      { "name": "position", "label": "Stake position", "role": "Per-wallet stake state PDA", "signer": false, "writable": true },
+      { "name": "token_program", "label": "Token program", "role": "SPL token CPI", "signer": false, "writable": false },
+      { "name": "associated_token_program", "label": "Associated token program", "role": "ATA validation", "signer": false, "writable": false },
+      { "name": "system_program", "label": "System program", "role": "Account initialization", "signer": false, "writable": false }
+    ]
+  },
+  "unstake_ryp": {
+    "discriminatorHex": "ae0b5ccc93d66cdd",
+    "args": ["amount"],
+    "accounts": [
+      { "name": "owner", "label": "Owner", "role": "Signer and fee payer", "signer": true, "writable": true },
+      { "name": "config", "label": "Protocol config", "role": "Config PDA", "signer": false, "writable": true },
+      { "name": "ryp_mint", "label": "RYP mint", "role": "Token mint reference", "signer": false, "writable": false },
+      { "name": "owner_ryp_account", "label": "Owner RYP account", "role": "Destination token account", "signer": false, "writable": true },
+      { "name": "ryp_vault", "label": "RYP vault", "role": "Protocol staking vault", "signer": false, "writable": true },
+      { "name": "position", "label": "Stake position", "role": "Per-wallet stake state PDA", "signer": false, "writable": true },
+      { "name": "token_program", "label": "Token program", "role": "SPL token CPI", "signer": false, "writable": false }
+    ]
+  },
+  "activate_voting_rights": {
+    "discriminatorHex": "463cc3194dbcfb73",
+    "args": [],
+    "accounts": [
+      { "name": "owner", "label": "Owner", "role": "Signer", "signer": true, "writable": false },
+      { "name": "config", "label": "Protocol config", "role": "Config PDA", "signer": false, "writable": false },
+      { "name": "position", "label": "Stake position", "role": "Per-wallet stake state PDA", "signer": false, "writable": true }
+    ]
+  }
+}

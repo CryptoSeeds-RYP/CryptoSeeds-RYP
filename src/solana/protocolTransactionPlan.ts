@@ -8,17 +8,42 @@ import type {
 } from "../domain/transactions";
 import type { StakingTier } from "../domain/microverse";
 import { tierRequirements } from "../domain/tiering";
+import protocolInstructionSpecsJson from "./protocolInstructionSpecs.json";
 
 export const CONFIG_SEED = "config";
 export const STAKE_POSITION_SEED = "stake-position";
 export const SPL_TOKEN_PROGRAM_ID = new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
 export const ASSOCIATED_TOKEN_PROGRAM_ID = new PublicKey("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL");
 
-const INSTRUCTION_DISCRIMINATORS = {
-  stakeRyp: "b746a41746842ce8",
-  unstakeRyp: "ae0b5ccc93d66cdd",
-  activateVotingRights: "463cc3194dbcfb73",
-} as const;
+type ProtocolAccountName =
+  | "associated_token_program"
+  | "config"
+  | "owner"
+  | "owner_ryp_account"
+  | "position"
+  | "ryp_mint"
+  | "ryp_vault"
+  | "system_program"
+  | "token_program";
+
+type ProtocolInstructionAccountSpec = {
+  name: ProtocolAccountName;
+  label: string;
+  role: string;
+  signer: boolean;
+  writable: boolean;
+};
+
+type ProtocolInstructionSpec = {
+  discriminatorHex: string;
+  args: string[];
+  accounts: ProtocolInstructionAccountSpec[];
+};
+
+export const PROTOCOL_INSTRUCTION_SPECS = protocolInstructionSpecsJson as Record<
+  "activate_voting_rights" | "stake_ryp" | "unstake_ryp",
+  ProtocolInstructionSpec
+>;
 const U64_MAX = 2n ** 64n - 1n;
 
 export type StakePlanInput = {
@@ -44,10 +69,11 @@ export function buildStakeRypTransactionPlan({
   const amount = amountUi ?? tierRequirements[tier];
   const amountBaseUnits = parseRypAmountToBaseUnits(amount, appConfig.rypDecimals);
   const addresses = deriveProtocolAddresses(ownerAddress);
+  const spec = PROTOCOL_INSTRUCTION_SPECS.stake_ryp;
   const instruction = instructionPlan({
-    accounts: stakeAccounts(addresses),
+    accounts: accountsFromSpec(spec, addresses),
     amountBaseUnits,
-    discriminatorHex: INSTRUCTION_DISCRIMINATORS.stakeRyp,
+    discriminatorHex: spec.discriminatorHex,
     instructionName: "stake_ryp",
     programId: addresses.programId,
   });
@@ -71,10 +97,11 @@ export function buildUnstakeRypTransactionPlan({
 }: UnstakePlanInput): PreparedSolanaTransactionPlan {
   const amountBaseUnits = parseRypAmountToBaseUnits(amountUi, appConfig.rypDecimals);
   const addresses = deriveProtocolAddresses(ownerAddress);
+  const spec = PROTOCOL_INSTRUCTION_SPECS.unstake_ryp;
   const instruction = instructionPlan({
-    accounts: unstakeAccounts(addresses),
+    accounts: accountsFromSpec(spec, addresses),
     amountBaseUnits,
-    discriminatorHex: INSTRUCTION_DISCRIMINATORS.unstakeRyp,
+    discriminatorHex: spec.discriminatorHex,
     instructionName: "unstake_ryp",
     programId: addresses.programId,
   });
@@ -96,9 +123,10 @@ export function buildActivateVotingRightsTransactionPlan({
   ownerAddress,
 }: VotingRightsPlanInput): PreparedSolanaTransactionPlan {
   const addresses = deriveProtocolAddresses(ownerAddress);
+  const spec = PROTOCOL_INSTRUCTION_SPECS.activate_voting_rights;
   const instruction = instructionPlan({
-    accounts: votingRightsAccounts(addresses),
-    discriminatorHex: INSTRUCTION_DISCRIMINATORS.activateVotingRights,
+    accounts: accountsFromSpec(spec, addresses),
+    discriminatorHex: spec.discriminatorHex,
     instructionName: "activate_voting_rights",
     programId: addresses.programId,
   });
@@ -210,47 +238,54 @@ function instructionPlan({
   };
 }
 
-function stakeAccounts(addresses: ReturnType<typeof deriveProtocolAddresses>): PreparedInstructionAccount[] {
-  return orderedAccounts([
-    account("Owner", addresses.owner, "Signer and fee payer", true, true),
-    account("Protocol config", addresses.config, "Config PDA", false, true),
-    account("RYP mint", addresses.rypMint, "Token mint reference", false, false),
-    account("Owner RYP account", addresses.ownerRypAccount, "Source token account", false, true),
-    account("RYP vault", addresses.rypVault, "Protocol staking vault", false, true),
-    account("Stake position", addresses.position, "Per-wallet stake state PDA", false, true),
-    account("Token program", addresses.tokenProgramId, "SPL token CPI", false, false),
-    account("Associated token program", addresses.associatedTokenProgramId, "ATA validation", false, false),
-    account("System program", addresses.systemProgramId, "Account initialization", false, false),
-  ]);
-}
-
-function unstakeAccounts(addresses: ReturnType<typeof deriveProtocolAddresses>): PreparedInstructionAccount[] {
-  return orderedAccounts([
-    account("Owner", addresses.owner, "Signer and fee payer", true, true),
-    account("Protocol config", addresses.config, "Config PDA", false, true),
-    account("RYP mint", addresses.rypMint, "Token mint reference", false, false),
-    account("Owner RYP account", addresses.ownerRypAccount, "Destination token account", false, true),
-    account("RYP vault", addresses.rypVault, "Protocol staking vault", false, true),
-    account("Stake position", addresses.position, "Per-wallet stake state PDA", false, true),
-    account("Token program", addresses.tokenProgramId, "SPL token CPI", false, false),
-  ]);
-}
-
-function votingRightsAccounts(addresses: ReturnType<typeof deriveProtocolAddresses>): PreparedInstructionAccount[] {
-  return orderedAccounts([
-    account("Owner", addresses.owner, "Signer", true, false),
-    account("Protocol config", addresses.config, "Config PDA", false, false),
-    account("Stake position", addresses.position, "Per-wallet stake state PDA", false, true),
-  ]);
+function accountsFromSpec(
+  spec: ProtocolInstructionSpec,
+  addresses: ReturnType<typeof deriveProtocolAddresses>,
+): PreparedInstructionAccount[] {
+  return orderedAccounts(
+    spec.accounts.map((accountSpec) =>
+      account(
+        accountSpec.name,
+        accountSpec.label,
+        addressForProtocolAccount(addresses, accountSpec.name),
+        accountSpec.role,
+        accountSpec.signer,
+        accountSpec.writable,
+      ),
+    ),
+  );
 }
 
 function derivedAccountReferences(addresses: ReturnType<typeof deriveProtocolAddresses>): TransactionAccountReference[] {
   return [
-    account("Protocol config", addresses.config, "Derived from seed: config", false, true),
-    account("Stake position", addresses.position, "Derived from stake-position + wallet", false, true),
-    account("Owner RYP account", addresses.ownerRypAccount, "Associated token account for RYP", false, true),
-    account("RYP vault", addresses.rypVault, "Associated token account owned by config PDA", false, true),
+    account("config", "Protocol config", addresses.config, "Derived from seed: config", false, true),
+    account("position", "Stake position", addresses.position, "Derived from stake-position + wallet", false, true),
+    account("owner_ryp_account", "Owner RYP account", addresses.ownerRypAccount, "Associated token account for RYP", false, true),
+    account("ryp_vault", "RYP vault", addresses.rypVault, "Associated token account owned by config PDA", false, true),
   ];
+}
+
+function addressForProtocolAccount(addresses: ReturnType<typeof deriveProtocolAddresses>, name: ProtocolAccountName) {
+  switch (name) {
+    case "associated_token_program":
+      return addresses.associatedTokenProgramId;
+    case "config":
+      return addresses.config;
+    case "owner":
+      return addresses.owner;
+    case "owner_ryp_account":
+      return addresses.ownerRypAccount;
+    case "position":
+      return addresses.position;
+    case "ryp_mint":
+      return addresses.rypMint;
+    case "ryp_vault":
+      return addresses.rypVault;
+    case "system_program":
+      return addresses.systemProgramId;
+    case "token_program":
+      return addresses.tokenProgramId;
+  }
 }
 
 function orderedAccounts(accounts: TransactionAccountReference[]): PreparedInstructionAccount[] {
@@ -258,6 +293,7 @@ function orderedAccounts(accounts: TransactionAccountReference[]): PreparedInstr
 }
 
 function account(
+  anchorName: string,
   label: string,
   address: string,
   role: string,
@@ -265,6 +301,7 @@ function account(
   writable: boolean,
 ): TransactionAccountReference {
   return {
+    anchorName,
     address,
     label,
     role,

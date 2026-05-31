@@ -28,6 +28,7 @@ From the repo root in Windows PowerShell:
 ```powershell
 npm run wsl:check
 npm run protocol:build:wsl
+npm run protocol:idl:check
 npm run protocol:test:wsl
 npm run protocol:smoke:localnet:wsl
 ```
@@ -69,6 +70,8 @@ npm run protocol:test:wsl
 
 `protocol:build:wsl` completed an Anchor build and IDL generation path.
 
+`protocol:idl:check` compares the frontend wallet instruction spec against the generated Anchor IDL.
+
 `protocol:test:wsl` ran the Anchor test script, which now executes:
 
 ```bash
@@ -81,7 +84,7 @@ Current protocol unit-test result:
 4 passed; 0 failed
 ```
 
-`protocol:smoke:localnet:wsl` starts a disposable local Solana validator and verifies:
+`protocol:smoke:localnet:wsl` runs the IDL drift check, starts a disposable local Solana validator, and verifies:
 
 - `initialize_config`
 - rejected duplicate tier thresholds

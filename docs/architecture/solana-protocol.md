@@ -15,6 +15,7 @@ The current local machine has two verification paths:
 
 - Windows host-side Rust checks through `npm run protocol:check:win` and `npm run protocol:test:win`.
 - WSL Solana/Anchor checks through `npm run protocol:build:wsl` and `npm run protocol:test:wsl`.
+- Frontend/IDL drift checks through `npm run protocol:idl:check`.
 - WSL local validator smoke checks through `npm run protocol:smoke:localnet:wsl`.
 
 The WSL route is the primary local path for Anchor builds. The localnet smoke check preloads the compiled SBF program with `solana-test-validator --bpf-program`, creates a test RYP-like mint, checks invalid config and unauthorized action rejections, initializes config, stakes, verifies voting-delay/top-up/partial-unstake behavior, verifies pause enforcement, and unstakes. Full public deployment verification still needs a synced devnet/mainnet program id and key-management review.
@@ -51,6 +52,8 @@ Client preparation now has a TypeScript planning layer at `src/solana/protocolTr
 - Exposes account order, signer/writable flags, instruction discriminator, and raw data hex for wallet-preview surfaces
 - Rejects prepared token amounts outside Solana's u64 SPL token amount bounds before instruction data is encoded
 - Installs a browser `Buffer` shim at app startup so Solana wallet and transaction libraries can run in Vite without relying on Node globals
+
+The frontend instruction metadata is centralized in `src/solana/protocolInstructionSpecs.json`. `npm run protocol:idl:check` compares that spec against `target/idl/cryptoseeds_protocol.json` after Anchor build output exists, and the WSL localnet smoke wrapper runs the drift check before launching the validator.
 
 This is still a preparation layer. It does not sign, broadcast, or bypass wallet approval.
 

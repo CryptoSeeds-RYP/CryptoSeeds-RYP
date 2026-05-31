@@ -68,6 +68,7 @@ WSL Anchor protocol checks:
 
 ```powershell
 npm run protocol:build:wsl
+npm run protocol:idl:check
 npm run protocol:test:wsl
 npm run protocol:smoke:localnet:wsl
 ```
@@ -85,7 +86,7 @@ npm run protocol:test
 
 Rust, Cargo, Solana/Agave tooling, Anchor, and Node must be installed before protocol builds can run locally. The current Windows machine has a working Ubuntu 24.04 WSL2 route; see `docs/setup/wsl-solana-status.md`.
 
-`protocol:smoke:localnet:wsl` builds the Anchor program, starts a disposable local Solana validator, preloads the program at the declared Anchor id, creates a test RYP-like mint, checks invalid config and unauthorized action rejections, initializes protocol config, stakes Seed-tier tokens, verifies voting-delay, top-up, partial-unstake, and pause behavior, then fully unstakes.
+`protocol:idl:check` compares the frontend wallet instruction spec with the generated Anchor IDL. `protocol:smoke:localnet:wsl` builds the Anchor program, runs the IDL drift check, starts a disposable local Solana validator, preloads the program at the declared Anchor id, creates a test RYP-like mint, checks invalid config and unauthorized action rejections, initializes protocol config, stakes Seed-tier tokens, verifies voting-delay, top-up, partial-unstake, and pause behavior, then fully unstakes.
 
 ## Guardrails
 

@@ -5,6 +5,7 @@ import {
   buildUnstakeRypTransactionPlan,
   deriveProtocolAddresses,
   parseRypAmountToBaseUnits,
+  PROTOCOL_INSTRUCTION_SPECS,
 } from "./protocolTransactionPlan";
 import { appConfig } from "../config/env";
 
@@ -39,6 +40,9 @@ describe("protocol transaction plan", () => {
     expect(instruction.instructionName).toBe("stake_ryp");
     expect(instruction.discriminatorHex).toBe("b746a41746842ce8");
     expect(instruction.dataHex).toBe("b746a41746842ce800f2052a01000000");
+    expect(instruction.accounts.map((account) => account.anchorName)).toEqual(
+      PROTOCOL_INSTRUCTION_SPECS.stake_ryp.accounts.map((account) => account.name),
+    );
     expect(instruction.accounts.map((account) => account.label)).toEqual([
       "Owner",
       "Protocol config",
