@@ -45,15 +45,15 @@ export type MicroVersePlotSummary = {
   projectIds: string[];
 };
 
-const plotPositions = [
-  { x: 0.25, y: 0.66 },
-  { x: 0.45, y: 0.54 },
-  { x: 0.65, y: 0.63 },
-  { x: 0.76, y: 0.41 },
-  { x: 0.34, y: 0.38 },
-  { x: 0.56, y: 0.32 },
-  { x: 0.18, y: 0.45 },
-  { x: 0.84, y: 0.58 },
+export const MICROVERSE_PLOT_POSITIONS = [
+  { x: 0.31, y: 0.66 },
+  { x: 0.47, y: 0.52 },
+  { x: 0.61, y: 0.63 },
+  { x: 0.68, y: 0.42 },
+  { x: 0.38, y: 0.38 },
+  { x: 0.57, y: 0.32 },
+  { x: 0.22, y: 0.53 },
+  { x: 0.75, y: 0.58 },
 ];
 
 export function buildMicroVerseSceneState({
@@ -80,7 +80,7 @@ export function buildMicroVerseSceneState({
       const project = participation
         ? projects.find((candidate) => candidate.id === participation.projectId)
         : undefined;
-      const position = plotPositions[index] ?? plotPositions[plotPositions.length - 1];
+      const position = MICROVERSE_PLOT_POSITIONS[index] ?? MICROVERSE_PLOT_POSITIONS[MICROVERSE_PLOT_POSITIONS.length - 1];
 
       return {
         id: participation?.projectId ?? `empty-${index}`,

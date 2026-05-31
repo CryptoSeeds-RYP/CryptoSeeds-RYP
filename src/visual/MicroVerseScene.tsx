@@ -495,6 +495,7 @@ async function buildWorld(
   const water = buildWaterLayer(worldSize, scene, glints);
   world.addChild(water);
   world.addChild(buildPathLayer(worldSize));
+  world.addChild(buildLandmarkDistrictLayer(worldSize, scene));
   world.addChild(route.layer);
   world.addChild(
     buildArchitectureLayer(
@@ -1049,13 +1050,13 @@ function buildLandmarkDistrictLayer(worldSize: Point, scene: MicroVerseSceneStat
   MICROVERSE_LANDMARKS.forEach((landmark, index) => {
     const x = worldSize.x * landmark.x;
     const y = worldSize.y * landmark.y + 64 * landmark.scale;
-    const districtWidth = (landmark.kind === "GOVERNANCE_HALL" ? 142 : 118) * landmark.scale;
-    const districtHeight = (landmark.kind === "GOVERNANCE_HALL" ? 48 : 40) * landmark.scale;
-    const alpha = (landmark.destination ? 0.42 : 0.3) * walletActive;
+    const districtWidth = districtZoneWidth(landmark) * 0.76;
+    const districtHeight = districtZoneHeight(landmark) * 0.92;
+    const alpha = (landmark.destination ? 0.46 : 0.34) * walletActive;
 
     layer.ellipse(x, y + 14 * landmark.scale, districtWidth + 22 * landmark.scale, districtHeight + 10 * landmark.scale).fill({
       color: 0x07100d,
-      alpha: 0.24,
+      alpha: 0.26,
     });
     layer.ellipse(x, y, districtWidth, districtHeight).fill({
       color: index % 2 === 0 ? 0x31533f : 0x244b4e,
@@ -1063,8 +1064,8 @@ function buildLandmarkDistrictLayer(worldSize: Point, scene: MicroVerseSceneStat
     });
     layer.ellipse(x, y, districtWidth, districtHeight).stroke({
       color: landmark.accent,
-      alpha: landmark.destination ? 0.44 : 0.28,
-      width: Math.max(2, 3 * landmark.scale),
+      alpha: landmark.destination ? 0.54 : 0.34,
+      width: Math.max(3, 4 * landmark.scale),
     });
     layer.ellipse(x, y, districtWidth * 0.68, districtHeight * 0.62).stroke({
       color: MICROVERSE_PALETTE.ivory,
@@ -1274,29 +1275,29 @@ function buildLandmarkSprite(
 }
 
 function landmarkSpriteWidth(landmark: MicroVerseLandmark) {
-  if (landmark.kind === "HOMESTEAD") return 390 * landmark.scale;
-  if (landmark.kind === "GOVERNANCE_HALL") return 384 * landmark.scale;
-  if (landmark.kind === "SEEDBOT_TERMINAL") return 370 * landmark.scale;
-  if (landmark.kind === "EXPLORER_MAP") return 344 * landmark.scale;
-  if (landmark.kind === "HARVEST_LEDGER") return 334 * landmark.scale;
-  if (landmark.kind === "STEWARD_GLADE") return 338 * landmark.scale;
-  if (landmark.kind === "LOREHOUSE") return 326 * landmark.scale;
-  if (landmark.kind === "TREASURY_GROVE") return 330 * landmark.scale;
-  return 292 * landmark.scale;
+  if (landmark.kind === "HOMESTEAD") return 470 * landmark.scale;
+  if (landmark.kind === "GOVERNANCE_HALL") return 468 * landmark.scale;
+  if (landmark.kind === "SEEDBOT_TERMINAL") return 446 * landmark.scale;
+  if (landmark.kind === "EXPLORER_MAP") return 418 * landmark.scale;
+  if (landmark.kind === "HARVEST_LEDGER") return 404 * landmark.scale;
+  if (landmark.kind === "STEWARD_GLADE") return 408 * landmark.scale;
+  if (landmark.kind === "LOREHOUSE") return 394 * landmark.scale;
+  if (landmark.kind === "TREASURY_GROVE") return 398 * landmark.scale;
+  return 340 * landmark.scale;
 }
 
 function districtZoneWidth(landmark: MicroVerseLandmark) {
-  if (landmark.kind === "GOVERNANCE_HALL") return 420 * landmark.scale;
-  if (landmark.kind === "SEEDBOT_TERMINAL") return 398 * landmark.scale;
-  if (landmark.kind === "HOMESTEAD") return 392 * landmark.scale;
-  return 362 * landmark.scale;
+  if (landmark.kind === "GOVERNANCE_HALL") return 500 * landmark.scale;
+  if (landmark.kind === "SEEDBOT_TERMINAL") return 474 * landmark.scale;
+  if (landmark.kind === "HOMESTEAD") return 482 * landmark.scale;
+  return 430 * landmark.scale;
 }
 
 function districtZoneHeight(landmark: MicroVerseLandmark) {
-  if (landmark.kind === "GOVERNANCE_HALL") return 148 * landmark.scale;
-  if (landmark.kind === "SEEDBOT_TERMINAL") return 140 * landmark.scale;
-  if (landmark.kind === "HOMESTEAD") return 138 * landmark.scale;
-  return 126 * landmark.scale;
+  if (landmark.kind === "GOVERNANCE_HALL") return 176 * landmark.scale;
+  if (landmark.kind === "SEEDBOT_TERMINAL") return 166 * landmark.scale;
+  if (landmark.kind === "HOMESTEAD") return 168 * landmark.scale;
+  return 150 * landmark.scale;
 }
 
 function buildForegroundLayer(worldSize: Point) {

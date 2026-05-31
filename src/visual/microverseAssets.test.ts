@@ -6,6 +6,7 @@ import {
   MICROVERSE_PALETTE,
   MICROVERSE_PROJECT_TILE_ASSETS,
 } from "./microverseAssets";
+import { MICROVERSE_PLOT_POSITIONS } from "./microverseSceneState";
 import type { ProjectLifecycleVisualState } from "./projectVisuals";
 
 describe("microverse visual asset registry", () => {
@@ -58,8 +59,18 @@ describe("microverse visual asset registry", () => {
       const asset = MICROVERSE_PROJECT_TILE_ASSETS[state];
       expect(asset.lifecycle).toBe(state);
       expect(asset.assetPath).toMatch(/^\/assets\/project-tiles\//);
-      expect(asset.targetWidth).toBeGreaterThanOrEqual(140);
-      expect(asset.targetWidth).toBeLessThanOrEqual(290);
+      expect(asset.targetWidth).toBeGreaterThanOrEqual(280);
+      expect(asset.targetWidth).toBeLessThanOrEqual(340);
+    });
+  });
+
+  it("keeps the strategy-map layout spatially readable", () => {
+    expect(minDistance(MICROVERSE_LANDMARKS)).toBeGreaterThan(0.18);
+    expect(minDistance(MICROVERSE_PLOT_POSITIONS)).toBeGreaterThan(0.14);
+
+    MICROVERSE_PLOT_POSITIONS.forEach((plot) => {
+      const nearestLandmark = Math.min(...MICROVERSE_LANDMARKS.map((landmark) => distance(plot, landmark)));
+      expect(nearestLandmark).toBeGreaterThan(0.11);
     });
   });
 
@@ -84,3 +95,17 @@ describe("microverse visual asset registry", () => {
     });
   });
 });
+
+function minDistance(points: Array<{ x: number; y: number }>) {
+  let minimum = Number.POSITIVE_INFINITY;
+  points.forEach((point, index) => {
+    points.slice(index + 1).forEach((candidate) => {
+      minimum = Math.min(minimum, distance(point, candidate));
+    });
+  });
+  return minimum;
+}
+
+function distance(a: { x: number; y: number }, b: { x: number; y: number }) {
+  return Math.hypot(a.x - b.x, a.y - b.y);
+}

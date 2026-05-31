@@ -291,13 +291,13 @@ button:disabled {
 
 .microverse-map {
   position: relative;
-  min-height: min(1040px, calc(100vh - 112px));
+  min-height: max(760px, calc(100vh - 112px));
   overflow: hidden;
   border: 1px solid rgba(255, 231, 133, 0.34);
   border-radius: 8px;
   background:
-    linear-gradient(90deg, rgba(8, 20, 22, 0.22), rgba(8, 20, 22, 0.02) 48%, rgba(8, 20, 22, 0.18)),
-    url("/assets/concepts/microverse-world-plate-v1.png") center / cover,
+    radial-gradient(ellipse at 52% 50%, rgba(44, 117, 94, 0.22), transparent 46%),
+    linear-gradient(90deg, rgba(8, 20, 22, 0.34), rgba(8, 20, 22, 0.06) 48%, rgba(8, 20, 22, 0.28)),
     #10282d;
   box-shadow:
     inset 0 0 0 1px rgba(255, 248, 223, 0.16),
@@ -319,8 +319,8 @@ button:disabled {
   position: absolute;
   inset: 0;
   background:
+    radial-gradient(ellipse at 48% 52%, rgba(50, 125, 96, 0.18), transparent 44%),
     linear-gradient(90deg, rgba(9, 28, 33, 0.28), rgba(9, 28, 33, 0.06) 48%, rgba(9, 28, 33, 0.22)),
-    url("/assets/concepts/microverse-world-plate-v1.png") center / cover,
     #10282d;
 }
 
