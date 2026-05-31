@@ -1,7 +1,14 @@
-import { AlertTriangle, FileCog, Landmark, LockKeyhole, ShieldCheck, WalletCards } from "lucide-react";
+import { useEffect, useState } from "react";
+import { useConnection } from "@solana/wallet-adapter-react";
+import { AlertTriangle, Database, FileCog, Landmark, LockKeyhole, ShieldCheck, WalletCards } from "lucide-react";
 import { appConfig } from "../config/env";
 import { adminActionPreviews, buildAdminAccess } from "../domain/admin";
 import { basisPointsToPercent, feeRoutePolicies } from "../domain/feeRouter";
+import {
+  buildRewardAccountInspectionPreview,
+  readRewardAccountInspection,
+  type RewardAccountInspection,
+} from "../solana/rewardAccountInspection";
 import { formatLabel } from "../utils/format";
 import { ViewHeader } from "../components/ViewHeader";
 
@@ -12,7 +19,38 @@ export function AdminView({
   walletAddress?: string;
   demoMode: boolean;
 }) {
+  const { connection } = useConnection();
   const access = buildAdminAccess({ config: appConfig, walletAddress, demoMode });
+  const [rewardInspection, setRewardInspection] = useState<RewardAccountInspection>(() =>
+    buildRewardAccountInspectionPreview(),
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    const preview = buildRewardAccountInspectionPreview();
+    setRewardInspection(preview);
+
+    if (appConfig.protocolDeployment === "placeholder") return undefined;
+
+    readRewardAccountInspection({ connection })
+      .then((inspection) => {
+        if (!cancelled) setRewardInspection(inspection);
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        setRewardInspection({
+          ...preview,
+          warnings: [
+            ...preview.warnings,
+            `Reward account RPC read failed: ${error instanceof Error ? error.message : "unknown error"}.`,
+          ],
+        });
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [connection]);
 
   return (
     <div className="location-view admin-view">
@@ -74,6 +112,85 @@ export function AdminView({
         </div>
       </section>
 
+      <section className="governance-section reward-inspector">
+        <div className="view-header">
+          <div>
+            <Database size={20} />
+            <strong>Reward Account Inspector</strong>
+          </div>
+          <span>{formatLabel(rewardInspection.executionMode)} / no reward execution</span>
+        </div>
+        <div className="policy-strip reward-policy-strip">
+          <div>
+            <span>Program</span>
+            <strong>{shortAddress(rewardInspection.programId)}</strong>
+          </div>
+          <div>
+            <span>Reward Config PDA</span>
+            <strong>{shortAddress(rewardInspection.rewardConfigAddress)}</strong>
+          </div>
+          <div>
+            <span>Epoch Preview</span>
+            <strong>#{rewardInspection.epochId} / {shortAddress(rewardInspection.epochPreviewAddress)}</strong>
+          </div>
+          <div>
+            <span>Status</span>
+            <strong>{formatLabel(rewardInspection.rewardConfigStatus)}</strong>
+          </div>
+        </div>
+        <div className="policy-note-list">
+          {rewardInspection.warnings.map((warning) => (
+            <span key={warning}>{warning}</span>
+          ))}
+        </div>
+        <div className="authority-grid ops-grid reward-account-grid">
+          <article className={`authority-card reward-account-card ${rewardInspection.rewardConfigStatus.toLowerCase()}`}>
+            <div className="authority-card-top">
+              <Database size={17} />
+              <span>{formatLabel(rewardInspection.rewardConfigStatus)}</span>
+            </div>
+            <strong>Reward Config</strong>
+            <p>{rewardInspection.rewardConfigMessage}</p>
+            <em>
+              {rewardInspection.rewardConfig
+                ? `${rewardInspection.rewardConfig.holderSplitBps}/${rewardInspection.rewardConfig.stakerSplitBps}/${rewardInspection.rewardConfig.treasurySplitBps} bps`
+                : "Holder / staker / treasury split pending"}
+            </em>
+            <code>{rewardInspection.rewardConfigAddress}</code>
+          </article>
+          <article className={`authority-card reward-account-card ${rewardInspection.epochStatus.toLowerCase()}`}>
+            <div className="authority-card-top">
+              <FileCog size={17} />
+              <span>{formatLabel(rewardInspection.epochStatus)}</span>
+            </div>
+            <strong>Draft Epoch</strong>
+            <p>{rewardInspection.epochMessage}</p>
+            <em>
+              {rewardInspection.epoch
+                ? `${formatLabel(rewardInspection.epoch.status)} / execution blocked: ${rewardInspection.epoch.executionBlocked}`
+                : "Derived preview; no payout route exposed"}
+            </em>
+            <code>{rewardInspection.epochPreviewAddress}</code>
+          </article>
+          {rewardInspection.vaults.map((vault) => (
+            <article className={`authority-card reward-account-card ${vault.status.toLowerCase()}`} key={vault.role}>
+              <div className="authority-card-top">
+                <WalletCards size={17} />
+                <span>{formatLabel(vault.status)}</span>
+              </div>
+              <strong>{vault.label}</strong>
+              <p>{vault.message}</p>
+              <em>
+                {vault.decoded
+                  ? `${formatLabel(vault.decoded.verificationStatus)} / ${formatLabel(vault.decoded.custodyModel)}`
+                  : "Verification state not loaded"}
+              </em>
+              <code>{vault.address}</code>
+            </article>
+          ))}
+        </div>
+      </section>
+
       <section className="governance-section">
         <div className="view-header">
           <div>
@@ -101,4 +218,8 @@ export function AdminView({
       </section>
     </div>
   );
+}
+
+function shortAddress(address: string) {
+  return `${address.slice(0, 4)}...${address.slice(-4)}`;
 }

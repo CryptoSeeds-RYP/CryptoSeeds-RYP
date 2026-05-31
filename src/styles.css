@@ -1446,11 +1446,41 @@ button:disabled {
   background: rgba(244, 239, 226, 0.08);
 }
 
+.reward-account-card code {
+  max-width: 100%;
+  overflow: hidden;
+  color: #fff8df;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 0.72rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reward-account-card.decoded {
+  border-color: rgba(128, 198, 109, 0.32);
+  background: rgba(36, 69, 44, 0.36);
+}
+
+.reward-account-card.missing,
+.reward-account-card.preview_only {
+  border-color: rgba(236, 216, 130, 0.3);
+  background: rgba(76, 63, 30, 0.5);
+}
+
+.reward-account-card.decode_error {
+  border-color: rgba(255, 163, 123, 0.36);
+  background: rgba(78, 43, 35, 0.58);
+}
+
 .policy-strip {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
   padding: 14px;
+}
+
+.policy-strip.reward-policy-strip {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .policy-note-list {
@@ -2068,6 +2098,10 @@ button:disabled {
 
   .project-filter-bar span {
     margin-left: 0;
+  }
+
+  .policy-strip.reward-policy-strip {
+    grid-template-columns: 1fr;
   }
 
   .performance-grid {

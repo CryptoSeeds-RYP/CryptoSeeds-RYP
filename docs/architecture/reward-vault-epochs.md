@@ -113,3 +113,11 @@ Protocol model:
 - `programs/cryptoseeds_protocol/src/lib.rs`
 
 The protocol model stores reward config, vault verification state, and draft epochs only. It keeps `execution_blocked = true` on drafted epochs.
+
+Frontend read-only model:
+
+- `src/solana/rewardAccountInspection.ts`
+- `src/solana/rewardAccountInspection.test.ts`
+- `src/views/AdminView.tsx`
+
+The Admin Dashboard can derive and decode reward config, vault state, and draft epoch accounts for inspection. It does not expose reward setup, claim, payout, or vault-movement transaction builders.
