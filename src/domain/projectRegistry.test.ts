@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { projects } from "../fixtures/protocolFixtures";
 import {
   approvedProjectDocuments,
+  compareDocumentVersions,
   evaluateProjectEligibility,
   evaluateProjectDisclosures,
   latestRiskDisclosure,
@@ -49,6 +50,7 @@ describe("project registry", () => {
     expect(eligibility.eligible).toBe(false);
     expect(eligibility.reasons).toContain("Participation is not open");
     expect(eligibility.reasons).toContain("Governance approval is not complete");
+    expect(eligibility.reasons).toContain("Project status GOVERNANCE_VOTE is not open for participation");
     expect(eligibility.reasons).toContain("Receiving account is not disclosed");
     expect(eligibility.reasons).toContain("Legal review is required before public participation");
   });
@@ -59,5 +61,52 @@ describe("project registry", () => {
 
     expect(eligibility.eligible).toBe(false);
     expect(eligibility.reasons).toContain("Requires SPROUT tier");
+  });
+
+  it("sorts risk disclosure versions numerically instead of lexicographically", () => {
+    const solar = projects.find((project) => project.id === "solar-water-node")!;
+    const withNewDisclosure = {
+      ...solar,
+      documents: [
+        ...solar.documents,
+        {
+          ...solar.documents.find((document) => document.type === "RISK_DISCLOSURE")!,
+          id: "solar-risk-v2",
+          version: "v2.0",
+        },
+        {
+          ...solar.documents.find((document) => document.type === "RISK_DISCLOSURE")!,
+          id: "solar-risk-v10",
+          version: "v10.0",
+        },
+      ],
+    };
+
+    expect(compareDocumentVersions("v10.0", "v2.0")).toBeGreaterThan(0);
+    expect(latestRiskDisclosure(withNewDisclosure)?.id).toBe("solar-risk-v10");
+  });
+
+  it("blocks projects with missing approved risk disclosure or document proof", () => {
+    const solar = projects.find((project) => project.id === "solar-water-node")!;
+    const withoutRiskDisclosure = {
+      ...solar,
+      documents: solar.documents.filter((document) => document.type !== "RISK_DISCLOSURE"),
+    };
+    const missingDocumentProof = {
+      ...solar,
+      documents: solar.documents.map((document) =>
+        document.id === "solar-risk" ? { ...document, contentHash: undefined } : document,
+      ),
+    };
+    const rejectedOperator = {
+      ...solar,
+      operator: { ...solar.operator, verificationStatus: "REJECTED" as const },
+    };
+
+    expect(evaluateProjectEligibility(withoutRiskDisclosure, "SPROUT").reasons).toContain("Risk disclosure is missing");
+    expect(evaluateProjectEligibility(missingDocumentProof, "SPROUT").reasons).toContain(
+      "Required documents are missing URI or content hash",
+    );
+    expect(evaluateProjectEligibility(rejectedOperator, "SPROUT").reasons).toContain("Operator verification was rejected");
   });
 });

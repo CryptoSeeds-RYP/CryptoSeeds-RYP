@@ -51,17 +51,21 @@ export function nextAvailableProjectSlot(participations: ProjectParticipation[],
 
 export function createPreparedParticipation({
   project,
+  activeTier,
   walletAddress,
   participations,
   slotCount,
   now = new Date().toISOString(),
 }: {
   project: Project;
+  activeTier: StakingTier;
   walletAddress: string;
   participations: ProjectParticipation[];
   slotCount: number;
   now?: string;
 }): ProjectParticipation | undefined {
+  if (!walletAddress.trim()) return undefined;
+  if (!evaluateProjectEligibility(project, activeTier).eligible) return undefined;
   if (hasProjectParticipation(participations, project.id)) return undefined;
 
   const slotIndex = nextAvailableProjectSlot(participations, slotCount);

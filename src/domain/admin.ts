@@ -5,6 +5,7 @@ export type AdminAccessStatus =
   | "WALLET_REQUIRED"
   | "WRONG_WALLET"
   | "TEST_UNLOCKED"
+  | "DEMO_BLOCKED"
   | "MAINNET_BLOCKED";
 
 export type AdminActionStatus = "DRAFT_ONLY" | "LOCALNET_READY" | "DEVNET_READY" | "REVIEW_GATED" | "BLOCKED";
@@ -135,12 +136,13 @@ export function buildAdminAccess({
     blockers.push("Mainnet admin actions are blocked in the testing dashboard.");
   }
   if (config.solanaBroadcastEnabled) warnings.push("Broadcast is enabled; admin actions remain proposal-only in this UI.");
-  if (demoMode) warnings.push("Demo mode is active; admin state is a local preview only.");
+  if (demoMode) blockers.push("Demo mode must be disabled before the admin dashboard can unlock.");
 
   let status: AdminAccessStatus = "TEST_UNLOCKED";
   if (!configuredAdminAddress) status = "UNCONFIGURED";
   else if (!walletAddress) status = "WALLET_REQUIRED";
   else if (!walletMatches) status = "WRONG_WALLET";
+  else if (demoMode) status = "DEMO_BLOCKED";
   else if (config.cluster === "mainnet-beta" || config.protocolDeployment === "mainnet-beta") status = "MAINNET_BLOCKED";
 
   const canOpenDashboard = status === "TEST_UNLOCKED";

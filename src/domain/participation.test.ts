@@ -47,6 +47,7 @@ describe("project participation", () => {
     const glade = projects.find((project) => project.id === "steward-glade")!;
     const participation = createPreparedParticipation({
       project: glade,
+      activeTier: "SEED",
       walletAddress: "demo-wallet",
       participations: projectParticipations,
       slotCount: 4,
@@ -68,8 +69,33 @@ describe("project participation", () => {
     expect(
       createPreparedParticipation({
         project: chestnut,
+        activeTier: "FRUIT",
         walletAddress: "demo-wallet",
         participations: projectParticipations,
+        slotCount: 4,
+      }),
+    ).toBeUndefined();
+  });
+
+  it("refuses to prepare participation for empty wallets or ineligible projects", () => {
+    const glade = projects.find((project) => project.id === "steward-glade")!;
+    const hemp = projects.find((project) => project.id === "hemp-greenhouse")!;
+
+    expect(
+      createPreparedParticipation({
+        project: glade,
+        activeTier: "SEED",
+        walletAddress: "   ",
+        participations: [],
+        slotCount: 4,
+      }),
+    ).toBeUndefined();
+    expect(
+      createPreparedParticipation({
+        project: hemp,
+        activeTier: "FRUIT",
+        walletAddress: "demo-wallet",
+        participations: [],
         slotCount: 4,
       }),
     ).toBeUndefined();

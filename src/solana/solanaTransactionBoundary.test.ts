@@ -76,6 +76,33 @@ describe("solana transaction boundary", () => {
     expect(preview.warnings.join(" ")).toContain("No wallet signature is requested");
   });
 
+  it("blocks malformed prepared plans before building a wallet boundary", () => {
+    const plan = buildStakeRypTransactionPlan({ ownerAddress, tier: "SEED" });
+    const preview = buildSolanaWalletBoundaryPreview({
+      plan: {
+        ...plan,
+        instructions: [
+          {
+            ...plan.instructions[0],
+            dataHex: "not-hex",
+            accounts: [
+              { ...plan.instructions[0].accounts[0], address: "not-a-public-key" },
+              ...plan.instructions[0].accounts.slice(1),
+            ],
+          },
+        ],
+      },
+      walletCanSign: true,
+      walletPublicKey: ownerAddress,
+      recentBlockhash,
+    });
+
+    expect(preview.status).toBe("BLOCKED");
+    expect(preview.serializedMessageBase64).toBeUndefined();
+    expect(preview.warnings.join(" ")).toContain("instruction data is not valid hex");
+    expect(preview.warnings.join(" ")).toContain("account address is not a valid Solana public key");
+  });
+
   it("collects a signature receipt without storing a signed transaction for broadcast", async () => {
     const signer = Keypair.generate();
     const walletAddress = signer.publicKey.toBase58();
@@ -162,5 +189,30 @@ describe("solana transaction boundary", () => {
     expect(receipt.status).toBe("BLOCKED");
     expect(receipt.message).toContain("passed simulation");
     expect(receipt.signatureBase64).toBeUndefined();
+  });
+
+  it("blocks signature requests when the simulation boundary belongs to another wallet", async () => {
+    const signer = Keypair.generate();
+    const walletAddress = signer.publicKey.toBase58();
+    const plan = buildStakeRypTransactionPlan({ ownerAddress: walletAddress, tier: "SEED" });
+    const boundary = {
+      ...buildSolanaWalletBoundaryPreview({
+        plan,
+        walletCanSign: true,
+        walletPublicKey: walletAddress,
+        recentBlockhash,
+      }),
+      status: "SIMULATION_PASSED" as const,
+      walletAddress: otherWallet,
+    };
+    const receipt = await requestPreparedSolanaSignature({
+      boundary,
+      plan,
+      walletPublicKey: walletAddress,
+      signTransaction: async (transaction) => transaction,
+    });
+
+    expect(receipt.status).toBe("BLOCKED");
+    expect(receipt.warnings).toContain("Simulation boundary wallet address does not match the connected wallet.");
   });
 });

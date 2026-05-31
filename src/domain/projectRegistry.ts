@@ -12,6 +12,8 @@ export type ProjectDisclosureResult = {
   warnings: string[];
 };
 
+const participationReadyStatuses = new Set(["OPEN", "ACTIVE", "MILESTONE_REACHED", "HARVEST_AVAILABLE"]);
+
 export function requiredProjectDocuments(project: Project): ProjectDocument[] {
   return project.documents.filter((document) => document.requiredForParticipation);
 }
@@ -23,11 +25,25 @@ export function approvedProjectDocuments(project: Project): ProjectDocument[] {
 export function latestRiskDisclosure(project: Project): ProjectDocument | undefined {
   return project.documents
     .filter((document) => document.type === "RISK_DISCLOSURE")
-    .sort((left, right) => right.version.localeCompare(left.version))[0];
+    .sort((left, right) => compareDocumentVersions(right.version, left.version))[0];
 }
 
 export function evaluateProjectDisclosures(project: Project): ProjectDisclosureResult {
   const warnings: string[] = [];
+  const riskDisclosure = latestRiskDisclosure(project);
+
+  if (!riskDisclosure) {
+    warnings.push("Risk disclosure is missing");
+  } else if (riskDisclosure.status !== "APPROVED") {
+    warnings.push("Risk disclosure is not approved");
+  }
+
+  const requiredDocumentsMissingProof = requiredProjectDocuments(project).filter(
+    (document) => !document.uri || !document.contentHash,
+  );
+  if (requiredDocumentsMissingProof.length > 0) {
+    warnings.push("Required documents are missing URI or content hash");
+  }
 
   if (!project.receivingAccount.address) {
     warnings.push("Receiving account is not disclosed");
@@ -43,6 +59,10 @@ export function evaluateProjectDisclosures(project: Project): ProjectDisclosureR
 
   if (project.receivingAccount.verificationStatus === "COMMUNITY_REVIEW") {
     warnings.push("Receiving account remains in community review");
+  }
+
+  if (project.operator.verificationStatus === "REJECTED") {
+    warnings.push("Operator verification was rejected");
   }
 
   if (project.riskLevel === "DONATION" && project.receivingAccount.accountType !== "CHARITY") {
@@ -82,6 +102,10 @@ export function evaluateProjectEligibility(project: Project, activeTier: Staking
     reasons.push(`Requires ${project.requiredTier} tier`);
   }
 
+  if (!participationReadyStatuses.has(project.status)) {
+    reasons.push(`Project status ${project.status} is not open for participation`);
+  }
+
   if (!project.participationOpen) {
     reasons.push("Participation is not open");
   }
@@ -95,6 +119,9 @@ export function evaluateProjectEligibility(project: Project, activeTier: Staking
     (warning) =>
       warning.includes("not disclosed") ||
       warning.includes("rejected") ||
+      warning.includes("Risk disclosure is missing") ||
+      warning.includes("Risk disclosure is not approved") ||
+      warning.includes("Required documents are missing URI or content hash") ||
       warning.includes("must use a separated charity account") ||
       warning.includes("must not use charity accounts") ||
       warning.includes("Legal review is required"),
@@ -114,4 +141,23 @@ export function evaluateProjectEligibility(project: Project, activeTier: Staking
     eligible: reasons.length === 0,
     reasons,
   };
+}
+
+export function compareDocumentVersions(right: string, left: string) {
+  const rightParts = versionParts(right);
+  const leftParts = versionParts(left);
+  const partCount = Math.max(rightParts.length, leftParts.length);
+  for (let index = 0; index < partCount; index += 1) {
+    const difference = (rightParts[index] ?? 0) - (leftParts[index] ?? 0);
+    if (difference !== 0) return difference;
+  }
+  return right.localeCompare(left);
+}
+
+function versionParts(version: string) {
+  return version
+    .replace(/^v/i, "")
+    .split(".")
+    .map((part) => Number.parseInt(part, 10))
+    .map((part) => (Number.isFinite(part) ? part : 0));
 }

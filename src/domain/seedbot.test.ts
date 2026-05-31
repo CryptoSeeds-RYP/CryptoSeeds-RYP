@@ -7,6 +7,7 @@ import {
   seedBotPerformanceDisclaimer,
   seedBotPerformanceWindows,
   seedBotStrategies,
+  validateSeedBotFeeModel,
 } from "./seedbot";
 
 describe("seedbot capabilities", () => {
@@ -59,6 +60,21 @@ describe("seedbot capabilities", () => {
     );
     expect(seedBotFeeDisclosure(seedBotStrategies[0].feeModel)).toContain("deducted from profit not principal");
     expect(seedBotFeeDisclosure(seedBotStrategies[0].feeModel)).toContain("legal review");
+  });
+
+  it("validates SeedBot fee shares before showing fee copy", () => {
+    const invalidFeeModel = {
+      ...seedBotStrategies[0].feeModel,
+      performanceFeeBps: 10_001,
+      treasurySharePercent: 59,
+    };
+
+    expect(validateSeedBotFeeModel(seedBotStrategies[0].feeModel).valid).toBe(true);
+    expect(validateSeedBotFeeModel(invalidFeeModel).blockers).toEqual([
+      "SeedBot performance fee must be between 0 and 10000 bps.",
+      "SeedBot dev and treasury fee shares must total 100%.",
+    ]);
+    expect(seedBotFeeDisclosure(invalidFeeModel)).toContain("fee preview is invalid");
   });
 
   it("returns selected historical performance windows for graph rendering", () => {

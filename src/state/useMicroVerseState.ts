@@ -102,6 +102,7 @@ export function useMicroVerseState() {
 
       const participation = createPreparedParticipation({
         project,
+        activeTier: selectedTier,
         walletAddress: effectiveWallet,
         participations: current.participations,
         slotCount: current.farm.projectSlotsUnlocked,

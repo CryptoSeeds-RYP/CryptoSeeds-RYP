@@ -66,9 +66,25 @@ describe("admin access", () => {
     expect(mainnet.canOpenDashboard).toBe(false);
   });
 
+  it("does not unlock admin actions while demo mode is active", () => {
+    const access = buildAdminAccess({
+      config: {
+        adminAuthorityAddress: adminAddress,
+        cluster: "devnet",
+        protocolDeployment: "devnet",
+        solanaBroadcastEnabled: false,
+      },
+      walletAddress: adminAddress,
+      demoMode: true,
+    });
+
+    expect(access.status).toBe("DEMO_BLOCKED");
+    expect(access.canOpenDashboard).toBe(false);
+    expect(access.blockers).toContain("Demo mode must be disabled before the admin dashboard can unlock.");
+  });
+
   it("keeps all MVP admin actions non-executable from the UI", () => {
     expect(adminActionPreviews.some((action) => action.executionRule.includes("No production"))).toBe(true);
     expect(adminActionPreviews.every((action) => !action.executionRule.includes("Execute live"))).toBe(true);
   });
 });
-

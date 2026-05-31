@@ -212,9 +212,34 @@ export function canAccessSeedBotStrategy({
 }
 
 export function seedBotFeeDisclosure(feeModel: SeedBotFeeModel) {
+  const validation = validateSeedBotFeeModel(feeModel);
+  if (!validation.valid) {
+    return `Review-gated fee preview is invalid: ${validation.blockers.join(" ")}`;
+  }
   return `Review-gated fee preview: ${feeModel.performanceFeeBps / 100}% success fee on realized positive strategy PnL only, deducted from profit not principal, split ${feeModel.devSharePercent}% dev / ${feeModel.treasurySharePercent}% treasury. Disabled for live use until security and legal review are complete.`;
 }
 
 export function performanceForWindow(strategy: SeedBotStrategy, window: SeedBotPerformanceWindowName) {
   return strategy.performance.find((item) => item.window === window) ?? strategy.performance[0];
+}
+
+export function validateSeedBotFeeModel(feeModel: SeedBotFeeModel) {
+  const blockers: string[] = [];
+  if (!Number.isInteger(feeModel.performanceFeeBps) || feeModel.performanceFeeBps < 0 || feeModel.performanceFeeBps > 10_000) {
+    blockers.push("SeedBot performance fee must be between 0 and 10000 bps.");
+  }
+  if (feeModel.devSharePercent + feeModel.treasurySharePercent !== 100) {
+    blockers.push("SeedBot dev and treasury fee shares must total 100%.");
+  }
+  if (feeModel.chargedOn !== "REALIZED_POSITIVE_PNL_ONLY") {
+    blockers.push("SeedBot fee must only be charged on realized positive PnL.");
+  }
+  if (feeModel.deductedFrom !== "PROFIT_NOT_PRINCIPAL") {
+    blockers.push("SeedBot fee must be deducted from profit, not principal.");
+  }
+
+  return {
+    valid: blockers.length === 0,
+    blockers,
+  };
 }

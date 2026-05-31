@@ -166,6 +166,9 @@ export function deriveProtocolAddresses(ownerAddress: string) {
 }
 
 export function parseRypAmountToBaseUnits(amountUi: number | string, decimals: number) {
+  if (!Number.isInteger(decimals) || decimals < 0 || decimals > 18) {
+    throw new Error("RYP decimals must be an integer between 0 and 18");
+  }
   const normalized = amountUi.toString().replace(/,/g, "").trim();
   if (!/^\d+(\.\d+)?$/.test(normalized)) {
     throw new Error(`Invalid RYP amount: ${amountUi}`);

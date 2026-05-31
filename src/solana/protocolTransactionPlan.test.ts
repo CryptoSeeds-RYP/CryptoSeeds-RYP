@@ -27,6 +27,8 @@ describe("protocol transaction plan", () => {
     expect(parseRypAmountToBaseUnits("5,000", 6)).toBe("5000000000");
     expect(parseRypAmountToBaseUnits("1.25", 6)).toBe("1250000");
     expect(() => parseRypAmountToBaseUnits("0", 6)).toThrow("greater than zero");
+    expect(() => parseRypAmountToBaseUnits("1", Number.NaN)).toThrow("decimals");
+    expect(() => parseRypAmountToBaseUnits("1", 19)).toThrow("decimals");
     expect(() => parseRypAmountToBaseUnits("1.1234567", 6)).toThrow("more than 6 decimal");
     expect(() => parseRypAmountToBaseUnits("18446744073709.551615", 6)).not.toThrow();
     expect(() => parseRypAmountToBaseUnits("18446744073709.551616", 6)).toThrow("u64");

@@ -302,6 +302,7 @@ function createInstruction(instruction: PreparedInstructionPlan) {
 function validateBoundary({ plan, walletCanSign, walletPublicKey }: BoundaryInput) {
   const reasons: string[] = [];
   if (!plan) reasons.push("No prepared Solana transaction plan is available.");
+  if (plan) reasons.push(...validatePreparedPlan(plan));
   if (!walletPublicKey) reasons.push("Connect a real Solana wallet before requesting a wallet boundary.");
   if (!walletCanSign) reasons.push("Connected wallet does not expose Solana transaction signing.");
   if (plan && walletPublicKey && plan.feePayer !== walletPublicKey) {
@@ -330,6 +331,10 @@ function validateSignatureBoundary({
   if (!boundary?.serializedMessageBase64) reasons.push("Simulation boundary is missing the unsigned message preview.");
   if (!walletPublicKey) reasons.push("Connect a real Solana wallet before requesting a signature.");
   if (!signTransaction) reasons.push("Connected wallet does not expose Solana transaction signing.");
+  if (boundary?.walletAddress && walletPublicKey && boundary.walletAddress !== walletPublicKey) {
+    reasons.push("Simulation boundary wallet address does not match the connected wallet.");
+  }
+  if (plan) reasons.push(...validatePreparedPlan(plan));
   if (boundary && plan && boundary.feePayer !== plan.feePayer) {
     reasons.push("Simulation boundary fee payer does not match the prepared transaction plan.");
   }
@@ -338,6 +343,28 @@ function validateSignatureBoundary({
   }
   if (plan && walletPublicKey && !requiredSignerAddresses(plan).includes(walletPublicKey)) {
     reasons.push("Connected wallet is not listed as a required signer.");
+  }
+
+  return reasons;
+}
+
+function validatePreparedPlan(plan: PreparedSolanaTransactionPlan) {
+  const reasons: string[] = [];
+  if (plan.instructions.length === 0) {
+    reasons.push("Prepared Solana transaction plan has no instructions.");
+  }
+  for (const instruction of plan.instructions) {
+    if (!isEvenHex(instruction.dataHex) || instruction.dataHex.length < 16) {
+      reasons.push(`${instruction.instructionName} instruction data is not valid hex.`);
+    }
+    if (!isValidPublicKey(instruction.programId)) {
+      reasons.push(`${instruction.instructionName} program id is not a valid Solana public key.`);
+    }
+    for (const account of instruction.accounts) {
+      if (!account.address || !isValidPublicKey(account.address)) {
+        reasons.push(`${account.label} account address is not a valid Solana public key.`);
+      }
+    }
   }
 
   return reasons;
@@ -423,6 +450,18 @@ function requiredSignerAddresses(plan: PreparedSolanaTransactionPlan) {
 function publicKeyFromAddress(address: string | undefined, label: string) {
   if (!address) throw new Error(`Missing Solana account address for ${label}`);
   return new PublicKey(address);
+}
+
+function isEvenHex(value: string) {
+  return value.length % 2 === 0 && /^[0-9a-f]*$/i.test(value);
+}
+
+function isValidPublicKey(value: string) {
+  try {
+    return new PublicKey(value).toBase58() === value;
+  } catch {
+    return false;
+  }
 }
 
 function stringifySimulationError(error: SimulatedTransactionResponse["err"]) {
