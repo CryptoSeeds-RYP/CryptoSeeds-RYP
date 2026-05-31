@@ -3,6 +3,7 @@ import { CheckCircle2, FileText, Filter, Map, ShieldAlert } from "lucide-react";
 import { ViewHeader } from "../components/ViewHeader";
 import { participationForProject, projectParticipationBlockingReasons } from "../domain/participation";
 import { buildProjectMilestoneViews } from "../domain/projectLifecycle";
+import { evaluateProjectDisclosures } from "../domain/projectRegistry";
 import { canAccess } from "../domain/tiering";
 import type { Project, ProjectParticipation, StakingTier } from "../types";
 import { formatLabel } from "../utils/format";
@@ -38,6 +39,7 @@ export function ExplorerView({
     slotCount: projectSlotsUnlocked,
   });
   const selectedParticipation = participationForProject(participations, selectedProject.id);
+  const disclosureResult = evaluateProjectDisclosures(selectedProject);
   const milestoneViews = buildProjectMilestoneViews({
     project: selectedProject,
     participation: selectedParticipation,
@@ -131,6 +133,7 @@ export function ExplorerView({
           <div className="project-detail-grid">
             <DetailItem label="Operator" value={selectedProject.operator.name} />
             <DetailItem label="Verification" value={formatLabel(selectedProject.operator.verificationStatus)} />
+            <DetailItem label="Receiving Account" value={formatLabel(selectedProject.receivingAccount.verificationStatus)} />
             <DetailItem label="Required Tier" value={selectedProject.requiredTier} />
             <DetailItem label="Governance" value={formatLabel(selectedProject.governance.status)} />
             <DetailItem label="Updates" value={selectedProject.updateCadence} />
@@ -187,6 +190,40 @@ export function ExplorerView({
                 </li>
               ))}
             </ul>
+          </section>
+
+          <section className="review-block">
+            <div className="panel-title">
+              <ShieldAlert size={18} />
+              <strong>Account Disclosure</strong>
+            </div>
+            <ul>
+              <li>
+                <strong>{selectedProject.receivingAccount.label}</strong>
+                <span>{formatLabel(selectedProject.receivingAccount.accountType)} - {formatLabel(selectedProject.receivingAccount.custodyModel)}</span>
+              </li>
+              <li>
+                <strong>{selectedProject.receivingAccount.address ?? "No receiving address active"}</strong>
+                <span>{selectedProject.receivingAccount.notes}</span>
+              </li>
+              <li>
+                <strong>Token holding disclosure: {formatLabel(selectedProject.disclosure.projectOwnerTokenHolding)}</strong>
+                <span>Treasury independent: {selectedProject.disclosure.treasuryIndependent ? "Yes" : "No"} / Charity separated: {selectedProject.disclosure.charitySeparated ? "Yes" : "No"}</span>
+              </li>
+              {selectedProject.disclosure.conflictNotes.map((note) => (
+                <li key={note}>
+                  <strong>Disclosure note</strong>
+                  <span>{note}</span>
+                </li>
+              ))}
+            </ul>
+            {disclosureResult.warnings.length > 0 && (
+              <div className="eligibility-list">
+                {disclosureResult.warnings.map((warning) => (
+                  <span key={warning}>{warning}</span>
+                ))}
+              </div>
+            )}
           </section>
 
           <section className="review-block">

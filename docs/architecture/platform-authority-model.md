@@ -25,6 +25,29 @@ CryptoSeeds should operate as a self-custodial platform and interface layer. Use
 
 No authority control should custody user funds. Any authority that can affect user rights, fee parameters, project visibility, or automation permissions should emit logs and have a public policy before launch.
 
+## Project Listing Disclosure Minimum
+
+Every listed project should carry:
+
+- project-owner/operator name,
+- operator jurisdiction when available,
+- operator verification status,
+- receiving account label,
+- receiving account chain,
+- receiving account address or explicit inactive status,
+- receiving account custody model,
+- receiving account verification status,
+- whether the receiving account may receive user funds,
+- project-owner token holding disclosure status,
+- founder/operator conflict flag,
+- treasury independence flag,
+- charity separation flag,
+- legal-review gate flag,
+- conflict notes,
+- required documents and risk disclosure version.
+
+Donation listings must use separated charity-controlled accounts and must not be mixed with reward-bearing or participation-based project accounts.
+
 ## Fee Memory
 
 - Base platform/network fee: 350 bps.
@@ -49,4 +72,3 @@ The following stay disabled, design-only, or disclosure-gated until reviewed:
 - Founder, operator, advisor, treasury, and community token allocation disclosures.
 - Fiat on/off ramps.
 - Leverage, perps, margin, copy trading, or strategy marketplace features.
-

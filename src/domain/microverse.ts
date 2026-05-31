@@ -57,6 +57,26 @@ export type ProjectOperator = {
   verificationStatus: "PENDING" | "VERIFIED" | "COMMUNITY_REVIEW" | "REJECTED";
 };
 
+export type ProjectReceivingAccount = {
+  label: string;
+  chain: "SOLANA" | "EVM" | "OFF_CHAIN_REVIEW";
+  address?: string;
+  accountType: "PROJECT_OWNER" | "CHARITY" | "TREASURY" | "PROGRAM_CONTROLLED";
+  custodyModel: "OWNER_CONTROLLED" | "CHARITY_CONTROLLED" | "PROGRAM_CONTROLLED" | "DISCLOSURE_PENDING";
+  verificationStatus: "PENDING" | "VERIFIED" | "COMMUNITY_REVIEW" | "REJECTED";
+  receivesUserFunds: boolean;
+  notes: string;
+};
+
+export type ProjectDisclosure = {
+  projectOwnerTokenHolding: "NONE_DISCLOSED" | "DISCLOSED" | "PENDING";
+  founderOrOperatorConflict: boolean;
+  treasuryIndependent: boolean;
+  charitySeparated: boolean;
+  legalReviewRequired: boolean;
+  conflictNotes: string[];
+};
+
 export type GovernanceApproval = {
   status: "NOT_SUBMITTED" | "UNDER_REVIEW" | "VOTE_OPEN" | "APPROVED" | "REJECTED";
   proposalId?: string;
@@ -75,6 +95,8 @@ export type Project = {
   duration: string;
   progress: number;
   operator: ProjectOperator;
+  receivingAccount: ProjectReceivingAccount;
+  disclosure: ProjectDisclosure;
   governance: GovernanceApproval;
   updateCadence: string;
   summary: string;

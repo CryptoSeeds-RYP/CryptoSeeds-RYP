@@ -65,11 +65,35 @@ export type Project = {
   status: ProjectStatus;
   requiredTier: Exclude<StakingTier, "NONE">;
   riskLevel: RiskLevel;
+  receivingAccount: ProjectReceivingAccount;
+  disclosure: ProjectDisclosure;
   summary: string;
   documents: ProjectDocument[];
   milestones: ProjectMilestone[];
   participationOpen: boolean;
   userEligible: boolean;
+};
+```
+
+```ts
+export type ProjectReceivingAccount = {
+  label: string;
+  chain: "SOLANA" | "EVM" | "OFF_CHAIN_REVIEW";
+  address?: string;
+  accountType: "PROJECT_OWNER" | "CHARITY" | "TREASURY" | "PROGRAM_CONTROLLED";
+  custodyModel: "OWNER_CONTROLLED" | "CHARITY_CONTROLLED" | "PROGRAM_CONTROLLED" | "DISCLOSURE_PENDING";
+  verificationStatus: "PENDING" | "VERIFIED" | "COMMUNITY_REVIEW" | "REJECTED";
+  receivesUserFunds: boolean;
+  notes: string;
+};
+
+export type ProjectDisclosure = {
+  projectOwnerTokenHolding: "NONE_DISCLOSED" | "DISCLOSED" | "PENDING";
+  founderOrOperatorConflict: boolean;
+  treasuryIndependent: boolean;
+  charitySeparated: boolean;
+  legalReviewRequired: boolean;
+  conflictNotes: string[];
 };
 ```
 
