@@ -87,9 +87,13 @@ Current protocol unit-test result:
 - rejected duplicate tier thresholds
 - rejected below-Seed stake
 - `stake_ryp`
+- rejected early voting-right activation
 - rejected mismatched-owner unstake
+- rejected oversized unstake
+- top-up from Seed to Sprout without resetting voting eligibility
+- partial unstake from Sprout to Seed without losing Golden Key state
 - rejected non-authority pause
-- pause enforcement for stake and unstake
+- pause enforcement for stake, unstake, and voting activation
 - `unstake_ryp`
 
 The localnet smoke test preloads the compiled SBF program with `solana-test-validator --bpf-program`, so it does not require committing or funding a local program keypair.

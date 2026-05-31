@@ -17,7 +17,7 @@ The current local machine has two verification paths:
 - WSL Solana/Anchor checks through `npm run protocol:build:wsl` and `npm run protocol:test:wsl`.
 - WSL local validator smoke checks through `npm run protocol:smoke:localnet:wsl`.
 
-The WSL route is the primary local path for Anchor builds. The localnet smoke check preloads the compiled SBF program with `solana-test-validator --bpf-program`, creates a test RYP-like mint, checks invalid config and unauthorized action rejections, initializes config, stakes, verifies pause enforcement, and unstakes. Full public deployment verification still needs a synced devnet/mainnet program id and key-management review.
+The WSL route is the primary local path for Anchor builds. The localnet smoke check preloads the compiled SBF program with `solana-test-validator --bpf-program`, creates a test RYP-like mint, checks invalid config and unauthorized action rejections, initializes config, stakes, verifies voting-delay/top-up/partial-unstake behavior, verifies pause enforcement, and unstakes. Full public deployment verification still needs a synced devnet/mainnet program id and key-management review.
 
 ## First Program
 
@@ -39,7 +39,7 @@ Current scope:
 - Emergency pause
 - Emit protocol events
 
-Current localnet security coverage includes rejected duplicate tier thresholds, rejected below-Seed staking, rejected mismatched-owner unstaking, rejected non-authority pause attempts, and pause enforcement for both stake and unstake paths.
+Current localnet security coverage includes rejected duplicate tier thresholds, rejected below-Seed staking, rejected early voting-right activation, rejected mismatched-owner unstaking, rejected oversized unstaking, Seed-to-Sprout top-up state preservation, Sprout-to-Seed partial unstake state preservation, rejected non-authority pause attempts, and pause enforcement for stake, unstake, and voting activation paths.
 
 Client preparation now has a TypeScript planning layer at `src/solana/protocolTransactionPlan.ts`:
 

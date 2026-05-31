@@ -187,7 +187,11 @@ Do not include these in the first staking program deployment:
 
 - invalid duplicate tier thresholds are rejected before config creation
 - below-Seed stake amounts are rejected before position creation or vault transfer
+- early voting-right activation is rejected before the 14-day delay
 - mismatched-owner unstake attempts are rejected
+- oversized unstake attempts are rejected before vault transfer
+- Seed-to-Sprout top-ups preserve staking start and voting eligibility timestamps
+- Sprout-to-Seed partial unstake keeps Golden Key active and preserves the voting timer
 - non-authority pause attempts are rejected
-- paused protocol state blocks stake and unstake
+- paused protocol state blocks stake, unstake, and voting activation
 - full unstake returns the vault balance and resets position state

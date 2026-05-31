@@ -21,6 +21,9 @@ const ASSOCIATED_TOKEN_PROGRAM_ID = new PublicKey("ATokenGPvbdGVxr1b2hvZbsiqW5xW
 const MINT_SIZE = 82;
 const RYP_DECIMALS = 6;
 const SEED_STAKE_AMOUNT = 5_000_000_000n;
+const ADD_TO_SPROUT_AMOUNT = 15_000_000_000n;
+const SPROUT_STAKE_AMOUNT = 20_000_000_000n;
+const VOTING_RIGHTS_DELAY_SECONDS = 14n * 24n * 60n * 60n;
 const TIER_THRESHOLDS = [5_000_000_000n, 20_000_000_000n, 50_000_000_000n, 100_000_000_000n, 150_000_000_000n];
 const TIER_FEE_REDUCTIONS = [0, 35, 70, 105, 140];
 const BASE_FEE_BPS = 350;
@@ -160,7 +163,24 @@ async function runSmoke(connection) {
   assertEqual("position tier", stakedPosition.tier, 1);
   assertEqual("golden key active", stakedPosition.goldenKeyActive, true);
   assertEqual("voting rights initially inactive", stakedPosition.votingRightsActive, false);
+  assertEqual(
+    "voting rights delay seconds",
+    stakedPosition.votingRightsEligibleTs - stakedPosition.stakingStartTs,
+    VOTING_RIGHTS_DELAY_SECONDS,
+  );
   assertEqual("vault balance after stake", stakedVaultBalance, SEED_STAKE_AMOUNT);
+
+  log("asserting voting rights are locked before the 14-day delay");
+  await expectFailure(
+    "activate_voting_rights rejects early activation",
+    () => activateVotingRights(connection, { config, owner, position }),
+    "custom program error: 0x1778",
+  );
+  assertEqual(
+    "voting rights after rejected early activation",
+    parseStakePosition(await getAccountData(connection, position)).votingRightsActive,
+    false,
+  );
 
   log("asserting unauthorized unstake is rejected");
   await expectFailure(
@@ -178,6 +198,73 @@ async function runSmoke(connection) {
     "A seeds constraint was violated",
   );
   assertEqual("vault balance after rejected unauthorized unstake", await readTokenBalance(connection, rypVault), SEED_STAKE_AMOUNT);
+
+  log("asserting unstake cannot exceed position amount");
+  await expectFailure(
+    "unstake_ryp rejects insufficient stake",
+    () =>
+      unstakeRyp(connection, {
+        amount: SEED_STAKE_AMOUNT + 1n,
+        config,
+        mint: mint.publicKey,
+        owner,
+        ownerRypAccount,
+        position,
+        rypVault,
+      }),
+    "custom program error: 0x1777",
+  );
+  assertEqual("vault balance after rejected oversized unstake", await readTokenBalance(connection, rypVault), SEED_STAKE_AMOUNT);
+
+  log("calling stake_ryp again to test tier upgrade state");
+  await mintTo(connection, {
+    amount: ADD_TO_SPROUT_AMOUNT,
+    authority,
+    destination: ownerRypAccount,
+    mint: mint.publicKey,
+  });
+  await stakeRyp(connection, {
+    amount: ADD_TO_SPROUT_AMOUNT,
+    config,
+    mint: mint.publicKey,
+    owner,
+    ownerRypAccount,
+    position,
+    rypVault,
+  });
+
+  const upgradedConfig = parseProtocolConfig(await getAccountData(connection, config));
+  const upgradedPosition = parseStakePosition(await getAccountData(connection, position));
+  assertEqual("upgraded config total", upgradedConfig.totalStaked, SPROUT_STAKE_AMOUNT);
+  assertEqual("upgraded position amount", upgradedPosition.stakedAmount, SPROUT_STAKE_AMOUNT);
+  assertEqual("upgraded position tier", upgradedPosition.tier, 2);
+  assertEqual("upgraded golden key state", upgradedPosition.goldenKeyActive, true);
+  assertEqual("upgraded voting rights state", upgradedPosition.votingRightsActive, false);
+  assertEqual("staking start preserved on top-up", upgradedPosition.stakingStartTs, stakedPosition.stakingStartTs);
+  assertEqual("voting eligibility preserved on top-up", upgradedPosition.votingRightsEligibleTs, stakedPosition.votingRightsEligibleTs);
+  assertEqual("vault balance after tier upgrade", await readTokenBalance(connection, rypVault), SPROUT_STAKE_AMOUNT);
+
+  log("calling partial unstake to test tier downgrade state");
+  await unstakeRyp(connection, {
+    amount: ADD_TO_SPROUT_AMOUNT,
+    config,
+    mint: mint.publicKey,
+    owner,
+    ownerRypAccount,
+    position,
+    rypVault,
+  });
+
+  const downgradedConfig = parseProtocolConfig(await getAccountData(connection, config));
+  const downgradedPosition = parseStakePosition(await getAccountData(connection, position));
+  assertEqual("downgraded config total", downgradedConfig.totalStaked, SEED_STAKE_AMOUNT);
+  assertEqual("downgraded position amount", downgradedPosition.stakedAmount, SEED_STAKE_AMOUNT);
+  assertEqual("downgraded position tier", downgradedPosition.tier, 1);
+  assertEqual("downgraded golden key state", downgradedPosition.goldenKeyActive, true);
+  assertEqual("downgraded voting rights state", downgradedPosition.votingRightsActive, false);
+  assertEqual("staking start preserved on partial unstake", downgradedPosition.stakingStartTs, stakedPosition.stakingStartTs);
+  assertEqual("voting eligibility preserved on partial unstake", downgradedPosition.votingRightsEligibleTs, stakedPosition.votingRightsEligibleTs);
+  assertEqual("vault balance after partial unstake", await readTokenBalance(connection, rypVault), SEED_STAKE_AMOUNT);
 
   log("asserting unauthorized pause is rejected");
   await expectFailure(
@@ -218,6 +305,11 @@ async function runSmoke(connection) {
       }),
     "custom program error: 0x1771",
   );
+  await expectFailure(
+    "activate_voting_rights rejects while paused",
+    () => activateVotingRights(connection, { config, owner, position }),
+    "custom program error: 0x1771",
+  );
   assertEqual("vault balance after paused attempts", await readTokenBalance(connection, rypVault), SEED_STAKE_AMOUNT);
   await setPause(connection, { authority, config, paused: false });
   assertEqual("pause state after authority unpause", parseProtocolConfig(await getAccountData(connection, config)).paused, false);
@@ -243,7 +335,7 @@ async function runSmoke(connection) {
   assertEqual("final golden key state", finalPosition.goldenKeyActive, false);
   assertEqual("final voting rights state", finalPosition.votingRightsActive, false);
   assertEqual("final vault balance", finalVaultBalance, 0n);
-  assertEqual("final owner balance", finalOwnerBalance, SEED_STAKE_AMOUNT);
+  assertEqual("final owner balance", finalOwnerBalance, SPROUT_STAKE_AMOUNT);
 
   return {
     status: "passed",
@@ -257,9 +349,14 @@ async function runSmoke(connection) {
       "reject_invalid_thresholds",
       "reject_below_tier_stake",
       "stake_ryp",
+      "reject_early_voting_activation",
       "reject_unauthorized_unstake",
+      "reject_insufficient_unstake",
+      "stake_top_up_to_sprout",
+      "partial_unstake_back_to_seed",
       "reject_unauthorized_pause",
       "pause_blocks_stake_and_unstake",
+      "pause_blocks_voting_activation",
       "unstake_ryp",
     ],
   };
@@ -346,6 +443,16 @@ async function unstakeRyp(connection, { amount, config, mint, owner, ownerRypAcc
     accountMeta(position, false, true),
     accountMeta(TOKEN_PROGRAM_ID, false, false),
   ]);
+
+  await sendAndConfirm(connection, new Transaction().add(instruction), [owner]);
+}
+
+async function activateVotingRights(connection, { config, owner, position }) {
+  const instruction = new TransactionInstruction({
+    programId,
+    keys: [accountMeta(owner.publicKey, true, false), accountMeta(config, false, false), accountMeta(position, false, true)],
+    data: discriminator("activate_voting_rights"),
+  });
 
   await sendAndConfirm(connection, new Transaction().add(instruction), [owner]);
 }
@@ -485,8 +592,13 @@ function parseStakePosition(data) {
     owner: new PublicKey(data.subarray(8, 40)),
     stakedAmount: data.readBigUInt64LE(40),
     tier: data.readUInt8(48),
+    stakingStartTs: data.readBigInt64LE(49),
+    votingRightsEligibleTs: data.readBigInt64LE(57),
+    lastRewardClaimTs: data.readBigInt64LE(65),
     goldenKeyActive: data.readUInt8(73) === 1,
     votingRightsActive: data.readUInt8(74) === 1,
+    voteCount: data.readUInt32LE(75),
+    bump: data.readUInt8(79),
   };
 }
 
