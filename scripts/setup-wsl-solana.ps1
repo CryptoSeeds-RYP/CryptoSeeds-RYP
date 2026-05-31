@@ -1,3 +1,7 @@
+param(
+  [string]$Distro = "Ubuntu-24.04"
+)
+
 $ErrorActionPreference = "Stop"
 
 function Assert-Admin {
@@ -16,10 +20,10 @@ Enable-WindowsOptionalFeature -Online -FeatureName Microsoft-Windows-Subsystem-L
 Write-Host "Enabling Virtual Machine Platform..." -ForegroundColor Cyan
 Enable-WindowsOptionalFeature -Online -FeatureName VirtualMachinePlatform -All -NoRestart
 
-Write-Host "Attempting Ubuntu installation..." -ForegroundColor Cyan
-wsl.exe --install -d Ubuntu
+Write-Host "Staging $Distro without launch..." -ForegroundColor Cyan
+wsl.exe --install $Distro --no-launch --web-download
 
 Write-Host ""
 Write-Host "If Windows asks for a reboot, reboot before continuing Solana/Anchor setup." -ForegroundColor Yellow
-Write-Host "After Ubuntu opens, create the Linux user, then run scripts/setup-solana-anchor-linux.sh inside WSL." -ForegroundColor Yellow
-
+Write-Host "After reboot, enable firmware virtualization if still reported as disabled, then launch $Distro and create the Linux user." -ForegroundColor Yellow
+Write-Host "Then run scripts/setup-solana-anchor-linux.sh inside WSL." -ForegroundColor Yellow
