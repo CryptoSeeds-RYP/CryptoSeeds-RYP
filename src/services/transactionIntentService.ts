@@ -182,7 +182,7 @@ export function buildSeedBotAllocationIntent({
         writable: false,
       }))),
     ],
-    riskSummary: `Historical strategy performance only. Past performance does not guarantee future results. Preferred venue: ${venue?.name ?? strategy.preferredVenueId}. Route mode: ${routePlan.mode}.`,
+    riskSummary: `Historical strategy performance only. Past performance does not guarantee future results. Preferred venue: ${venue?.name ?? strategy.preferredVenueId}. Route mode: ${routePlan.mode}. Profit-based fee preview is disabled for live use until legal review.`,
     expectedResult: "Wallet-approved allocation route is prepared; no funds move until the user signs.",
   });
 }

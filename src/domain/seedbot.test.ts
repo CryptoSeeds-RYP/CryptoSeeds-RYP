@@ -52,11 +52,13 @@ describe("seedbot capabilities", () => {
     ).toBe(false);
   });
 
-  it("discloses performance fees as profit-only", () => {
+  it("discloses profit-only strategy fees as review-gated", () => {
+    expect(seedBotFeeDisclosure(seedBotStrategies[0].feeModel)).toContain("Review-gated fee preview");
     expect(seedBotFeeDisclosure(seedBotStrategies[0].feeModel)).toContain(
-      "performance fee on realized positive strategy PnL only",
+      "success fee on realized positive strategy PnL only",
     );
     expect(seedBotFeeDisclosure(seedBotStrategies[0].feeModel)).toContain("deducted from profit not principal");
+    expect(seedBotFeeDisclosure(seedBotStrategies[0].feeModel)).toContain("legal review");
   });
 
   it("returns selected historical performance windows for graph rendering", () => {

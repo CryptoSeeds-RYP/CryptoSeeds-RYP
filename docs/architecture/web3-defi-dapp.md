@@ -6,6 +6,8 @@ CryptoSeeds should be treated as a full Web3/DeFi dApp. The MicroVerse is the us
 
 The user owns the wallet. CryptoSeeds provides interfaces, protocol programs, routing, visual state, and data services. CryptoSeeds must not custody private keys, seed phrases, or unrestricted user funds.
 
+Decentralization is a design target, not a slogan. Every module should reduce custody, hidden discretion, opaque admin control, and off-chain trust where practical, while staying honest that legal review is still required before public financial-adjacent launch.
+
 ## DApp Layers
 
 | Layer | Purpose |
@@ -102,7 +104,22 @@ Governance should use 1 wallet = 1 vote through a non-transferable Voting Rights
 
 ### SeedBot Terminal
 
-SeedBot Terminal is a self-custodial trading-tool module. MVP should support signal-only tools, watchlists, portfolio views, paper trading, and wallet-approved execution. Guarded automation must be revocable, capped, and explicitly permissioned.
+SeedBot Terminal is a self-custodial trading-tool module. MVP should support signal-only tools, watchlists, portfolio views, paper trading, and wallet-approved execution. Guarded automation must be revocable, capped, explicitly permissioned, and legal-review gated.
+
+SeedBot must not provide discretionary account management. Strategy routes should be based on objective, pre-disclosed parameters that users can review before signing. Any live success-fee, profit-fee, or performance-fee model must stay disabled until reviewed.
+
+## Regulatory Surface Reduction
+
+| Risk Surface | Build Direction |
+| --- | --- |
+| Custody | User wallets only; no seed phrases, private keys, backend wallets, or unrestricted user funds |
+| Execution | User-directed transaction intents, simulation, wallet signature, separate broadcast readiness |
+| Routing | Objective, pre-disclosed route parameters and visible venue limitations |
+| Automation | Disabled in MVP; later must be capped, revocable, and permission-scoped |
+| Fees | Transparent protocol/tool fee previews; live profit-based fees require review |
+| Projects | Risk-labeled participation and updates; financial-rights mechanics require review |
+| Admin | Multisig/timelock path, public authority map, event logs, emergency pause policy |
+| Marketing | No return promises and no claims that self-custody bypasses legal obligations |
 
 ## Implementation Direction
 
@@ -126,6 +143,9 @@ The first frontend can use mock protocol state, but types and components should 
 - No hidden transactions
 - No unlimited approvals
 - No guaranteed returns
+- No regulatory-workaround claims
+- No discretionary strategy execution
+- No live profit-based fees before legal review
 - No casino mechanics in MVP
 - No leverage/perps in MVP
 - No copy-trading marketplace in MVP

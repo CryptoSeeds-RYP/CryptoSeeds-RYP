@@ -110,6 +110,8 @@ describe("transaction intents", () => {
     expect(intent.riskSummary).toContain("Past performance does not guarantee future results");
     expect(intent.riskSummary).toContain("Route mode: DRY_RUN");
     expect(intent.estimatedFees).toContain("deducted from profit not principal");
+    expect(intent.estimatedFees).toContain("Disabled for live use");
+    expect(intent.riskSummary).toContain("legal review");
     expect(intent.accounts.some((account) => account.label.includes("Hyperliquid"))).toBe(true);
   });
 

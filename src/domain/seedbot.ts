@@ -212,7 +212,7 @@ export function canAccessSeedBotStrategy({
 }
 
 export function seedBotFeeDisclosure(feeModel: SeedBotFeeModel) {
-  return `${feeModel.performanceFeeBps / 100}% performance fee on realized positive strategy PnL only, deducted from profit not principal, split ${feeModel.devSharePercent}% dev / ${feeModel.treasurySharePercent}% treasury.`;
+  return `Review-gated fee preview: ${feeModel.performanceFeeBps / 100}% success fee on realized positive strategy PnL only, deducted from profit not principal, split ${feeModel.devSharePercent}% dev / ${feeModel.treasurySharePercent}% treasury. Disabled for live use until security and legal review are complete.`;
 }
 
 export function performanceForWindow(strategy: SeedBotStrategy, window: SeedBotPerformanceWindowName) {

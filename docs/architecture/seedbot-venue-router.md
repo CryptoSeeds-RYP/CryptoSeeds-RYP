@@ -23,7 +23,7 @@ Future mode:
 
 - `WALLET_SIGNED`
 
-No adapter should send live orders until the user has explicitly approved the route and the venue-specific signature flow is implemented.
+No adapter should send live orders until the user has explicitly approved the route and the venue-specific signature flow is implemented. No adapter should add discretionary automation until capped permissions, revoke controls, objective route parameters, security review, and jurisdictional legal review are complete.
 
 SeedBot allocation transaction previews should label mixed Solana and EVM route sets as `MULTICHAIN` so Phantom-only, MetaMask-only, and combined approval paths are not misrepresented.
 
@@ -97,5 +97,7 @@ Live implementation still needs:
 - Keep route previews visible before signing.
 - Keep venue-specific blocked reasons visible.
 - Keep historical-performance disclaimer visible.
+- Keep success-fee, profit-fee, and performance-fee mechanics review-gated before live use.
+- Keep route choice based on objective, pre-disclosed parameters.
 - Use dry-run mode until venue adapter tests and legal review are complete.
 - Default new execution work to venue testnets before mainnet.

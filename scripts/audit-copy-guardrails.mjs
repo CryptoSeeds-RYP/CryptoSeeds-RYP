@@ -13,6 +13,10 @@ const riskyPatterns = [
   /\b(?:ai\s+)?money\s+printer\b/i,
   /\bdefi\s+casino\b/i,
   /\bprofit\s+engine\b/i,
+  /\b(?:bypass(?:es|ing)?|evad(?:e|es|ing)|avoid(?:s|ing)?)\s+(?:regulation|regulations|regulatory|law|laws|financial\s+services)\b/i,
+  /\bregulation[-\s]?free\b/i,
+  /\bguaranteed\s+compliant\b/i,
+  /\bself[-\s]?custody\s+solves\s+compliance\b/i,
 ];
 const negatingContext = /\b(?:no|not|never|avoid|without|does\s+not|do\s+not|isn'?t|not\s+a)\b/i;
 const failures = [];

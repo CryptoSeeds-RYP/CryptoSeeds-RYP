@@ -12,6 +12,8 @@ CryptoSeeds should feel like serious Web3 infrastructure wrapped in an immersive
 
 CryptoSeeds is not just a website, brochure, or off-chain farming game. It should be designed as a full self-custodial Web3 dApp with DeFi modules and a MicroVerse interface layer.
 
+Self-custody and decentralization are product constraints, not marketing shields. CryptoSeeds should reduce custody, intermediary, and discretionary-control risk through architecture, while avoiding any public claim that the project bypasses regulation or has no legal risk.
+
 The production architecture should be wallet-first and on-chain-aware:
 
 - Users connect self-custodial Solana wallets.
@@ -329,6 +331,8 @@ Core rule:
 
 CryptoSeeds must never custody user funds, seed phrases, or private keys.
 
+SeedBot must stay user-directed. The first public version should be signal-only, paper-trading, and wallet-approved. Any guarded automation, success-fee, profit-fee, performance-fee, or strategy execution that could look discretionary must remain disabled until security and jurisdictional legal review are complete.
+
 SeedBot access levels:
 
 | User Status | Access |
@@ -372,6 +376,8 @@ Do not build first:
 
 CryptoSeeds is financial-adjacent. Security, self-custody, transparent transaction previews, revocable permissions, and conservative contract design are mandatory.
 
+Self-custody reduces custody risk, but it does not automatically remove securities, commodities, money-transmission, adviser, financial-promotion, tax, gambling, or consumer-protection concerns. Public wording should say that CryptoSeeds is self-custodial and user-directed, not that it avoids regulation.
+
 Avoid building or marketing:
 
 - guaranteed APY
@@ -381,6 +387,9 @@ Avoid building or marketing:
 - gambling-style arcade mechanics
 - token wagering
 - leverage/perps in MVP
+- discretionary strategy execution
+- live profit-based fees without legal review
+- public claims that decentralization eliminates legal obligations
 
 Donations must not promise financial return. Reward-bearing or participation-based projects must be clearly separated from donation and impact updates.
 
