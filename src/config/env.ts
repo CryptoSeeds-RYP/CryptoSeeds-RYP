@@ -15,12 +15,13 @@ export type AppConfig = {
 
 export const PLACEHOLDER_PROTOCOL_PROGRAM_ID = "FG6PaFpoGXkYsidMpWxTWqVfbGqmtn8z8DK9HdJrMPfL";
 
+const cluster = readCluster(import.meta.env.VITE_SOLANA_CLUSTER);
 const protocolProgramId =
   import.meta.env.VITE_CRYPTOSEEDS_PROGRAM_ID ??
   PLACEHOLDER_PROTOCOL_PROGRAM_ID;
 
 export const appConfig: AppConfig = {
-  cluster: readCluster(import.meta.env.VITE_SOLANA_CLUSTER),
+  cluster,
   rpcUrl: import.meta.env.VITE_SOLANA_RPC_URL ?? "http://127.0.0.1:8899",
   rypMintAddress:
     import.meta.env.VITE_RYP_MINT_ADDRESS ?? "CFPzKkPYqpyfNJp3WDB4dykMemfhwYrV9cgNUy7nsoPD",
@@ -29,6 +30,7 @@ export const appConfig: AppConfig = {
   protocolDeployment: readProtocolDeployment(
     import.meta.env.VITE_CRYPTOSEEDS_PROGRAM_DEPLOYMENT,
     protocolProgramId,
+    cluster,
   ),
   heliusApiKey: import.meta.env.VITE_HELIUS_API_KEY,
   demoMode: import.meta.env.VITE_DEMO_MODE !== "false",
@@ -38,26 +40,28 @@ export const appConfig: AppConfig = {
   adminAuthorityAddress: readOptionalString(import.meta.env.VITE_ADMIN_AUTHORITY_ADDRESS),
 };
 
-function readCluster(value: string | undefined): AppConfig["cluster"] {
+export function readCluster(value: string | undefined): AppConfig["cluster"] {
   if (value === "devnet" || value === "mainnet-beta" || value === "localnet") return value;
   return "localnet";
 }
 
-function readProtocolDeployment(
+export function readProtocolDeployment(
   value: string | undefined,
   programId: string,
+  cluster: AppConfig["cluster"],
 ): AppConfig["protocolDeployment"] {
+  if (value === "localnet" && cluster === "localnet") return "localnet";
   if (programId === PLACEHOLDER_PROTOCOL_PROGRAM_ID) return "placeholder";
   if (value === "devnet" || value === "mainnet-beta" || value === "localnet") return value;
   return "placeholder";
 }
 
-function readHyperliquidNetwork(value: string | undefined): AppConfig["seedBotHyperliquidNetwork"] {
+export function readHyperliquidNetwork(value: string | undefined): AppConfig["seedBotHyperliquidNetwork"] {
   if (value === "MAINNET" || value === "TESTNET") return value;
   return "TESTNET";
 }
 
-function readOptionalString(value: string | undefined) {
+export function readOptionalString(value: string | undefined) {
   const trimmed = value?.trim();
   return trimmed ? trimmed : undefined;
 }

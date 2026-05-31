@@ -121,3 +121,11 @@ Frontend read-only model:
 - `src/views/AdminView.tsx`
 
 The Admin Dashboard can derive and decode reward config, vault state, and draft epoch accounts for inspection. It does not expose reward setup, claim, payout, or vault-movement transaction builders.
+
+Localnet inspection:
+
+- Set `VITE_SOLANA_CLUSTER=localnet`.
+- Set `VITE_CRYPTOSEEDS_PROGRAM_DEPLOYMENT=localnet`.
+- Keep broadcast disabled unless a separate reviewed transaction slice explicitly enables it.
+
+The development placeholder program id can be inspected on localnet only. Devnet and mainnet readiness still require a reviewed non-placeholder program id.
