@@ -42,6 +42,10 @@ Do not blur the two wallet responsibilities.
 
 If future bridging or multichain access is added, the transaction preview must clearly show which chain, wallet, token, program/contract, route, and risk profile is being used.
 
+## Signature Safety Rule
+
+Solana wallet signatures must be requested only after a prepared transaction passes the simulation boundary. The signed transaction message must match the simulated unsigned message exactly. If the wallet adapter returns a changed message, unverifiable signature, changed fee payer, or missing preview, the app must fail closed and keep broadcast disabled.
+
 ## Sources
 
 - Phantom Wallet Standard documentation: https://docs.phantom.com/developer-powertools/wallet-standard

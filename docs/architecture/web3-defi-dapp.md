@@ -62,6 +62,8 @@ The UI should show:
 - Expected result
 - Final wallet approval status
 
+For Solana staking actions, the app should simulate the prepared transaction before requesting a wallet signature. The returned signed message must match the simulated unsigned message exactly, and signed transaction bytes should not be stored or broadcast until a separate reviewed broadcast boundary exists.
+
 Examples:
 
 - Stake RYP
@@ -128,4 +130,3 @@ The first frontend can use mock protocol state, but types and components should 
 - Clear transaction previews
 - Clear risk labels
 - Clear revoke/disable patterns for future automation
-

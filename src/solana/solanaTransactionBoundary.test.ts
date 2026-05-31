@@ -109,6 +109,38 @@ describe("solana transaction boundary", () => {
     expect(receipt.warnings.join(" ")).toContain("Broadcast remains disabled");
   });
 
+  it("rejects signatures when the wallet returns a mutated transaction message", async () => {
+    const signer = Keypair.generate();
+    const walletAddress = signer.publicKey.toBase58();
+    const plan = buildStakeRypTransactionPlan({ ownerAddress: walletAddress, tier: "SEED" });
+    const boundary = {
+      ...buildSolanaWalletBoundaryPreview({
+        plan,
+        walletCanSign: true,
+        walletPublicKey: walletAddress,
+        recentBlockhash,
+        lastValidBlockHeight: 12345,
+      }),
+      status: "SIMULATION_PASSED" as const,
+    };
+    const receipt = await requestPreparedSolanaSignature({
+      boundary,
+      plan,
+      walletPublicKey: walletAddress,
+      signTransaction: async (transaction) => {
+        transaction.recentBlockhash = Keypair.generate().publicKey.toBase58();
+        transaction.partialSign(signer);
+        return transaction;
+      },
+    });
+
+    expect(receipt.status).toBe("FAILED");
+    expect(receipt.signatureVerified).toBe(false);
+    expect(receipt.signatureBase64).toBeUndefined();
+    expect(receipt.message).toContain("different transaction message");
+    expect(receipt.warnings.join(" ")).toContain("changed after simulation");
+  });
+
   it("blocks signature requests until simulation has passed", async () => {
     const signer = Keypair.generate();
     const walletAddress = signer.publicKey.toBase58();

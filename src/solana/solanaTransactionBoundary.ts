@@ -172,6 +172,21 @@ export async function requestPreparedSolanaSignature({
       recentBlockhash,
     });
     const signedTransaction = await signTransaction(transaction);
+    const signedMessageBase64 = Buffer.from(signedTransaction.serializeMessage()).toString("base64");
+    if (boundary.serializedMessageBase64 && signedMessageBase64 !== boundary.serializedMessageBase64) {
+      return {
+        feePayer: plan.feePayer,
+        message: "Wallet returned a different transaction message than the simulated preview.",
+        signatureVerified: false,
+        status: "FAILED",
+        walletAddress: walletPublicKey,
+        warnings: [
+          "No signed transaction was stored or broadcast.",
+          "Rejecting the signature because account order, instruction data, fee payer, or blockhash changed after simulation.",
+        ],
+      };
+    }
+
     const signer = signedTransaction.signatures.find((signaturePair) =>
       signaturePair.publicKey.equals(new PublicKey(walletPublicKey)),
     );
@@ -191,13 +206,29 @@ export async function requestPreparedSolanaSignature({
     }
 
     const messageFingerprint = await createMessageFingerprint(signedTransaction.serializeMessage());
+    const signatureVerified = signedTransaction.verifySignatures(true);
+    if (!signatureVerified) {
+      return {
+        feePayer: plan.feePayer,
+        message: "Wallet signature could not be verified against the simulated transaction message.",
+        messageFingerprint,
+        signatureBase64: Buffer.from(signer.signature).toString("base64"),
+        signatureVerified: false,
+        status: "FAILED",
+        walletAddress: walletPublicKey,
+        warnings: [
+          "No signed transaction was stored or broadcast.",
+          "Retry only after confirming the wallet approval screen shows the expected action.",
+        ],
+      };
+    }
 
     return {
       feePayer: plan.feePayer,
       message: "Wallet signature collected. Broadcast remains disabled for this integration stage.",
       messageFingerprint,
       signatureBase64: Buffer.from(signer.signature).toString("base64"),
-      signatureVerified: signedTransaction.verifySignatures(true),
+      signatureVerified,
       signedAt: new Date().toISOString(),
       status: "SIGNED",
       walletAddress: walletPublicKey,
@@ -296,8 +327,12 @@ function validateSignatureBoundary({
     reasons.push("Wallet signature requires a passed simulation boundary.");
   }
   if (!boundary?.recentBlockhash) reasons.push("Simulation boundary is missing a recent blockhash.");
+  if (!boundary?.serializedMessageBase64) reasons.push("Simulation boundary is missing the unsigned message preview.");
   if (!walletPublicKey) reasons.push("Connect a real Solana wallet before requesting a signature.");
   if (!signTransaction) reasons.push("Connected wallet does not expose Solana transaction signing.");
+  if (boundary && plan && boundary.feePayer !== plan.feePayer) {
+    reasons.push("Simulation boundary fee payer does not match the prepared transaction plan.");
+  }
   if (plan && walletPublicKey && plan.feePayer !== walletPublicKey) {
     reasons.push("Connected wallet does not match the prepared transaction fee payer.");
   }
