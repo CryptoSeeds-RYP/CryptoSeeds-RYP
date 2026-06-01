@@ -3,9 +3,10 @@ import { appConfig } from "../config/env";
 import { basisPointsToPercent, RYP_TOKEN_TRANSFER_FEE_BPS } from "../domain/feeRouter";
 import { summarizeStakingPosition } from "../domain/staking";
 import { RYP_CONFIRMED_SUPPLY, shortAddress } from "../domain/token";
+import { buildTokenTrustChecks, tokenTrustSummary } from "../domain/tokenTrust";
 import { selectableTiers } from "../domain/tiering";
 import type { StakingTier } from "../types";
-import { formatRyp } from "../utils/format";
+import { formatLabel, formatRyp } from "../utils/format";
 import { StateLine } from "./StateLine";
 
 export function ProtocolPanel({
@@ -39,6 +40,8 @@ export function ProtocolPanel({
     votingRightsNft,
     claimableRewards: [],
   });
+  const trustChecks = buildTokenTrustChecks();
+  const trustSummary = tokenTrustSummary(trustChecks);
 
   return (
     <section className="side-panel">
@@ -54,6 +57,11 @@ export function ProtocolPanel({
         <StateLine label="Fee Cut" value={`${stakingSummary.feeReductionPercent}%`} />
         <StateLine label="Platform Fee" value={stakingSummary.effectivePlatformFee} />
         <StateLine label="Transfer Fee" value={basisPointsToPercent(RYP_TOKEN_TRANSFER_FEE_BPS)} />
+        <StateLine label="RYP Trust" value={`${trustSummary.verified}/${trustSummary.total} verified`} />
+        <StateLine
+          label="Fee Route"
+          value={formatLabel(trustChecks.find((check) => check.id === "transfer-fee-route")?.status ?? "REVIEW_REQUIRED")}
+        />
         <StateLine
           label="Next Tier"
           value={

@@ -39,6 +39,8 @@ VITE_SOLANA_BROADCAST_ENABLED=false
 - The current mint is owned by the legacy SPL Token program. A universal 1% transfer-fee mechanism cannot be silently added to this mint; that requires a reviewed wrapper, migration, or token-extension route.
 - The protocol program id is still a placeholder until the Anchor program has a real deployed address.
 - Live balance reads require a connected Solana wallet and an RPC endpoint with access to mainnet token-account data.
+- Devnet protocol testing must use a devnet test RYP mint. The mainnet RYP mint cannot be initialized on devnet.
+- The app now has a token trust profile that surfaces fixed supply, disabled mint authority, disabled freeze authority, self-custody, and the review-required fee-route status in the product layer.
 
 ## Verification
 
@@ -49,3 +51,11 @@ npm run token:check
 ```
 
 This performs a read-only mint account check against Solana mainnet RPC.
+
+Devnet deployment prep:
+
+```bash
+npm run devnet:prep
+```
+
+This checks devnet env posture, program id sync, admin authority config, devnet test mint config, compiled program output, and keeps broadcast disabled during deployment prep.

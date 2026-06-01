@@ -46,13 +46,14 @@ The current dev server uses Vite at `http://127.0.0.1:5173`.
 
 Copy `.env.example` to `.env` and fill in the deployed protocol program details before connecting to live CryptoSeeds program state. The public RYP mint is already configured.
 
-Broadcast is intentionally disabled by default. `npm run devnet:readiness` explains the remaining blockers before any reviewed send/broadcast boundary is considered.
+Broadcast is intentionally disabled by default. `npm run devnet:prep` checks deployment posture while broadcast stays off, and `npm run devnet:readiness` explains the remaining blockers before any reviewed send/broadcast boundary is considered.
 
 ## Checks
 
 Deterministic app checks:
 
 ```bash
+npm run devnet:prep
 npm run devnet:readiness
 npm run visual:audit
 npm run copy:audit
