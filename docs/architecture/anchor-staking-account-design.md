@@ -15,11 +15,11 @@ This document defines the first CryptoSeeds Solana protocol slice: RYP staking, 
 
 `cryptoseeds_protocol`
 
-Current placeholder id:
+Current synced localnet/devnet program id:
 
-`FG6PaFpoGXkYsidMpWxTWqVfbGqmtn8z8DK9HdJrMPfL`
+`5RWpGEGB9Yr7cmaoWZJQ9t263Wb8K18GrcMDqHByLXSb`
 
-This must be replaced with the real deployed program id before any live deployment.
+The matching program keypair is generated locally under ignored `target/devnet/cryptoseeds_protocol-keypair.json`. Devnet deployment is still blocked until the devnet authority wallet is funded and the devnet test RYP mint exists.
 
 ## Seeds
 

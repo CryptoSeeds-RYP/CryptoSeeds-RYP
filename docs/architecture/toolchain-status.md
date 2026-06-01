@@ -57,13 +57,17 @@ npm run protocol:test
 
 ## Program ID Policy
 
-The current Anchor program id is a development placeholder. `anchor build --ignore-keys` is intentionally used until we approve and sync a permanent devnet/mainnet program keypair.
+The current Anchor program id has been synced for localnet/devnet prep:
+
+`5RWpGEGB9Yr7cmaoWZJQ9t263Wb8K18GrcMDqHByLXSb`
+
+The matching keypair is local-only under ignored `target/devnet/cryptoseeds_protocol-keypair.json`. `anchor build --ignore-keys` remains useful for local verification, while devnet deployment remains blocked until the devnet authority is funded and the devnet test RYP mint exists.
 
 Before deployment:
 
-- Generate the real program keypair.
-- Run `anchor keys sync`.
-- Update `.env.example` and frontend config defaults.
+- Fund the devnet authority wallet.
+- Create the devnet test RYP mint.
+- Run `npm run devnet:prep -- --env .env.devnet.example`.
 - Review the key-management plan before any public deployment.
 
 ## Current Result

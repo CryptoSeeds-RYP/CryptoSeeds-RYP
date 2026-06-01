@@ -1,14 +1,16 @@
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { PublicKey } from "@solana/web3.js";
+import { Connection, PublicKey } from "@solana/web3.js";
 
 const PLACEHOLDER_PROGRAM_ID = "FG6PaFpoGXkYsidMpWxTWqVfbGqmtn8z8DK9HdJrMPfL";
 const MAINNET_RYP_MINT = "CFPzKkPYqpyfNJp3WDB4dykMemfhwYrV9cgNUy7nsoPD";
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const envPath = existsSync(path.join(repoRoot, ".env"))
+const options = parseArgs(process.argv.slice(2));
+const defaultEnvPath = existsSync(path.join(repoRoot, ".env"))
   ? path.join(repoRoot, ".env")
   : path.join(repoRoot, ".env.example");
+const envPath = path.resolve(repoRoot, options.envPath ?? defaultEnvPath);
 const env = { ...parseEnvFile(envPath), ...process.env };
 const anchorToml = readText("Anchor.toml");
 const rustProgram = readText(path.join("programs", "cryptoseeds_protocol", "src", "lib.rs"));
@@ -72,6 +74,8 @@ if (!resolveProgramSoPath()) {
   blockers.push("Compiled SBF program is missing; run npm run protocol:build:wsl before devnet prep.");
 }
 
+await addDevnetMintAccountChecks();
+
 const report = {
   status: blockers.length === 0 ? "READY_TO_DEPLOY_DEVNET" : "BLOCKED",
   envSource: path.relative(repoRoot, envPath),
@@ -107,8 +111,39 @@ const report = {
 
 console.log(JSON.stringify(report, null, 2));
 
-if (process.argv.includes("--strict") && blockers.length > 0) {
+if (options.strict && blockers.length > 0) {
   process.exit(1);
+}
+
+function parseArgs(args) {
+  const parsed = {
+    envPath: undefined,
+    strict: false,
+  };
+
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    if (arg === "--strict") {
+      parsed.strict = true;
+      continue;
+    }
+    if (arg === "--env") {
+      parsed.envPath = args[index + 1];
+      index += 1;
+      continue;
+    }
+    if (arg?.startsWith("--env=")) {
+      parsed.envPath = arg.slice("--env=".length);
+      continue;
+    }
+    throw new Error(`Unknown argument: ${arg}`);
+  }
+
+  if (parsed.envPath === "") {
+    throw new Error("--env requires a file path.");
+  }
+
+  return parsed;
 }
 
 function readText(relativePath) {
@@ -141,6 +176,32 @@ function resolveProgramSoPath() {
     path.join(repoRoot, "target", "deploy", "cryptoseeds_protocol.so"),
     path.join(repoRoot, "programs", "cryptoseeds_protocol", "target", "deploy", "cryptoseeds_protocol.so"),
   ].find((candidate) => existsSync(candidate));
+}
+
+async function addDevnetMintAccountChecks() {
+  if (config.cluster !== "devnet") return;
+  if (!isValidPublicKey(config.rypMintAddress)) return;
+  if (config.rypMintAddress === MAINNET_RYP_MINT) return;
+
+  try {
+    const connection = new Connection(config.rpcUrl, "confirmed");
+    const account = await connection.getParsedAccountInfo(new PublicKey(config.rypMintAddress), "confirmed");
+    if (!account.value) {
+      blockers.push("Devnet test RYP mint account was not found on the selected devnet RPC.");
+      return;
+    }
+    if (!("parsed" in account.value.data) || account.value.data.parsed.type !== "mint") {
+      blockers.push("Devnet test RYP mint account is not a parsed SPL mint.");
+      return;
+    }
+
+    const decimals = Number(account.value.data.parsed.info.decimals);
+    if (decimals !== config.rypDecimals) {
+      blockers.push(`Devnet test RYP mint decimals are ${decimals}; expected ${config.rypDecimals}.`);
+    }
+  } catch (error) {
+    blockers.push(`Devnet test RYP mint account could not be checked: ${error instanceof Error ? error.message : "unknown error"}.`);
+  }
 }
 
 function isValidPublicKey(value) {

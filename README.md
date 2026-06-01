@@ -44,7 +44,7 @@ npm run token:check
 
 The current dev server uses Vite at `http://127.0.0.1:5173`.
 
-Copy `.env.example` to `.env` and fill in the deployed protocol program details before connecting to live CryptoSeeds program state. The public RYP mint is already configured.
+Copy `.env.example` to `.env` for local/default development. Use `.env.devnet.example` as the devnet deployment-prep template once the devnet authority wallet is funded and the devnet test RYP mint exists. The public mainnet RYP mint is already configured for read-only checks.
 
 Broadcast is intentionally disabled by default. `npm run devnet:prep` checks deployment posture while broadcast stays off, and `npm run devnet:readiness` explains the remaining blockers before any reviewed send/broadcast boundary is considered.
 

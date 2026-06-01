@@ -26,6 +26,7 @@ const requiredDocs = [
   "docs/architecture/reward-vault-epochs.md",
   "docs/compliance/decentralization-and-self-custody.md",
   "docs/product/master-brief.md",
+  "docs/setup/devnet-deployment-status.md",
 ];
 
 const blockers = [];

@@ -43,13 +43,15 @@ npm run protocol:test
 
 ## Program ID Note
 
-The current program id in `Anchor.toml` and `declare_id!` is still the development placeholder:
+The current synced localnet/devnet program id in `Anchor.toml` and `declare_id!` is:
 
 ```text
-FG6PaFpoGXkYsidMpWxTWqVfbGqmtn8z8DK9HdJrMPfL
+5RWpGEGB9Yr7cmaoWZJQ9t263Wb8K18GrcMDqHByLXSb
 ```
 
-Because `target/deploy/*-keypair.json` is generated and ignored, a raw `anchor build` creates a local random keypair and reports a program ID mismatch.
+The matching devnet program keypair is generated locally under ignored `target/devnet/cryptoseeds_protocol-keypair.json`.
+The devnet authority keypair is generated locally under ignored `target/devnet/devnet-authority.json`.
+The planned devnet test RYP mint keypair is generated locally under ignored `target/devnet/ryp-test-mint-keypair.json`.
 
 For the current development stage, use:
 
@@ -57,7 +59,11 @@ For the current development stage, use:
 anchor build --ignore-keys
 ```
 
-Before devnet deployment, generate and approve a permanent program keypair, then sync `Anchor.toml`, `declare_id!`, `.env.example`, and frontend defaults to that real program id.
+Before devnet deployment, fund the devnet authority wallet, create the devnet test RYP mint, and rerun:
+
+```powershell
+npm run devnet:prep -- --env .env.devnet.example
+```
 
 ## Verification
 

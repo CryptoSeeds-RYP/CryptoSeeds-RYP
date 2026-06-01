@@ -4,7 +4,7 @@ use anchor_spl::{
     token_interface::{transfer_checked, Mint, TokenAccount, TokenInterface, TransferChecked},
 };
 
-declare_id!("FG6PaFpoGXkYsidMpWxTWqVfbGqmtn8z8DK9HdJrMPfL");
+declare_id!("5RWpGEGB9Yr7cmaoWZJQ9t263Wb8K18GrcMDqHByLXSb");
 
 pub const CONFIG_SEED: &[u8] = b"config";
 pub const STAKE_POSITION_SEED: &[u8] = b"stake-position";

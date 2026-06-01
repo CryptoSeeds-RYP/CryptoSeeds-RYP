@@ -6,7 +6,10 @@ seeds = false
 skip-lint = false
 
 [programs.localnet]
-cryptoseeds_protocol = "FG6PaFpoGXkYsidMpWxTWqVfbGqmtn8z8DK9HdJrMPfL"
+cryptoseeds_protocol = "5RWpGEGB9Yr7cmaoWZJQ9t263Wb8K18GrcMDqHByLXSb"
+
+[programs.devnet]
+cryptoseeds_protocol = "5RWpGEGB9Yr7cmaoWZJQ9t263Wb8K18GrcMDqHByLXSb"
 
 [registry]
 url = "https://api.apr.dev"
