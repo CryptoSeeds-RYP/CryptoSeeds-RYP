@@ -5,6 +5,7 @@ import {
   readHyperliquidNetwork,
   readOptionalString,
   readProtocolDeployment,
+  readRewardInspectionEpochId,
 } from "./env";
 
 const reviewedProgramId = "BPFLoaderUpgradeab1e11111111111111111111111";
@@ -35,5 +36,13 @@ describe("environment config readers", () => {
     expect(readHyperliquidNetwork("bogus")).toBe("TESTNET");
     expect(readOptionalString("  wallet-address  ")).toBe("wallet-address");
     expect(readOptionalString("   ")).toBeUndefined();
+  });
+
+  it("normalizes reward inspection epoch ids", () => {
+    expect(readRewardInspectionEpochId("3")).toBe(3n);
+    expect(readRewardInspectionEpochId(" 42 ")).toBe(42n);
+    expect(readRewardInspectionEpochId("-1")).toBe(0n);
+    expect(readRewardInspectionEpochId("not-a-number")).toBe(0n);
+    expect(readRewardInspectionEpochId(undefined)).toBe(0n);
   });
 });

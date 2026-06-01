@@ -33,6 +33,14 @@ const REWARD_ACCOUNT_FIELD_OFFSETS = Object.fromEntries(
   ]),
 ) as Record<RewardAccountLayoutName, Record<string, number>>;
 
+const REQUIRED_REWARD_VAULT_ROLES: Array<Exclude<RewardVaultRole, "UNKNOWN">> = [
+  "HOLDER_REWARD",
+  "STAKER_REWARD",
+  "INDEPENDENT_TREASURY",
+  "DELIVERY_COST_RESERVE",
+  "ROLLOVER",
+];
+
 export type RewardVaultRole =
   | "HOLDER_REWARD"
   | "STAKER_REWARD"
@@ -235,7 +243,7 @@ export async function readRewardAccountInspection({
   }));
   const epoch = decodeAccount(accounts[accounts.length - 1]?.data, decodeRewardEpochAccount);
 
-  return {
+  return validateRewardAccountInspection({
     ...preview,
     rewardConfig: rewardConfig.decoded,
     rewardConfigMessage: rewardConfig.message,
@@ -244,6 +252,86 @@ export async function readRewardAccountInspection({
     epochMessage: epoch.message,
     epochStatus: epoch.status,
     vaults,
+  });
+}
+
+export function validateRewardAccountInspection(inspection: RewardAccountInspection): RewardAccountInspection {
+  const blockers = [...inspection.blockers];
+  const warnings = [...inspection.warnings];
+
+  if (inspection.executionMode !== "READ_ONLY") {
+    blockers.push("Reward account inspection must remain read-only.");
+  }
+
+  if (inspection.rewardConfigStatus === "DECODED" && inspection.rewardConfig) {
+    const splitTotal =
+      inspection.rewardConfig.holderSplitBps +
+      inspection.rewardConfig.stakerSplitBps +
+      inspection.rewardConfig.treasurySplitBps;
+    if (splitTotal !== 10_000) {
+      blockers.push("Reward config holder/staker/treasury splits must total 10000 bps.");
+    }
+    if (!inspection.rewardConfig.draftOnly) {
+      blockers.push("Reward config must remain draft-only until payout instructions pass review.");
+    }
+    if (inspection.rewardConfig.paused) {
+      warnings.push("Reward config is paused on the selected cluster.");
+    }
+  } else if (inspection.rewardConfigStatus !== "PREVIEW_ONLY") {
+    blockers.push("Reward config account must decode before admin reward inspection is considered ready.");
+  }
+
+  const decodedRoles = new Set<RewardVaultRole>();
+  for (const vault of inspection.vaults) {
+    if (vault.status !== "DECODED" || !vault.decoded) {
+      if (vault.status !== "PREVIEW_ONLY") {
+        blockers.push(`${vault.label} vault state must decode before reward inspection is considered ready.`);
+      }
+      continue;
+    }
+
+    decodedRoles.add(vault.decoded.role);
+    if (vault.decoded.rewardConfig !== inspection.rewardConfigAddress) {
+      blockers.push(`${vault.label} vault points to a different reward config.`);
+    }
+    if (vault.decoded.verificationStatus !== "VERIFIED") {
+      blockers.push(`${vault.label} vault is not verified.`);
+    }
+    if (vault.decoded.receivesUserFunds) {
+      blockers.push(`${vault.label} vault must not be marked as receiving user funds.`);
+    }
+    if (vault.decoded.custodyModel === "UNKNOWN" || vault.decoded.custodyModel === "DISCLOSURE_PENDING") {
+      blockers.push(`${vault.label} vault custody model is not deployment-ready.`);
+    }
+  }
+
+  for (const role of REQUIRED_REWARD_VAULT_ROLES) {
+    if (!decodedRoles.has(role) && inspection.vaults.some((vault) => vault.status === "DECODED")) {
+      blockers.push(`${role} vault role is missing from decoded reward vault state.`);
+    }
+  }
+
+  if (inspection.epochStatus === "DECODED" && inspection.epoch) {
+    if (inspection.epoch.rewardConfig !== inspection.rewardConfigAddress) {
+      blockers.push("Reward epoch points to a different reward config.");
+    }
+    if (inspection.epoch.status !== "DRAFTED") {
+      blockers.push("Reward epoch must remain drafted in the current Admin inspection flow.");
+    }
+    if (!inspection.epoch.executionBlocked) {
+      blockers.push("Reward epoch execution must remain blocked in the current Admin inspection flow.");
+    }
+    if (!rewardEpochAccountingBalances(inspection.epoch)) {
+      blockers.push("Reward epoch accounting does not balance.");
+    }
+  } else if (inspection.epochStatus !== "PREVIEW_ONLY") {
+    blockers.push("Reward epoch account must decode before admin reward inspection is considered ready.");
+  }
+
+  return {
+    ...inspection,
+    blockers: uniqueMessages(blockers),
+    warnings: uniqueMessages(warnings),
   };
 }
 
@@ -355,6 +443,22 @@ function epochStatusFromVariant(variant: number): RewardEpochStatus {
   if (variant === 1) return "REVIEWED";
   if (variant === 2) return "CANCELLED";
   return "UNKNOWN";
+}
+
+function rewardEpochAccountingBalances(epoch: RewardEpochAccount) {
+  try {
+    const pool = BigInt(epoch.rewardPoolAmount);
+    const distributed = BigInt(epoch.distributedNetAmount);
+    const delivery = BigInt(epoch.reservedDeliveryCostAmount);
+    const rollover = BigInt(epoch.rolledForwardAmount);
+    return pool === distributed + delivery + rollover;
+  } catch {
+    return false;
+  }
+}
+
+function uniqueMessages(messages: string[]) {
+  return [...new Set(messages)];
 }
 
 function readPubkey(data: Uint8Array, offset: number) {

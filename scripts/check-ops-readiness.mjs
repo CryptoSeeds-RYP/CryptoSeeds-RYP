@@ -12,6 +12,7 @@ const requiredScripts = [
   "token:check",
   "devnet:readiness",
   "protocol:idl:check",
+  "protocol:admin:fixture:check",
   "protocol:smoke:localnet:wsl",
   "rewards:epoch:draft",
   "ops:check",

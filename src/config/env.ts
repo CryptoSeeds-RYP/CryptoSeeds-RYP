@@ -11,6 +11,7 @@ export type AppConfig = {
   seedBotHyperliquidNetwork: "MAINNET" | "TESTNET";
   seedBotSignedExecutionEnabled: boolean;
   adminAuthorityAddress?: string;
+  rewardInspectionEpochId: bigint;
 };
 
 export const PLACEHOLDER_PROTOCOL_PROGRAM_ID = "FG6PaFpoGXkYsidMpWxTWqVfbGqmtn8z8DK9HdJrMPfL";
@@ -38,6 +39,7 @@ export const appConfig: AppConfig = {
   seedBotHyperliquidNetwork: readHyperliquidNetwork(import.meta.env.VITE_SEEDBOT_HYPERLIQUID_NETWORK),
   seedBotSignedExecutionEnabled: import.meta.env.VITE_SEEDBOT_SIGNED_EXECUTION === "true",
   adminAuthorityAddress: readOptionalString(import.meta.env.VITE_ADMIN_AUTHORITY_ADDRESS),
+  rewardInspectionEpochId: readRewardInspectionEpochId(import.meta.env.VITE_REWARD_INSPECTION_EPOCH_ID),
 };
 
 export function readCluster(value: string | undefined): AppConfig["cluster"] {
@@ -64,4 +66,15 @@ export function readHyperliquidNetwork(value: string | undefined): AppConfig["se
 export function readOptionalString(value: string | undefined) {
   const trimmed = value?.trim();
   return trimmed ? trimmed : undefined;
+}
+
+export function readRewardInspectionEpochId(value: string | undefined) {
+  const trimmed = value?.trim();
+  if (!trimmed || !/^\d+$/.test(trimmed)) return 0n;
+
+  try {
+    return BigInt(trimmed);
+  } catch {
+    return 0n;
+  }
 }

@@ -22,17 +22,17 @@ export function AdminView({
   const { connection } = useConnection();
   const access = buildAdminAccess({ config: appConfig, walletAddress, demoMode });
   const [rewardInspection, setRewardInspection] = useState<RewardAccountInspection>(() =>
-    buildRewardAccountInspectionPreview(),
+    buildRewardAccountInspectionPreview({ epochId: appConfig.rewardInspectionEpochId }),
   );
 
   useEffect(() => {
     let cancelled = false;
-    const preview = buildRewardAccountInspectionPreview();
+    const preview = buildRewardAccountInspectionPreview({ epochId: appConfig.rewardInspectionEpochId });
     setRewardInspection(preview);
 
     if (appConfig.protocolDeployment === "placeholder") return undefined;
 
-    readRewardAccountInspection({ connection })
+    readRewardAccountInspection({ connection, epochId: appConfig.rewardInspectionEpochId })
       .then((inspection) => {
         if (!cancelled) setRewardInspection(inspection);
       })

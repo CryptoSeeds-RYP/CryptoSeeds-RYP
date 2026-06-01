@@ -14,6 +14,7 @@
     "protocol:check:win": "powershell -ExecutionPolicy Bypass -File scripts/check-anchor-windows.ps1",
     "protocol:idl:check": "node scripts/check-protocol-idl-drift.mjs",
     "protocol:admin:fixture:wsl": "powershell -ExecutionPolicy Bypass -File scripts/write-localnet-admin-fixture-wsl.ps1",
+    "protocol:admin:fixture:check": "node scripts/check-localnet-admin-fixture.mjs",
     "protocol:smoke:localnet:wsl": "powershell -ExecutionPolicy Bypass -File scripts/test-anchor-localnet-wsl.ps1",
     "protocol:test:win": "powershell -ExecutionPolicy Bypass -File scripts/test-anchor-windows.ps1",
     "protocol:test": "anchor test --skip-build --skip-deploy --skip-local-validator",

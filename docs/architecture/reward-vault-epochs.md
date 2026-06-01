@@ -126,11 +126,13 @@ Reward account decoders verify Anchor account discriminators before reading acco
 The localnet Anchor smoke script uses the same layout manifest when parsing live reward accounts.
 The smoke result includes an `adminRewardInspection` report that mirrors the Admin Dashboard's read-only inspection posture against live localnet accounts.
 `npm run protocol:admin:fixture:wsl` writes `target/localnet-admin-fixture.json` with the localnet RPC URL, app env values, decoded reward accounts, and read-only Admin inspection report for browser harness work.
+`npm run protocol:admin:fixture:check` validates the exported fixture before browser work by checking read-only mode, reward split totals, draft-only status, blocked epoch execution, vault verification, no user-fund vault receivers, and the app reward-inspection epoch id.
 
 Localnet inspection:
 
 - Set `VITE_SOLANA_CLUSTER=localnet`.
 - Set `VITE_CRYPTOSEEDS_PROGRAM_DEPLOYMENT=localnet`.
+- Set `VITE_REWARD_INSPECTION_EPOCH_ID` to the localnet draft epoch id emitted by the fixture.
 - Keep broadcast disabled unless a separate reviewed transaction slice explicitly enables it.
 
 The development placeholder program id can be inspected on localnet only. Devnet and mainnet readiness still require a reviewed non-placeholder program id.

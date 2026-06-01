@@ -12,6 +12,8 @@ interface ImportMetaEnv {
   readonly VITE_SOLANA_BROADCAST_ENABLED?: string;
   readonly VITE_SEEDBOT_HYPERLIQUID_NETWORK?: "MAINNET" | "TESTNET";
   readonly VITE_SEEDBOT_SIGNED_EXECUTION?: string;
+  readonly VITE_REWARD_INSPECTION_EPOCH_ID?: string;
+  readonly VITE_ADMIN_AUTHORITY_ADDRESS?: string;
 }
 
 interface ImportMeta {

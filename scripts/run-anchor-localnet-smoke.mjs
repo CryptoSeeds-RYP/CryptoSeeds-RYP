@@ -158,6 +158,7 @@ function buildLocalnetAdminFixture({ result, rpcUrl }) {
       VITE_DEMO_MODE: "true",
       VITE_SOLANA_BROADCAST_ENABLED: "false",
       VITE_ADMIN_AUTHORITY_ADDRESS: DEMO_WALLET_ADDRESS,
+      VITE_REWARD_INSPECTION_EPOCH_ID: result.adminRewardInspection.epoch.decoded.epochId,
     },
     adminRewardInspection: result.adminRewardInspection,
     checked: result.checked,
@@ -743,6 +744,7 @@ async function buildAdminRewardInspectionReport(connection, { rewardConfig, rewa
         distributedNetAmount: decodedRewardEpoch.distributedNetAmount.toString(),
         epochId: decodedRewardEpoch.epochId.toString(),
         executionBlocked: decodedRewardEpoch.executionBlocked,
+        reservedDeliveryCostAmount: decodedRewardEpoch.reservedDeliveryCostAmount.toString(),
         rewardPoolAmount: decodedRewardEpoch.rewardPoolAmount.toString(),
         rolledForwardAmount: decodedRewardEpoch.rolledForwardAmount.toString(),
         status: rewardEpochStatusLabel(decodedRewardEpoch.status),
@@ -858,13 +860,14 @@ async function draftRewardEpoch(
     rewardPoolAmount = 1_000n,
     rewardVaultStates,
     rolledForwardAmount = 200n,
-    snapshotTakenAt = 1_800_000_000n,
+    snapshotTakenAt,
   },
 ) {
+  const effectiveSnapshotTakenAt = snapshotTakenAt ?? await recentRewardSnapshotTime(connection);
   const data = Buffer.alloc(8 + 8 + 8 + 8 + 8 + 8 + 8 + 32);
   discriminator("draft_reward_epoch").copy(data, 0);
   data.writeBigUInt64LE(epochId, 8);
-  data.writeBigInt64LE(snapshotTakenAt, 16);
+  data.writeBigInt64LE(effectiveSnapshotTakenAt, 16);
   data.writeBigUInt64LE(rewardPoolAmount, 24);
   data.writeBigUInt64LE(distributedNetAmount, 32);
   data.writeBigUInt64LE(reservedDeliveryCostAmount, 40);
@@ -889,6 +892,13 @@ async function draftRewardEpoch(
   });
 
   await sendAndConfirm(connection, new Transaction().add(instruction), [authority]);
+}
+
+async function recentRewardSnapshotTime(connection) {
+  const slot = await connection.getSlot("confirmed");
+  const blockTime = await connection.getBlockTime(slot);
+  const currentUnixTime = BigInt(blockTime ?? Math.floor(Date.now() / 1000));
+  return currentUnixTime > 5n ? currentUnixTime - 5n : currentUnixTime;
 }
 
 function deriveRewardEpochAddress({ epochId, rewardConfig }) {
