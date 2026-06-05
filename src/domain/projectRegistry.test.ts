@@ -7,6 +7,7 @@ import {
   evaluateProjectDisclosures,
   latestRiskDisclosure,
   requiredProjectDocuments,
+  validateProjectDocumentSet,
 } from "./projectRegistry";
 
 describe("project registry", () => {
@@ -108,5 +109,32 @@ describe("project registry", () => {
       "Required documents are missing URI or content hash",
     );
     expect(evaluateProjectEligibility(rejectedOperator, "SPROUT").reasons).toContain("Operator verification was rejected");
+  });
+
+  it("validates project document integrity before eligibility", () => {
+    const solar = projects.find((project) => project.id === "solar-water-node")!;
+    const brokenDocuments = {
+      ...solar,
+      documents: [
+        ...solar.documents,
+        {
+          ...solar.documents[0],
+          id: solar.documents[0].id.toUpperCase(),
+          version: "",
+          issuedAt: "not-a-date",
+          contentHash: "missing-prefix",
+        },
+      ],
+    };
+
+    const documentSet = validateProjectDocumentSet(brokenDocuments);
+    expect(documentSet.ready).toBe(false);
+    expect(documentSet.warnings).toContain("Duplicate project document id: SOLAR-OPERATOR");
+    expect(documentSet.warnings).toContain("Project document SOLAR-OPERATOR version is missing");
+    expect(documentSet.warnings).toContain("Project document SOLAR-OPERATOR issuedAt is invalid");
+    expect(documentSet.warnings).toContain(
+      "Project document SOLAR-OPERATOR content hash should include an algorithm prefix",
+    );
+    expect(evaluateProjectEligibility(brokenDocuments, "SPROUT").eligible).toBe(false);
   });
 });

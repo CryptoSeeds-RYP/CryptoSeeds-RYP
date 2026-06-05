@@ -93,6 +93,8 @@ export const holderRewardTierRules: HolderRewardTierRule[] = [
   },
 ];
 
+const holderRewardCadences: HolderRewardCadence[] = ["WEEKLY", "MONTHLY", "QUARTERLY", "CLAIM_ONLY"];
+
 export function buildHolderRewardEpoch(input: HolderRewardEpochInput): HolderRewardEpoch {
   validateRewardEpochInput(input);
   const scheduledCadences = input.scheduledCadences ?? ["WEEKLY"];
@@ -267,6 +269,15 @@ function excludedPayout(entry: HolderSnapshotEntry, reason: string): HolderRewar
 }
 
 function validateRewardEpochInput(input: HolderRewardEpochInput) {
+  if (!input.id.trim()) {
+    throw new Error("Reward epoch id cannot be empty.");
+  }
+  if (!input.rewardMint.trim()) {
+    throw new Error("Reward mint cannot be empty.");
+  }
+  if (Number.isNaN(Date.parse(input.snapshotTakenAt))) {
+    throw new Error("Snapshot timestamp must be a valid ISO date.");
+  }
   if (input.rewardPoolBaseUnits < 0n) {
     throw new Error("Reward pool cannot be negative.");
   }
@@ -276,9 +287,21 @@ function validateRewardEpochInput(input: HolderRewardEpochInput) {
   if (input.minimumNetPayoutBaseUnits < 0n) {
     throw new Error("Minimum net payout cannot be negative.");
   }
+
+  const seenCadences = new Set<HolderRewardCadence>();
+  for (const cadence of input.scheduledCadences ?? ["WEEKLY"]) {
+    if (!holderRewardCadences.includes(cadence)) {
+      throw new Error(`Unsupported holder reward cadence: ${cadence}.`);
+    }
+    if (seenCadences.has(cadence)) {
+      throw new Error(`Duplicate holder reward cadence: ${cadence}.`);
+    }
+    seenCadences.add(cadence);
+  }
+
   const seenWallets = new Set<string>();
   for (const entry of input.entries) {
-    const walletKey = entry.walletAddress.trim();
+    const walletKey = entry.walletAddress.trim().toLowerCase();
     if (!walletKey) {
       throw new Error("Snapshot wallet address cannot be empty.");
     }

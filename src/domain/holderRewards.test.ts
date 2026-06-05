@@ -144,4 +144,63 @@ describe("holder rewards", () => {
       }),
     ).toThrow("Duplicate snapshot wallet address");
   });
+
+  it("normalizes snapshot wallet rows before duplicate checks", () => {
+    expect(() =>
+      buildHolderRewardEpoch({
+        id: "epoch-normalized-duplicate",
+        rewardMint: "RYP",
+        rewardPoolBaseUnits: 100_000n,
+        snapshotTakenAt: "2026-06-07T00:00:00.000Z",
+        estimatedDeliveryCostPerPayoutBaseUnits: 1_000n,
+        minimumNetPayoutBaseUnits: 2_000n,
+        entries: [
+          { walletAddress: " Holder ", rypBalanceBaseUnits: 20_000n * RYP },
+          { walletAddress: "holder", rypBalanceBaseUnits: 5_000n * RYP },
+        ],
+      }),
+    ).toThrow("Duplicate snapshot wallet address");
+  });
+
+  it("rejects malformed epoch metadata before payout math", () => {
+    expect(() =>
+      buildHolderRewardEpoch({
+        id: "",
+        rewardMint: "",
+        rewardPoolBaseUnits: 100_000n,
+        snapshotTakenAt: "not-a-date",
+        estimatedDeliveryCostPerPayoutBaseUnits: 1_000n,
+        minimumNetPayoutBaseUnits: 2_000n,
+        entries: [{ walletAddress: "holder", rypBalanceBaseUnits: 20_000n * RYP }],
+      }),
+    ).toThrow("Reward epoch id cannot be empty");
+  });
+
+  it("rejects duplicate or unsupported payout cadences", () => {
+    expect(() =>
+      buildHolderRewardEpoch({
+        id: "epoch-duplicate-cadence",
+        rewardMint: "RYP",
+        rewardPoolBaseUnits: 100_000n,
+        snapshotTakenAt: "2026-06-07T00:00:00.000Z",
+        scheduledCadences: ["WEEKLY", "WEEKLY"],
+        estimatedDeliveryCostPerPayoutBaseUnits: 1_000n,
+        minimumNetPayoutBaseUnits: 2_000n,
+        entries: [{ walletAddress: "holder", rypBalanceBaseUnits: 20_000n * RYP }],
+      }),
+    ).toThrow("Duplicate holder reward cadence");
+
+    expect(() =>
+      buildHolderRewardEpoch({
+        id: "epoch-bad-cadence",
+        rewardMint: "RYP",
+        rewardPoolBaseUnits: 100_000n,
+        snapshotTakenAt: "2026-06-07T00:00:00.000Z",
+        scheduledCadences: ["DAILY" as never],
+        estimatedDeliveryCostPerPayoutBaseUnits: 1_000n,
+        minimumNetPayoutBaseUnits: 2_000n,
+        entries: [{ walletAddress: "holder", rypBalanceBaseUnits: 20_000n * RYP }],
+      }),
+    ).toThrow("Unsupported holder reward cadence");
+  });
 });

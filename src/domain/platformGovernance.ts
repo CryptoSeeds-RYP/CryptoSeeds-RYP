@@ -46,6 +46,11 @@ export type PlatformFeePolicy = {
   };
 };
 
+export type PlatformGovernanceValidation = {
+  valid: boolean;
+  blockers: string[];
+};
+
 export const platformBoundaries: PlatformBoundary[] = [
   {
     id: "user-custody",
@@ -174,4 +179,51 @@ export function allControlsAvoidUserFundCustody() {
 
 export function materialControlsRequirePublicLogs() {
   return authorityControls.every((control) => control.publicLogRequired);
+}
+
+export function validatePlatformGovernancePosture({
+  boundaries = platformBoundaries,
+  controls = authorityControls,
+  gates = reviewGates,
+}: {
+  boundaries?: PlatformBoundary[];
+  controls?: AuthorityControl[];
+  gates?: ReviewGate[];
+} = {}): PlatformGovernanceValidation {
+  const blockers = [
+    ...duplicateIdBlockers("platform boundary", boundaries),
+    ...duplicateIdBlockers("authority control", controls),
+    ...duplicateIdBlockers("review gate", gates),
+  ];
+
+  if (!controls.every((control) => control.userFundCustody === false)) {
+    blockers.push("Authority controls must not custody user funds.");
+  }
+  if (!controls.every((control) => control.publicLogRequired)) {
+    blockers.push("Authority controls must require public logs.");
+  }
+
+  return {
+    valid: blockers.length === 0,
+    blockers,
+  };
+}
+
+function duplicateIdBlockers(label: string, items: Array<{ id: string }>) {
+  const blockers: string[] = [];
+  const seenIds = new Set<string>();
+
+  for (const item of items) {
+    const id = item.id.trim().toLowerCase();
+    if (!id) {
+      blockers.push(`${label} id cannot be empty.`);
+      continue;
+    }
+    if (seenIds.has(id)) {
+      blockers.push(`Duplicate ${label} id: ${item.id}.`);
+    }
+    seenIds.add(id);
+  }
+
+  return blockers;
 }

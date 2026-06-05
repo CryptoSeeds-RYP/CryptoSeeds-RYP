@@ -8,6 +8,8 @@ import {
   seedBotPerformanceWindows,
   seedBotStrategies,
   validateSeedBotFeeModel,
+  validateSeedBotStrategy,
+  validateSeedBotStrategyCatalog,
 } from "./seedbot";
 
 describe("seedbot capabilities", () => {
@@ -83,5 +85,38 @@ describe("seedbot capabilities", () => {
     expect(selected.window).toBe("180D");
     expect(selected.returnPercent).toBe(11.9);
     expect(selected.points[selected.points.length - 1]).toBe(11.9);
+  });
+
+  it("validates the published strategy catalog before display", () => {
+    expect(validateSeedBotStrategyCatalog(seedBotStrategies)).toEqual({
+      valid: true,
+      blockers: [],
+    });
+  });
+
+  it("blocks strategy metadata with bad weights, missing windows, and route mismatches", () => {
+    const invalidStrategy = {
+      ...seedBotStrategies[0],
+      performance: seedBotStrategies[0].performance.filter((item) => item.window !== "1Y"),
+      assets: [
+        { ...seedBotStrategies[0].assets[0], targetWeightPercent: 80 },
+        { ...seedBotStrategies[0].assets[1], walletRoute: "METAMASK" as const, targetWeightPercent: 30 },
+      ],
+    };
+
+    expect(validateSeedBotStrategy(invalidStrategy).blockers).toEqual([
+      "SeedBot strategy solana-market-roots is missing 1Y performance.",
+      "SeedBot strategy solana-market-roots target weights must total 100%.",
+      "SeedBot strategy solana-market-roots asset RYP must use PHANTOM for SOLANA.",
+      "SeedBot strategy solana-market-roots venue JUPITER does not support METAMASK.",
+    ]);
+  });
+
+  it("blocks duplicate strategy ids in the catalog", () => {
+    const duplicateStrategy = { ...seedBotStrategies[1], id: seedBotStrategies[0].id.toUpperCase() };
+
+    expect(validateSeedBotStrategyCatalog([seedBotStrategies[0], duplicateStrategy]).blockers).toContain(
+      "Duplicate SeedBot strategy id: SOLANA-MARKET-ROOTS.",
+    );
   });
 });

@@ -1,5 +1,5 @@
 import type { StakingTier } from "./microverse";
-import type { SeedBotVenueId } from "./seedbotVenues";
+import { venueById, type SeedBotVenueId } from "./seedbotVenues";
 import type { TransactionChain } from "./transactions";
 
 export type SeedBotCapability = {
@@ -46,6 +46,11 @@ export type SeedBotStrategy = {
   assets: SeedBotStrategyAsset[];
   feeModel: SeedBotFeeModel;
   allocationModes: Array<"BASKET" | "PER_ASSET">;
+};
+
+export type SeedBotStrategyValidation = {
+  valid: boolean;
+  blockers: string[];
 };
 
 export const seedBotPerformanceDisclaimer = "Past performance does not guarantee future results.";
@@ -242,4 +247,130 @@ export function validateSeedBotFeeModel(feeModel: SeedBotFeeModel) {
     valid: blockers.length === 0,
     blockers,
   };
+}
+
+export function validateSeedBotStrategy(strategy: SeedBotStrategy): SeedBotStrategyValidation {
+  const blockers: string[] = [];
+
+  if (!strategy.id.trim()) blockers.push("SeedBot strategy id is required.");
+  if (!strategy.name.trim()) blockers.push(`SeedBot strategy ${strategy.id || "unknown"} name is required.`);
+  if (!strategy.summary.trim()) blockers.push(`SeedBot strategy ${strategy.id || "unknown"} summary is required.`);
+  if (strategy.allocationModes.length === 0) {
+    blockers.push(`SeedBot strategy ${strategy.id} must expose at least one allocation mode.`);
+  }
+  if (strategy.assets.length === 0) {
+    blockers.push(`SeedBot strategy ${strategy.id} must include at least one target asset.`);
+  }
+
+  const preferredVenue = venueById(strategy.preferredVenueId);
+  if (!preferredVenue) {
+    blockers.push(`SeedBot strategy ${strategy.id} references unknown preferred venue ${strategy.preferredVenueId}.`);
+  }
+
+  validatePerformanceWindows(strategy, blockers);
+  validateStrategyAssets(strategy, blockers);
+  blockers.push(...validateSeedBotFeeModel(strategy.feeModel).blockers);
+
+  return {
+    valid: blockers.length === 0,
+    blockers,
+  };
+}
+
+export function validateSeedBotStrategyCatalog(strategies: SeedBotStrategy[]): SeedBotStrategyValidation {
+  const blockers: string[] = [];
+  const seenStrategyIds = new Set<string>();
+
+  for (const strategy of strategies) {
+    const strategyId = strategy.id.trim().toLowerCase();
+    if (seenStrategyIds.has(strategyId)) {
+      blockers.push(`Duplicate SeedBot strategy id: ${strategy.id}.`);
+    }
+    seenStrategyIds.add(strategyId);
+    blockers.push(...validateSeedBotStrategy(strategy).blockers);
+  }
+
+  return {
+    valid: blockers.length === 0,
+    blockers,
+  };
+}
+
+function validatePerformanceWindows(strategy: SeedBotStrategy, blockers: string[]) {
+  const seenWindows = new Set<SeedBotPerformanceWindowName>();
+  const windows = new Set(strategy.performance.map((item) => item.window));
+
+  for (const requiredWindow of seedBotPerformanceWindows) {
+    if (!windows.has(requiredWindow)) {
+      blockers.push(`SeedBot strategy ${strategy.id} is missing ${requiredWindow} performance.`);
+    }
+  }
+
+  for (const performance of strategy.performance) {
+    if (seenWindows.has(performance.window)) {
+      blockers.push(`SeedBot strategy ${strategy.id} has duplicate ${performance.window} performance.`);
+    }
+    seenWindows.add(performance.window);
+
+    if (!Number.isFinite(performance.returnPercent)) {
+      blockers.push(`SeedBot strategy ${strategy.id} has invalid ${performance.window} return percent.`);
+    }
+    if (performance.points.length < 2) {
+      blockers.push(`SeedBot strategy ${strategy.id} needs at least two ${performance.window} graph points.`);
+      continue;
+    }
+    if (!performance.points.every((point) => Number.isFinite(point))) {
+      blockers.push(`SeedBot strategy ${strategy.id} has invalid ${performance.window} graph points.`);
+    }
+
+    const finalPoint = performance.points[performance.points.length - 1];
+    if (Math.abs(finalPoint - performance.returnPercent) > 0.000_001) {
+      blockers.push(`SeedBot strategy ${strategy.id} ${performance.window} final graph point must equal returnPercent.`);
+    }
+  }
+}
+
+function validateStrategyAssets(strategy: SeedBotStrategy, blockers: string[]) {
+  const totalWeight = strategy.assets.reduce((total, asset) => total + asset.targetWeightPercent, 0);
+  if (Math.abs(totalWeight - 100) > 0.000_001) {
+    blockers.push(`SeedBot strategy ${strategy.id} target weights must total 100%.`);
+  }
+
+  const seenAssets = new Set<string>();
+  for (const asset of strategy.assets) {
+    if (!asset.symbol.trim()) {
+      blockers.push(`SeedBot strategy ${strategy.id} has an asset with missing symbol.`);
+    }
+    if (!Number.isFinite(asset.targetWeightPercent) || asset.targetWeightPercent <= 0) {
+      blockers.push(`SeedBot strategy ${strategy.id} asset ${asset.symbol} has invalid target weight.`);
+    }
+
+    const assetKey = `${asset.symbol.trim().toUpperCase()}:${asset.chain}:${asset.venueId}`;
+    if (seenAssets.has(assetKey)) {
+      blockers.push(`SeedBot strategy ${strategy.id} has duplicate asset route ${assetKey}.`);
+    }
+    seenAssets.add(assetKey);
+
+    const venue = venueById(asset.venueId);
+    if (!venue) {
+      blockers.push(`SeedBot strategy ${strategy.id} asset ${asset.symbol} references unknown venue ${asset.venueId}.`);
+      continue;
+    }
+
+    const requiredWalletRoute = walletRouteForChain(asset.chain);
+    if (requiredWalletRoute && asset.walletRoute !== requiredWalletRoute) {
+      blockers.push(`SeedBot strategy ${strategy.id} asset ${asset.symbol} must use ${requiredWalletRoute} for ${asset.chain}.`);
+    }
+
+    const venueRoute = asset.walletRoute === "PHANTOM" ? "PHANTOM" : "EVM";
+    if (!venue.walletRoutes.includes(venueRoute)) {
+      blockers.push(`SeedBot strategy ${strategy.id} venue ${asset.venueId} does not support ${asset.walletRoute}.`);
+    }
+  }
+}
+
+function walletRouteForChain(chain: TransactionChain): SeedBotWalletRoute | undefined {
+  if (chain === "SOLANA") return "PHANTOM";
+  if (chain === "EVM") return "METAMASK";
+  return undefined;
 }

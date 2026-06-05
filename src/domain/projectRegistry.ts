@@ -28,21 +28,53 @@ export function latestRiskDisclosure(project: Project): ProjectDocument | undefi
     .sort((left, right) => compareDocumentVersions(right.version, left.version))[0];
 }
 
+export function validateProjectDocumentSet(project: Project): ProjectDisclosureResult {
+  const warnings: string[] = [];
+  const seenDocumentIds = new Set<string>();
+
+  for (const document of project.documents) {
+    const documentId = document.id.trim().toLowerCase();
+    if (!documentId) {
+      warnings.push("Project document id is missing");
+    } else if (seenDocumentIds.has(documentId)) {
+      warnings.push(`Duplicate project document id: ${document.id}`);
+    }
+    seenDocumentIds.add(documentId);
+
+    if (!document.title.trim()) {
+      warnings.push(`Project document ${document.id} title is missing`);
+    }
+    if (!document.version.trim()) {
+      warnings.push(`Project document ${document.id} version is missing`);
+    }
+    if (Number.isNaN(Date.parse(document.issuedAt))) {
+      warnings.push(`Project document ${document.id} issuedAt is invalid`);
+    }
+    if (document.requiredForParticipation && (!document.uri || !document.contentHash)) {
+      warnings.push("Required documents are missing URI or content hash");
+    }
+    if (document.contentHash && !document.contentHash.includes(":")) {
+      warnings.push(`Project document ${document.id} content hash should include an algorithm prefix`);
+    }
+  }
+
+  return {
+    ready: warnings.length === 0,
+    warnings: [...new Set(warnings)],
+  };
+}
+
 export function evaluateProjectDisclosures(project: Project): ProjectDisclosureResult {
   const warnings: string[] = [];
   const riskDisclosure = latestRiskDisclosure(project);
+  const documentSet = validateProjectDocumentSet(project);
+
+  warnings.push(...documentSet.warnings);
 
   if (!riskDisclosure) {
     warnings.push("Risk disclosure is missing");
   } else if (riskDisclosure.status !== "APPROVED") {
     warnings.push("Risk disclosure is not approved");
-  }
-
-  const requiredDocumentsMissingProof = requiredProjectDocuments(project).filter(
-    (document) => !document.uri || !document.contentHash,
-  );
-  if (requiredDocumentsMissingProof.length > 0) {
-    warnings.push("Required documents are missing URI or content hash");
   }
 
   if (!project.receivingAccount.address) {
@@ -122,6 +154,11 @@ export function evaluateProjectEligibility(project: Project, activeTier: Staking
       warning.includes("Risk disclosure is missing") ||
       warning.includes("Risk disclosure is not approved") ||
       warning.includes("Required documents are missing URI or content hash") ||
+      warning.includes("Duplicate project document id") ||
+      warning.includes("Project document id is missing") ||
+      warning.includes("version is missing") ||
+      warning.includes("issuedAt is invalid") ||
+      warning.includes("content hash should include an algorithm prefix") ||
       warning.includes("must use a separated charity account") ||
       warning.includes("must not use charity accounts") ||
       warning.includes("Legal review is required"),

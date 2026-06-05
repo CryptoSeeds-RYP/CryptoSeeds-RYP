@@ -6,6 +6,7 @@ import {
   platformBoundaries,
   platformFeePolicy,
   reviewGates,
+  validatePlatformGovernancePosture,
 } from "./platformGovernance";
 
 describe("platform governance posture", () => {
@@ -39,5 +40,22 @@ describe("platform governance posture", () => {
     expect(reviewGates.find((gate) => gate.id === "seedbot-success-fee")?.status).toBe("BLOCKED_UNTIL_REVIEW");
     expect(reviewGates.find((gate) => gate.id === "project-financial-rights")?.status).toBe("BLOCKED_UNTIL_REVIEW");
     expect(reviewGates.find((gate) => gate.id === "founder-token-disclosure")?.status).toBe("DISCLOSURE_REQUIRED");
+  });
+
+  it("validates governance ids and public-log posture", () => {
+    expect(validatePlatformGovernancePosture()).toEqual({
+      valid: true,
+      blockers: [],
+    });
+
+    const duplicateControls = [
+      ...authorityControls,
+      { ...authorityControls[0], id: authorityControls[0].id.toUpperCase(), publicLogRequired: false },
+    ];
+
+    expect(validatePlatformGovernancePosture({ controls: duplicateControls }).blockers).toEqual([
+      "Duplicate authority control id: PROTOCOL-PAUSE.",
+      "Authority controls must require public logs.",
+    ]);
   });
 });

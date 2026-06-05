@@ -128,6 +128,9 @@ function parseArgs(args) {
       continue;
     }
     if (arg === "--env") {
+      if (!args[index + 1] || args[index + 1].startsWith("--")) {
+        throw new Error("--env requires a file path.");
+      }
       parsed.envPath = args[index + 1];
       index += 1;
       continue;
@@ -151,6 +154,10 @@ function readText(relativePath) {
 }
 
 function parseEnvFile(filePath) {
+  if (!existsSync(filePath)) {
+    throw new Error(`Environment file not found: ${filePath}`);
+  }
+
   return Object.fromEntries(
     readFileSync(filePath, "utf8")
       .split(/\r?\n/)
@@ -158,9 +165,20 @@ function parseEnvFile(filePath) {
       .filter((line) => line && !line.startsWith("#") && line.includes("="))
       .map((line) => {
         const separatorIndex = line.indexOf("=");
-        return [line.slice(0, separatorIndex), line.slice(separatorIndex + 1)];
+        return [line.slice(0, separatorIndex), stripEnvValue(line.slice(separatorIndex + 1))];
       }),
   );
+}
+
+function stripEnvValue(value) {
+  const trimmed = value.trim();
+  if (
+    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+    (trimmed.startsWith("'") && trimmed.endsWith("'"))
+  ) {
+    return trimmed.slice(1, -1);
+  }
+  return trimmed;
 }
 
 function findAnchorProgramId(contents) {
