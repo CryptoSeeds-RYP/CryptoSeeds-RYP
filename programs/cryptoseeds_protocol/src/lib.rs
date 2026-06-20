@@ -749,7 +749,11 @@ pub mod cryptoseeds_protocol {
             ctx.accounts.config.key(),
             &ctx.accounts.authority.key(),
         )?;
-        validate_reward_epoch_status(ctx.accounts.reward_epoch.status, RewardEpochStatus::Drafted)?;
+        validate_reward_epoch_ready_for_review(
+            &ctx.accounts.reward_epoch,
+            ctx.accounts.reward_config.key(),
+            ctx.accounts.reward_config.ryp_mint,
+        )?;
 
         let reward_epoch = &mut ctx.accounts.reward_epoch;
         reward_epoch.status = RewardEpochStatus::Reviewed;
@@ -772,10 +776,12 @@ pub mod cryptoseeds_protocol {
             ctx.accounts.config.key(),
             &ctx.accounts.authority.key(),
         )?;
-        require!(
-            ctx.accounts.reward_epoch.status != RewardEpochStatus::Cancelled,
-            CryptoSeedsError::InvalidRewardEpochStatus
-        );
+        validate_reward_epoch_matches_config(
+            &ctx.accounts.reward_epoch,
+            ctx.accounts.reward_config.key(),
+            ctx.accounts.reward_config.ryp_mint,
+        )?;
+        validate_reward_epoch_cancellable(&ctx.accounts.reward_epoch)?;
 
         let reward_epoch = &mut ctx.accounts.reward_epoch;
         reward_epoch.status = RewardEpochStatus::Cancelled;
@@ -805,6 +811,11 @@ pub mod cryptoseeds_protocol {
             &ctx.accounts.reward_config,
             ctx.accounts.config.key(),
             &ctx.accounts.authority.key(),
+        )?;
+        validate_reward_epoch_matches_config(
+            &ctx.accounts.reward_epoch,
+            ctx.accounts.reward_config.key(),
+            ctx.accounts.reward_config.ryp_mint,
         )?;
         validate_reward_claim_role(reward_role)?;
         validate_reward_epoch_claimable(&ctx.accounts.reward_epoch)?;
@@ -869,6 +880,11 @@ pub mod cryptoseeds_protocol {
             ctx.accounts.reward_config.key(),
             CryptoSeedsError::InvalidRewardClaim
         );
+        validate_reward_epoch_matches_config(
+            &ctx.accounts.reward_epoch,
+            ctx.accounts.reward_config.key(),
+            ctx.accounts.reward_config.ryp_mint,
+        )?;
         validate_reward_claim_accounting(
             gross_allocation_amount,
             delivery_cost_amount,
@@ -2679,6 +2695,8 @@ pub enum CryptoSeedsError {
     InvalidAuthority,
     #[msg("Reward epoch status does not allow this action.")]
     InvalidRewardEpochStatus,
+    #[msg("Reward epoch does not match the requested reward config.")]
+    InvalidRewardEpochConfig,
     #[msg("Reward claim accounting is invalid.")]
     InvalidRewardClaim,
     #[msg("Reward claim records exceed the reviewed epoch allocation.")]
@@ -2955,6 +2973,74 @@ fn validate_reward_epoch_status(
         actual == expected,
         CryptoSeedsError::InvalidRewardEpochStatus
     );
+    Ok(())
+}
+
+fn validate_reward_epoch_matches_config(
+    reward_epoch: &RewardEpoch,
+    reward_config: Pubkey,
+    reward_mint: Pubkey,
+) -> Result<()> {
+    require_keys_eq!(
+        reward_epoch.reward_config,
+        reward_config,
+        CryptoSeedsError::InvalidRewardEpochConfig
+    );
+    require_keys_eq!(
+        reward_epoch.reward_mint,
+        reward_mint,
+        CryptoSeedsError::InvalidRewardEpochConfig
+    );
+
+    Ok(())
+}
+
+fn validate_reward_epoch_ready_for_review(
+    reward_epoch: &RewardEpoch,
+    reward_config: Pubkey,
+    reward_mint: Pubkey,
+) -> Result<()> {
+    validate_reward_epoch_matches_config(reward_epoch, reward_config, reward_mint)?;
+    validate_reward_epoch_status(reward_epoch.status, RewardEpochStatus::Drafted)?;
+    require!(
+        reward_epoch.execution_blocked,
+        CryptoSeedsError::InvalidRewardEpochStatus
+    );
+    require!(
+        reward_epoch.claim_merkle_root != [0; 32],
+        CryptoSeedsError::RewardMerkleRootMissing
+    );
+    require!(
+        reward_epoch.recorded_gross_allocation_amount == 0
+            && reward_epoch.recorded_net_claim_amount == 0
+            && reward_epoch.claimed_net_amount == 0,
+        CryptoSeedsError::InvalidRewardEpochStatus
+    );
+    validate_reward_epoch_accounting(
+        reward_epoch.reward_pool_amount,
+        reward_epoch.distributed_net_amount,
+        reward_epoch.reserved_delivery_cost_amount,
+        reward_epoch.rolled_forward_amount,
+    )?;
+
+    Ok(())
+}
+
+fn validate_reward_epoch_cancellable(reward_epoch: &RewardEpoch) -> Result<()> {
+    require!(
+        matches!(
+            reward_epoch.status,
+            RewardEpochStatus::Drafted | RewardEpochStatus::Reviewed
+        ),
+        CryptoSeedsError::InvalidRewardEpochStatus
+    );
+    require!(
+        reward_epoch.recorded_gross_allocation_amount == 0
+            && reward_epoch.recorded_net_claim_amount == 0
+            && reward_epoch.claimed_net_amount == 0,
+        CryptoSeedsError::InvalidRewardEpochStatus
+    );
+
     Ok(())
 }
 
@@ -3440,6 +3526,93 @@ mod tests {
 
         assert!(record_reward_claim_amounts(&mut reward_epoch, 301, 0).is_err());
         assert!(record_reward_claim_amounts(&mut reward_epoch, 1, 1).is_err());
+    }
+
+    #[test]
+    fn validates_reward_epoch_config_binding() {
+        let reward_config = Pubkey::new_unique();
+        let reward_mint = Pubkey::new_unique();
+        let mut reward_epoch = reward_epoch(1_000, 700);
+        reward_epoch.reward_config = reward_config;
+        reward_epoch.reward_mint = reward_mint;
+
+        assert!(
+            validate_reward_epoch_matches_config(&reward_epoch, reward_config, reward_mint).is_ok()
+        );
+        assert!(validate_reward_epoch_matches_config(
+            &reward_epoch,
+            Pubkey::new_unique(),
+            reward_mint
+        )
+        .is_err());
+        assert!(validate_reward_epoch_matches_config(
+            &reward_epoch,
+            reward_config,
+            Pubkey::new_unique()
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn validates_reward_epoch_review_readiness() {
+        let reward_config = Pubkey::new_unique();
+        let reward_mint = Pubkey::new_unique();
+        let ready_epoch = || {
+            let mut epoch = reward_epoch(1_000, 700);
+            epoch.reward_config = reward_config;
+            epoch.reward_mint = reward_mint;
+            epoch.status = RewardEpochStatus::Drafted;
+            epoch.execution_blocked = true;
+            epoch.claim_merkle_root = [4; 32];
+            epoch
+        };
+
+        assert!(
+            validate_reward_epoch_ready_for_review(&ready_epoch(), reward_config, reward_mint)
+                .is_ok()
+        );
+
+        let mut missing_root = ready_epoch();
+        missing_root.claim_merkle_root = [0; 32];
+        assert!(
+            validate_reward_epoch_ready_for_review(&missing_root, reward_config, reward_mint)
+                .is_err()
+        );
+
+        let mut already_open = ready_epoch();
+        already_open.execution_blocked = false;
+        assert!(
+            validate_reward_epoch_ready_for_review(&already_open, reward_config, reward_mint)
+                .is_err()
+        );
+
+        let mut recorded = ready_epoch();
+        recorded.recorded_gross_allocation_amount = 1;
+        assert!(
+            validate_reward_epoch_ready_for_review(&recorded, reward_config, reward_mint).is_err()
+        );
+    }
+
+    #[test]
+    fn restricts_reward_epoch_cancellation_after_claim_accounting_starts() {
+        let mut drafted = reward_epoch(1_000, 700);
+        drafted.status = RewardEpochStatus::Drafted;
+        drafted.execution_blocked = true;
+        assert!(validate_reward_epoch_cancellable(&drafted).is_ok());
+
+        assert!(validate_reward_epoch_cancellable(&reward_epoch(1_000, 700)).is_ok());
+
+        let mut cancelled = reward_epoch(1_000, 700);
+        cancelled.status = RewardEpochStatus::Cancelled;
+        assert!(validate_reward_epoch_cancellable(&cancelled).is_err());
+
+        let mut recorded = reward_epoch(1_000, 700);
+        recorded.recorded_gross_allocation_amount = 1;
+        assert!(validate_reward_epoch_cancellable(&recorded).is_err());
+
+        let mut claimed = reward_epoch(1_000, 700);
+        claimed.claimed_net_amount = 1;
+        assert!(validate_reward_epoch_cancellable(&claimed).is_err());
     }
 
     #[test]
