@@ -50,10 +50,11 @@ Current scope:
 - Register project records and update project lifecycle status
 - Record project participation by wallet
 - Create/revoke bounded SeedBot permission records
+- Record owner-signed SeedBot usage against permission caps
 - Emergency pause
 - Emit protocol events
 
-Current localnet security coverage includes rejected duplicate tier thresholds, reward config initialization, rejected invalid reward splits, rejected blank reward metadata, reward vault registration and verification, wallet-approved platform fee routing into holder/staker/treasury vaults, rejected pending-vault reward epochs, rejected reward metadata mismatch, rejected non-authority reward verification, rejected unbalanced reward epochs, balanced reward epoch drafts, reviewed reward epochs, holder reward token claims, staker rollover claims, duplicate reward claim rejection, governance proposal close, blocked voting without active voting rights, project registration/participation, SeedBot permission creation/revocation, rejected below-Seed staking, rejected early voting-right activation, rejected mismatched-owner unstaking, rejected oversized unstaking, Seed-to-Sprout top-up state preservation, Sprout-to-Seed partial unstake state preservation, rejected non-authority pause attempts, pause enforcement for stake, unstake, and voting activation paths, and two-step protocol/reward authority rotation with stale-authority rejection.
+Current localnet security coverage includes rejected duplicate tier thresholds, reward config initialization, rejected invalid reward splits, rejected blank reward metadata, reward vault registration and verification, wallet-approved platform fee routing into holder/staker/treasury vaults, rejected pending-vault reward epochs, rejected reward metadata mismatch, rejected non-authority reward verification, rejected unbalanced reward epochs, balanced reward epoch drafts, reviewed reward epochs, holder reward token claims, staker rollover claims, duplicate reward claim rejection, governance proposal close, blocked voting without active voting rights, project registration/participation, SeedBot permission creation/revocation/renewal, owner-signed SeedBot usage accounting, rejected SeedBot daily-cap breaches, rejected below-Seed staking, rejected early voting-right activation, rejected mismatched-owner unstaking, rejected oversized unstaking, Seed-to-Sprout top-up state preservation, Sprout-to-Seed partial unstake state preservation, rejected non-authority pause attempts, pause enforcement for stake, unstake, and voting activation paths, and two-step protocol/reward authority rotation with stale-authority rejection.
 
 Current Rust unit coverage also includes reward split totals, platform fee split/remainder math, reward cadence bounds, reward epoch accounting balance, and verified-vault requirements for epoch drafts.
 
@@ -64,6 +65,7 @@ Client preparation now has a TypeScript planning layer at `src/solana/protocolTr
 - Derives the owner RYP associated token account
 - Derives the protocol RYP vault associated token account owned by the config PDA
 - Builds Anchor instruction data for staking, reward claims, platform fee routing, governance voting/proposals, project registry/participation, SeedBot permissions, and fee config updates
+- Builds owner-signed SeedBot usage-record instruction previews for later guarded execution composition
 - Exposes account order, signer/writable flags, instruction discriminator, and raw data hex for wallet-preview surfaces
 - Rejects prepared token amounts outside Solana's u64 SPL token amount bounds before instruction data is encoded
 - Installs a browser `Buffer` shim at app startup so Solana wallet and transaction libraries can run in Vite without relying on Node globals
@@ -97,7 +99,7 @@ These should be added after the staking core is reviewed:
 - Reward accrual, expiration, and 1-year unclaimed redistribution
 - Treasury distribution
 - Airdrop eligibility
-- SeedBot permission renewal/update flow
+- Actual SeedBot DEX execution composition
 
 ## Program Boundaries
 

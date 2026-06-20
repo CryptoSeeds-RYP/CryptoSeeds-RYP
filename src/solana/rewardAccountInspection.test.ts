@@ -209,6 +209,12 @@ describe("reward account inspection", () => {
     view(data).setBigInt64(offset.staking_start_ts_at_creation, 1_799_999_000n, true);
     data[offset.revoked] = 0;
     data[offset.bump] = 252;
+    view(data).setBigInt64(offset.usage_day_start_ts, 1_800_000_100n, true);
+    view(data).setBigUint64(offset.daily_volume_used_amount, 700n, true);
+    view(data).setUint16(offset.daily_trades_used, 2, true);
+    view(data).setBigUint64(offset.total_volume_used_amount, 1_700n, true);
+    view(data).setBigUint64(offset.total_trades_used, 4n, true);
+    view(data).setBigInt64(offset.last_execution_ts, 1_800_000_300n, true);
 
     expect(decodeSeedBotPermissionAccount(data)).toEqual({
       owner: owner.toBase58(),
@@ -225,6 +231,12 @@ describe("reward account inspection", () => {
       stakingStartTsAtCreation: "1799999000",
       revoked: false,
       bump: 252,
+      usageDayStartTs: "1800000100",
+      dailyVolumeUsedAmount: "700",
+      dailyTradesUsed: 2,
+      totalVolumeUsedAmount: "1700",
+      totalTradesUsed: "4",
+      lastExecutionTs: "1800000300",
     });
   });
 
@@ -330,6 +342,10 @@ describe("reward account inspection", () => {
         permissionHash: "00".repeat(32),
         stakedAmountAtCreation: "0",
         tierAtCreation: "NONE",
+        dailyVolumeUsedAmount: "2000",
+        dailyTradesUsed: 4,
+        totalVolumeUsedAmount: "100",
+        totalTradesUsed: "1",
       },
     });
 
@@ -341,6 +357,9 @@ describe("reward account inspection", () => {
     expect(blockers).toContain("daily volume");
     expect(blockers).toContain("daily trades");
     expect(blockers).toContain("slippage");
+    expect(blockers).toContain("daily usage exceeds");
+    expect(blockers).toContain("total usage");
+    expect(blockers).toContain("total trade count");
   });
 });
 
@@ -446,6 +465,12 @@ function buildDecodedSeedBotPermissionInspection(
       stakingStartTsAtCreation: "1799999000",
       revoked: false,
       bump: 252,
+      usageDayStartTs: "1800000100",
+      dailyVolumeUsedAmount: "700",
+      dailyTradesUsed: 2,
+      totalVolumeUsedAmount: "1700",
+      totalTradesUsed: "4",
+      lastExecutionTs: "1800000300",
       ...overrides.decoded,
     },
     lifecycleStatus: "ACTIVE",

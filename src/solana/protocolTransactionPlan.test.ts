@@ -11,6 +11,7 @@ import {
   buildCreateSeedBotPermissionTransactionPlan,
   buildProjectParticipationTransactionPlan,
   buildRegisterProjectTransactionPlan,
+  buildRecordSeedBotUsageTransactionPlan,
   buildRevokeSeedBotPermissionTransactionPlan,
   buildRoutePlatformFeeTransactionPlan,
   buildStakeRypTransactionPlan,
@@ -306,6 +307,12 @@ describe("protocol transaction plan", () => {
       ownerAddress,
       permissionHash: new Uint8Array(32).fill(8),
     });
+    const seedBotUsage = buildRecordSeedBotUsageTransactionPlan({
+      executionHash: new Uint8Array(32).fill(9),
+      ownerAddress,
+      slippageBps: 42,
+      tradeAmountBaseUnits: 1_234n,
+    });
     const feeConfig = buildUpdateFeeConfigTransactionPlan({
       authorityAddress: ownerAddress,
       baseFeeBps: 300,
@@ -324,6 +331,11 @@ describe("protocol transaction plan", () => {
     );
     expect(updateSeedBot.instructions[0].accounts.map((account) => account.anchorName)).toEqual(
       PROTOCOL_INSTRUCTION_SPECS.update_seedbot_permission.accounts.map((account) => account.name),
+    );
+    expect(seedBotUsage.action).toBe("RECORD_SEEDBOT_USAGE");
+    expect(seedBotUsage.instructions[0].dataHex).toBe(`84fd757eb644c95d${"09".repeat(32)}d2040000000000002a00`);
+    expect(seedBotUsage.instructions[0].accounts.map((account) => account.anchorName)).toEqual(
+      PROTOCOL_INSTRUCTION_SPECS.record_seedbot_usage.accounts.map((account) => account.name),
     );
     expect(feeConfig.action).toBe("UPDATE_FEE_CONFIG");
     expect(feeConfig.instructions[0].dataHex).toBe("68b867f258976b142c0100001e003c005a007800");

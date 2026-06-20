@@ -21,6 +21,7 @@ pub const SEEDBOT_PERMISSION_SEED: &[u8] = b"seedbot-permission";
 pub const VOTING_RIGHTS_DELAY_SECONDS: i64 = 14 * 24 * 60 * 60;
 pub const MAX_REWARD_EPOCH_CADENCE_SECONDS: i64 = 366 * 24 * 60 * 60;
 pub const MAX_SEEDBOT_PERMISSION_SECONDS: i64 = 30 * 24 * 60 * 60;
+pub const SEEDBOT_USAGE_WINDOW_SECONDS: i64 = 24 * 60 * 60;
 pub const MAX_SEEDBOT_DAILY_TRADES: u16 = 50;
 pub const MAX_SEEDBOT_SLIPPAGE_BPS: u16 = 500;
 pub const MAX_REWARD_MERKLE_PROOF_NODES: usize = 32;
@@ -1367,6 +1368,12 @@ pub mod cryptoseeds_protocol {
         permission.staking_start_ts_at_creation = ctx.accounts.position.staking_start_ts;
         permission.revoked = false;
         permission.bump = ctx.bumps.permission;
+        permission.usage_day_start_ts = 0;
+        permission.daily_volume_used_amount = 0;
+        permission.daily_trades_used = 0;
+        permission.total_volume_used_amount = 0;
+        permission.total_trades_used = 0;
+        permission.last_execution_ts = 0;
 
         emit!(SeedBotPermissionCreated {
             owner: permission.owner,
@@ -1460,6 +1467,12 @@ pub mod cryptoseeds_protocol {
         permission.staked_amount_at_creation = ctx.accounts.position.staked_amount;
         permission.staking_start_ts_at_creation = ctx.accounts.position.staking_start_ts;
         permission.revoked = false;
+        permission.usage_day_start_ts = 0;
+        permission.daily_volume_used_amount = 0;
+        permission.daily_trades_used = 0;
+        permission.total_volume_used_amount = 0;
+        permission.total_trades_used = 0;
+        permission.last_execution_ts = 0;
 
         emit!(SeedBotPermissionUpdated {
             owner: permission.owner,
@@ -1472,6 +1485,61 @@ pub mod cryptoseeds_protocol {
             max_slippage_bps,
             tier_at_creation: permission.tier_at_creation,
             staked_amount_at_creation: permission.staked_amount_at_creation,
+        });
+
+        Ok(())
+    }
+
+    pub fn record_seedbot_usage(
+        ctx: Context<RecordSeedBotUsage>,
+        execution_hash: [u8; 32],
+        trade_amount: u64,
+        slippage_bps: u16,
+    ) -> Result<()> {
+        require!(
+            !ctx.accounts.config.paused,
+            CryptoSeedsError::ProtocolPaused
+        );
+        validate_metadata_hash(&execution_hash)?;
+        require_keys_eq!(
+            ctx.accounts.position.owner,
+            ctx.accounts.owner.key(),
+            CryptoSeedsError::Unauthorized
+        );
+        require_keys_eq!(
+            ctx.accounts.permission.owner,
+            ctx.accounts.owner.key(),
+            CryptoSeedsError::Unauthorized
+        );
+        require_keys_eq!(
+            ctx.accounts.permission.position,
+            ctx.accounts.position.key(),
+            CryptoSeedsError::Unauthorized
+        );
+        require!(
+            ctx.accounts.position.tier != StakeTier::None,
+            CryptoSeedsError::StakeBelowSeedTier
+        );
+
+        let recorded_at = Clock::get()?.unix_timestamp;
+        record_seedbot_usage_at(
+            &mut ctx.accounts.permission,
+            recorded_at,
+            trade_amount,
+            slippage_bps,
+        )?;
+
+        emit!(SeedBotUsageRecorded {
+            owner: ctx.accounts.permission.owner,
+            position: ctx.accounts.permission.position,
+            execution_hash,
+            recorded_at,
+            trade_amount,
+            slippage_bps,
+            daily_volume_used_amount: ctx.accounts.permission.daily_volume_used_amount,
+            daily_trades_used: ctx.accounts.permission.daily_trades_used,
+            total_volume_used_amount: ctx.accounts.permission.total_volume_used_amount,
+            total_trades_used: ctx.accounts.permission.total_trades_used,
         });
 
         Ok(())
@@ -2171,6 +2239,24 @@ pub struct UpdateSeedBotPermission<'info> {
     pub permission: Account<'info, SeedBotPermission>,
 }
 
+#[derive(Accounts)]
+pub struct RecordSeedBotUsage<'info> {
+    pub owner: Signer<'info>,
+    #[account(seeds = [CONFIG_SEED], bump = config.bump)]
+    pub config: Account<'info, ProtocolConfig>,
+    #[account(
+        seeds = [STAKE_POSITION_SEED, owner.key().as_ref()],
+        bump = position.bump
+    )]
+    pub position: Account<'info, StakePosition>,
+    #[account(
+        mut,
+        seeds = [SEEDBOT_PERMISSION_SEED, owner.key().as_ref()],
+        bump = permission.bump
+    )]
+    pub permission: Account<'info, SeedBotPermission>,
+}
+
 #[account]
 #[derive(InitSpace)]
 pub struct ProtocolConfig {
@@ -2351,6 +2437,12 @@ pub struct SeedBotPermission {
     pub staking_start_ts_at_creation: i64,
     pub revoked: bool,
     pub bump: u8,
+    pub usage_day_start_ts: i64,
+    pub daily_volume_used_amount: u64,
+    pub daily_trades_used: u16,
+    pub total_volume_used_amount: u64,
+    pub total_trades_used: u64,
+    pub last_execution_ts: i64,
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, InitSpace)]
@@ -2762,6 +2854,20 @@ pub struct SeedBotPermissionUpdated {
     pub staked_amount_at_creation: u64,
 }
 
+#[event]
+pub struct SeedBotUsageRecorded {
+    pub owner: Pubkey,
+    pub position: Pubkey,
+    pub execution_hash: [u8; 32],
+    pub recorded_at: i64,
+    pub trade_amount: u64,
+    pub slippage_bps: u16,
+    pub daily_volume_used_amount: u64,
+    pub daily_trades_used: u16,
+    pub total_volume_used_amount: u64,
+    pub total_trades_used: u64,
+}
+
 #[error_code]
 pub enum CryptoSeedsError {
     #[msg("The provided amount is invalid.")]
@@ -2846,6 +2952,10 @@ pub enum CryptoSeedsError {
     InvalidSeedBotPermission,
     #[msg("SeedBot permission is already revoked.")]
     SeedBotPermissionRevoked,
+    #[msg("SeedBot permission is expired.")]
+    SeedBotPermissionExpired,
+    #[msg("SeedBot usage exceeds the wallet-approved permission limits.")]
+    SeedBotUsageLimitExceeded,
 }
 
 fn validate_thresholds(thresholds: &[u64; 5]) -> Result<()> {
@@ -3441,6 +3551,76 @@ fn validate_seedbot_permission_limits_at(
     Ok(())
 }
 
+fn record_seedbot_usage_at(
+    permission: &mut SeedBotPermission,
+    now: i64,
+    trade_amount: u64,
+    slippage_bps: u16,
+) -> Result<()> {
+    require!(
+        !permission.revoked,
+        CryptoSeedsError::SeedBotPermissionRevoked
+    );
+    require!(
+        permission.expires_at > now,
+        CryptoSeedsError::SeedBotPermissionExpired
+    );
+    require!(trade_amount > 0, CryptoSeedsError::InvalidAmount);
+    require!(
+        trade_amount <= permission.max_trade_amount,
+        CryptoSeedsError::SeedBotUsageLimitExceeded
+    );
+    require!(
+        slippage_bps <= permission.max_slippage_bps,
+        CryptoSeedsError::SeedBotUsageLimitExceeded
+    );
+
+    let window_expired = permission.usage_day_start_ts <= 0
+        || now
+            >= permission
+                .usage_day_start_ts
+                .checked_add(SEEDBOT_USAGE_WINDOW_SECONDS)
+                .ok_or(CryptoSeedsError::MathOverflow)?;
+
+    if window_expired {
+        permission.usage_day_start_ts = now;
+        permission.daily_volume_used_amount = 0;
+        permission.daily_trades_used = 0;
+    }
+
+    let next_daily_volume = permission
+        .daily_volume_used_amount
+        .checked_add(trade_amount)
+        .ok_or(CryptoSeedsError::MathOverflow)?;
+    require!(
+        next_daily_volume <= permission.max_daily_volume_amount,
+        CryptoSeedsError::SeedBotUsageLimitExceeded
+    );
+
+    let next_daily_trades = permission
+        .daily_trades_used
+        .checked_add(1)
+        .ok_or(CryptoSeedsError::MathOverflow)?;
+    require!(
+        next_daily_trades <= permission.max_daily_trades,
+        CryptoSeedsError::SeedBotUsageLimitExceeded
+    );
+
+    permission.daily_volume_used_amount = next_daily_volume;
+    permission.daily_trades_used = next_daily_trades;
+    permission.total_volume_used_amount = permission
+        .total_volume_used_amount
+        .checked_add(trade_amount)
+        .ok_or(CryptoSeedsError::MathOverflow)?;
+    permission.total_trades_used = permission
+        .total_trades_used
+        .checked_add(1)
+        .ok_or(CryptoSeedsError::MathOverflow)?;
+    permission.last_execution_ts = now;
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -3938,6 +4118,52 @@ mod tests {
     }
 
     #[test]
+    fn records_seedbot_usage_with_daily_caps() {
+        let now = 1_000;
+        let mut permission = seedbot_permission(now + SEEDBOT_USAGE_WINDOW_SECONDS + 10_000);
+
+        assert!(record_seedbot_usage_at(&mut permission, now, 700, 50).is_ok());
+        assert_eq!(permission.usage_day_start_ts, now);
+        assert_eq!(permission.daily_volume_used_amount, 700);
+        assert_eq!(permission.daily_trades_used, 1);
+        assert_eq!(permission.total_volume_used_amount, 700);
+        assert_eq!(permission.total_trades_used, 1);
+        assert_eq!(permission.last_execution_ts, now);
+
+        assert!(record_seedbot_usage_at(&mut permission, now + 60, 800, 75).is_ok());
+        assert_eq!(permission.daily_volume_used_amount, 1_500);
+        assert_eq!(permission.daily_trades_used, 2);
+        assert_eq!(permission.total_volume_used_amount, 1_500);
+        assert_eq!(permission.total_trades_used, 2);
+
+        assert!(record_seedbot_usage_at(&mut permission, now + 120, 1, 75).is_err());
+
+        let reset_at = now + SEEDBOT_USAGE_WINDOW_SECONDS + 1;
+        assert!(record_seedbot_usage_at(&mut permission, reset_at, 100, 50).is_ok());
+        assert_eq!(permission.usage_day_start_ts, reset_at);
+        assert_eq!(permission.daily_volume_used_amount, 100);
+        assert_eq!(permission.daily_trades_used, 1);
+        assert_eq!(permission.total_volume_used_amount, 1_600);
+        assert_eq!(permission.total_trades_used, 3);
+    }
+
+    #[test]
+    fn rejects_invalid_seedbot_usage() {
+        let now = 1_000;
+        let mut permission = seedbot_permission(now + 10_000);
+
+        assert!(record_seedbot_usage_at(&mut permission, now, 0, 50).is_err());
+        assert!(record_seedbot_usage_at(&mut permission, now, 1_001, 50).is_err());
+        assert!(record_seedbot_usage_at(&mut permission, now, 100, 101).is_err());
+
+        permission.revoked = true;
+        assert!(record_seedbot_usage_at(&mut permission, now, 100, 50).is_err());
+
+        let mut expired = seedbot_permission(now);
+        assert!(record_seedbot_usage_at(&mut expired, now, 100, 50).is_err());
+    }
+
+    #[test]
     fn maps_tier_access_for_project_participation() {
         assert!(StakeTier::Fruit.can_access(StakeTier::Seed));
         assert!(StakeTier::Sprout.can_access(StakeTier::Sprout));
@@ -3997,6 +4223,31 @@ mod tests {
             status: RewardEpochStatus::Reviewed,
             execution_blocked: false,
             bump: 255,
+        }
+    }
+
+    fn seedbot_permission(expires_at: i64) -> SeedBotPermission {
+        SeedBotPermission {
+            owner: Pubkey::new_unique(),
+            position: Pubkey::new_unique(),
+            permission_hash: [7; 32],
+            created_at: 900,
+            expires_at,
+            max_trade_amount: 1_000,
+            max_daily_volume_amount: 1_500,
+            max_daily_trades: 2,
+            max_slippage_bps: 100,
+            tier_at_creation: StakeTier::Seed,
+            staked_amount_at_creation: THRESHOLDS[0],
+            staking_start_ts_at_creation: 800,
+            revoked: false,
+            bump: 1,
+            usage_day_start_ts: 0,
+            daily_volume_used_amount: 0,
+            daily_trades_used: 0,
+            total_volume_used_amount: 0,
+            total_trades_used: 0,
+            last_execution_ts: 0,
         }
     }
 }

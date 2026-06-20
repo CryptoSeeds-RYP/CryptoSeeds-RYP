@@ -149,6 +149,12 @@ export type SeedBotPermissionAccount = {
   stakingStartTsAtCreation: string;
   revoked: boolean;
   bump: number;
+  usageDayStartTs: string;
+  dailyVolumeUsedAmount: string;
+  dailyTradesUsed: number;
+  totalVolumeUsedAmount: string;
+  totalTradesUsed: string;
+  lastExecutionTs: string;
 };
 
 export type SeedBotPermissionInspection = {
@@ -499,6 +505,18 @@ export function validateSeedBotPermissionInspection(
     if (inspection.decoded.maxSlippageBps > MAX_SEEDBOT_SLIPPAGE_BPS) {
       blockers.push(`SeedBot permission slippage must not exceed ${MAX_SEEDBOT_SLIPPAGE_BPS} bps.`);
     }
+    if (BigInt(inspection.decoded.dailyVolumeUsedAmount) > BigInt(inspection.decoded.maxDailyVolumeAmount)) {
+      blockers.push("SeedBot permission daily usage exceeds the wallet-approved volume cap.");
+    }
+    if (inspection.decoded.dailyTradesUsed > inspection.decoded.maxDailyTrades) {
+      blockers.push("SeedBot permission daily usage exceeds the wallet-approved trade count.");
+    }
+    if (BigInt(inspection.decoded.totalVolumeUsedAmount) < BigInt(inspection.decoded.dailyVolumeUsedAmount)) {
+      blockers.push("SeedBot permission total usage cannot be lower than current daily usage.");
+    }
+    if (BigInt(inspection.decoded.totalTradesUsed) < BigInt(inspection.decoded.dailyTradesUsed)) {
+      blockers.push("SeedBot permission total trade count cannot be lower than current daily trade count.");
+    }
     if (lifecycleStatus === "REVOKED") {
       warnings.push("SeedBot permission is revoked and cannot be used for guarded automation.");
     }
@@ -604,6 +622,12 @@ export function decodeSeedBotPermissionAccount(data: Uint8Array): SeedBotPermiss
     stakingStartTsAtCreation: readI64(data, offset.staking_start_ts_at_creation).toString(),
     revoked: readBool(data, offset.revoked),
     bump: data[offset.bump],
+    usageDayStartTs: readI64(data, offset.usage_day_start_ts).toString(),
+    dailyVolumeUsedAmount: readU64(data, offset.daily_volume_used_amount).toString(),
+    dailyTradesUsed: readU16(data, offset.daily_trades_used),
+    totalVolumeUsedAmount: readU64(data, offset.total_volume_used_amount).toString(),
+    totalTradesUsed: readU64(data, offset.total_trades_used).toString(),
+    lastExecutionTs: readI64(data, offset.last_execution_ts).toString(),
   };
 }
 

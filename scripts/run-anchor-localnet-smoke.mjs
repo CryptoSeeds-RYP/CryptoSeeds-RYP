@@ -442,6 +442,56 @@ async function runSmoke(connection) {
   assertEqual("SeedBot permission renewed tier snapshot", renewedPermission.tierAtCreation, 1);
   assertEqual("SeedBot permission renewed stake snapshot", renewedPermission.stakedAmountAtCreation, SEED_STAKE_AMOUNT);
   assertEqual("SeedBot permission renewed expiry", renewedPermission.expiresAt, permissionExpiresAt + 60n);
+  assertEqual("SeedBot permission renewed daily volume", renewedPermission.dailyVolumeUsedAmount, 0n);
+  assertEqual("SeedBot permission renewed daily trades", renewedPermission.dailyTradesUsed, 0);
+  assertEqual("SeedBot permission renewed total volume", renewedPermission.totalVolumeUsedAmount, 0n);
+  assertEqual("SeedBot permission renewed total trades", renewedPermission.totalTradesUsed, 0n);
+
+  log("calling record_seedbot_usage");
+  await recordSeedBotUsage(connection, {
+    config,
+    owner,
+    permission: seedBotPermission,
+    position,
+    slippageBps: 50,
+    tradeAmount: 500n,
+  });
+  await recordSeedBotUsage(connection, {
+    config,
+    owner,
+    permission: seedBotPermission,
+    position,
+    slippageBps: 75,
+    tradeAmount: 500n,
+  });
+  await recordSeedBotUsage(connection, {
+    config,
+    owner,
+    permission: seedBotPermission,
+    position,
+    slippageBps: 100,
+    tradeAmount: 500n,
+  });
+  const usedPermission = parseSeedBotPermission(await getAccountData(connection, seedBotPermission));
+  assertEqual("SeedBot permission used daily volume", usedPermission.dailyVolumeUsedAmount, 1_500n);
+  assertEqual("SeedBot permission used daily trades", usedPermission.dailyTradesUsed, 3);
+  assertEqual("SeedBot permission used total volume", usedPermission.totalVolumeUsedAmount, 1_500n);
+  assertEqual("SeedBot permission used total trades", usedPermission.totalTradesUsed, 3n);
+  assertEqual("SeedBot permission last execution recorded", usedPermission.lastExecutionTs > 0n, true);
+
+  await expectFailure(
+    "record_seedbot_usage rejects daily cap breach",
+    () =>
+      recordSeedBotUsage(connection, {
+        config,
+        owner,
+        permission: seedBotPermission,
+        position,
+        slippageBps: 50,
+        tradeAmount: 1n,
+      }),
+    "custom program error",
+  );
 
   log("asserting voting rights are locked before the 14-day delay");
   await expectFailure(
@@ -682,6 +732,8 @@ async function runSmoke(connection) {
 	      "create_seedbot_permission",
 	      "revoke_seedbot_permission",
 	      "update_seedbot_permission",
+	      "record_seedbot_usage",
+	      "reject_seedbot_usage_limit",
 	      "reject_early_voting_activation",
       "reject_unauthorized_unstake",
       "reject_insufficient_unstake",
@@ -1706,6 +1758,26 @@ async function updateSeedBotPermission(connection, { config, expiresAt, owner, p
   await sendAndConfirm(connection, new Transaction().add(instruction), [owner]);
 }
 
+async function recordSeedBotUsage(connection, { config, owner, permission, position, slippageBps, tradeAmount }) {
+  const data = Buffer.alloc(8 + 32 + 8 + 2);
+  discriminator("record_seedbot_usage").copy(data, 0);
+  REWARD_METADATA_HASH.copy(data, 8);
+  data.writeBigUInt64LE(tradeAmount, 40);
+  data.writeUInt16LE(slippageBps, 48);
+  const instruction = new TransactionInstruction({
+    programId,
+    keys: [
+      accountMeta(owner.publicKey, true, false),
+      accountMeta(config, false, false),
+      accountMeta(position, false, false),
+      accountMeta(permission, false, true),
+    ],
+    data,
+  });
+
+  await sendAndConfirm(connection, new Transaction().add(instruction), [owner]);
+}
+
 async function recentRewardSnapshotTime(connection) {
   const slot = await connection.getSlot("confirmed");
   const blockTime = await connection.getBlockTime(slot);
@@ -2220,6 +2292,12 @@ function parseSeedBotPermission(data) {
     stakingStartTsAtCreation: data.readBigInt64LE(offset.staking_start_ts_at_creation),
     revoked: data.readUInt8(offset.revoked) === 1,
     bump: data.readUInt8(offset.bump),
+    usageDayStartTs: data.readBigInt64LE(offset.usage_day_start_ts),
+    dailyVolumeUsedAmount: data.readBigUInt64LE(offset.daily_volume_used_amount),
+    dailyTradesUsed: data.readUInt16LE(offset.daily_trades_used),
+    totalVolumeUsedAmount: data.readBigUInt64LE(offset.total_volume_used_amount),
+    totalTradesUsed: data.readBigUInt64LE(offset.total_trades_used),
+    lastExecutionTs: data.readBigInt64LE(offset.last_execution_ts),
   };
 }
 

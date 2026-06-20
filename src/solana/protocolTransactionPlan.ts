@@ -258,6 +258,13 @@ export type SeedBotPermissionPlanInput = {
   maxSlippageBps: number;
 };
 
+export type SeedBotUsagePlanInput = {
+  ownerAddress: string;
+  executionHash: string | Uint8Array | number[];
+  tradeAmountBaseUnits: bigint | number | string;
+  slippageBps: number;
+};
+
 export type FeeConfigPlanInput = {
   authorityAddress: string;
   baseFeeBps: number;
@@ -863,6 +870,37 @@ export function buildRevokeSeedBotPermissionTransactionPlan({
     addresses,
     instruction,
     warnings: ["Revokes the wallet's SeedBot permission record on-chain."],
+  });
+}
+
+export function buildRecordSeedBotUsageTransactionPlan({
+  executionHash,
+  ownerAddress,
+  slippageBps,
+  tradeAmountBaseUnits,
+}: SeedBotUsagePlanInput): PreparedSolanaTransactionPlan {
+  const addresses = {
+    ...deriveProtocolAddresses(ownerAddress),
+    permission: deriveSeedBotPermissionAddress(ownerAddress),
+  };
+  const spec = instructionSpec("record_seedbot_usage");
+  const instruction = instructionPlan({
+    accounts: accountsFromSpec(spec, addresses),
+    argDataHex: [fixedHashHex(executionHash), u64LeHex(toU64(tradeAmountBaseUnits)), u16LeHex(slippageBps)].join(""),
+    discriminatorHex: spec.discriminatorHex,
+    instructionName: "record_seedbot_usage",
+    programId: addresses.programId,
+  });
+
+  return transactionPlan({
+    action: "RECORD_SEEDBOT_USAGE",
+    addresses,
+    amountBaseUnits: toU64(tradeAmountBaseUnits).toString(),
+    instruction,
+    warnings: [
+      "Records wallet-signed SeedBot usage against the on-chain permission caps.",
+      "This does not execute a trade or grant custody; future execution paths must compose this guard with wallet-approved routing.",
+    ],
   });
 }
 
