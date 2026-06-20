@@ -1432,8 +1432,47 @@ button:disabled {
   background: rgba(48, 102, 61, 0.3);
 }
 
+.authority-card.admin-protocol-card.ready {
+  border-color: rgba(128, 198, 109, 0.3);
+  background: rgba(32, 77, 54, 0.44);
+}
+
+.authority-card.admin-protocol-card.blocked {
+  border-color: rgba(255, 163, 123, 0.34);
+  background: rgba(78, 43, 35, 0.52);
+}
+
+.admin-transaction-summary {
+  display: grid;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid rgba(236, 218, 157, 0.12);
+  border-radius: 8px;
+  background: rgba(244, 239, 226, 0.05);
+}
+
+.admin-transaction-summary code,
+.admin-transaction-summary small {
+  max-width: 100%;
+  overflow: hidden;
+  color: #fff8df;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 0.72rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-transaction-summary span {
+  color: #ecd882;
+}
+
+.admin-blocker-list.compact {
+  padding: 10px;
+}
+
 .ops-card em,
 .admin-action-card em,
+.admin-protocol-card em,
 .agent-policy-strip em {
   color: #aeb9aa;
   font-size: 0.78rem;

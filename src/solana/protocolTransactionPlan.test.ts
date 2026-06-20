@@ -14,6 +14,8 @@ import {
   buildCreateSeedBotPermissionTransactionPlan,
   buildExpireRewardEpochClaimsTransactionPlan,
   buildGrantProjectOperatorTransactionPlan,
+  buildInitializeConfigTransactionPlan,
+  buildInitializeRewardConfigTransactionPlan,
   buildOperatorSetProjectPauseTransactionPlan,
   buildOperatorUpdateProjectStatusTransactionPlan,
   buildProjectParticipationTransactionPlan,
@@ -64,6 +66,33 @@ describe("protocol transaction plan", () => {
     expect(() => parseRypAmountToBaseUnits("1.1234567", 6)).toThrow("more than 6 decimal");
     expect(() => parseRypAmountToBaseUnits("18446744073709.551615", 6)).not.toThrow();
     expect(() => parseRypAmountToBaseUnits("18446744073709.551616", 6)).toThrow("u64");
+  });
+
+  it("builds protocol initialization plans for admin review", () => {
+    const config = buildInitializeConfigTransactionPlan({
+      authorityAddress: ownerAddress,
+      baseFeeBps: 350,
+      tierFeeReductionBps: [0, 35, 70, 105, 140],
+      tierThresholdsBaseUnits: [5_000_000_000n, 20_000_000_000n, 50_000_000_000n, 100_000_000_000n, 150_000_000_000n],
+    });
+    const rewardConfig = buildInitializeRewardConfigTransactionPlan({
+      authorityAddress: ownerAddress,
+      epochCadenceSeconds: 604_800n,
+      holderSplitBps: 3_334,
+      stakerSplitBps: 3_333,
+      treasurySplitBps: 3_333,
+    });
+
+    expect(config.action).toBe("INITIALIZE_CONFIG");
+    expect(config.instructions[0].dataHex).toContain("00f2052a01000000");
+    expect(config.instructions[0].accounts.map((account) => account.anchorName)).toEqual(
+      PROTOCOL_INSTRUCTION_SPECS.initialize_config.accounts.map((account) => account.name),
+    );
+    expect(rewardConfig.action).toBe("INITIALIZE_REWARD_CONFIG");
+    expect(rewardConfig.instructions[0].dataHex).toBe("542d0dc2ebb539ab803a090000000000060d050d050d");
+    expect(rewardConfig.instructions[0].accounts.map((account) => account.anchorName)).toEqual(
+      PROTOCOL_INSTRUCTION_SPECS.initialize_reward_config.accounts.map((account) => account.name),
+    );
   });
 
   it("builds an Anchor-compatible stake instruction plan", () => {

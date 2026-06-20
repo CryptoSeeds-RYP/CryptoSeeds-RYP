@@ -1,4 +1,18 @@
 import type { AppConfig } from "../config/env";
+import type { PreparedSolanaTransactionPlan } from "./transactions";
+import {
+  BPS_DENOMINATOR,
+  PLATFORM_ACTION_BASE_FEE_BPS,
+  RYP_TOKEN_TRANSFER_FEE_BPS,
+  draftCoreFeeSplit,
+} from "./feeRouter";
+import { selectableTiers, tierFeeReduction, tierRequirements } from "./tiering";
+import {
+  buildInitializeConfigTransactionPlan,
+  buildInitializeRewardConfigTransactionPlan,
+  buildUpdateFeeConfigTransactionPlan,
+  parseRypAmountToBaseUnits,
+} from "../solana/protocolTransactionPlan";
 
 export type AdminAccessStatus =
   | "UNCONFIGURED"
@@ -36,6 +50,21 @@ export type AdminActionPreview = {
   description: string;
   executionRule: string;
 };
+
+export type AdminProtocolPreviewStatus = "READY" | "BLOCKED";
+
+export type AdminProtocolPreview = {
+  id: string;
+  label: string;
+  status: AdminProtocolPreviewStatus;
+  description: string;
+  executionRule: string;
+  plan?: PreparedSolanaTransactionPlan;
+  blockers: string[];
+  warnings: string[];
+};
+
+const DEFAULT_REWARD_EPOCH_CADENCE_SECONDS = 7 * 24 * 60 * 60;
 
 export const adminActionPreviews: AdminActionPreview[] = [
   {
@@ -162,4 +191,136 @@ export function buildAdminAccess({
 
 export function adminActionsExecutableInMvp() {
   return adminActionPreviews.every((action) => action.status !== "LOCALNET_READY" || action.executionRule.includes("preview"));
+}
+
+export function buildAdminProtocolPreviews({
+  authorityAddress,
+  rypDecimals,
+}: {
+  authorityAddress?: string;
+  rypDecimals: number;
+}): AdminProtocolPreview[] {
+  const tierThresholdsBaseUnits = selectableTiers.map((tier) =>
+    parseRypAmountToBaseUnits(tierRequirements[tier], rypDecimals),
+  ) as [string, string, string, string, string];
+  const tierFeeReductionBps = selectableTiers.map((tier) =>
+    Math.round((PLATFORM_ACTION_BASE_FEE_BPS * tierFeeReduction[tier]) / 100),
+  ) as [number, number, number, number, number];
+  const holderSplitBps = splitBps("HOLDERS");
+  const stakerSplitBps = splitBps("STAKERS");
+  const treasurySplitBps = splitBps("INDEPENDENT_TREASURY");
+
+  return [
+    safeProtocolPreview({
+      authorityAddress,
+      build: (address) =>
+        buildInitializeConfigTransactionPlan({
+          authorityAddress: address,
+          baseFeeBps: PLATFORM_ACTION_BASE_FEE_BPS,
+          tierFeeReductionBps,
+          tierThresholdsBaseUnits,
+        }),
+      description: "Initialize protocol config, staking vault, tier thresholds, and platform action fee policy.",
+      executionRule: "Devnet/localnet only until deployment authority and production policy are reviewed.",
+      id: "initialize-config",
+      label: "Initialize Protocol Config",
+    }),
+    safeProtocolPreview({
+      authorityAddress,
+      build: (address) =>
+        buildInitializeRewardConfigTransactionPlan({
+          authorityAddress: address,
+          epochCadenceSeconds: DEFAULT_REWARD_EPOCH_CADENCE_SECONDS,
+          holderSplitBps,
+          stakerSplitBps,
+          treasurySplitBps,
+        }),
+      description: "Initialize draft-only holder, staker, and independent treasury reward routing config.",
+      executionRule: "Creates routing config only; reward epochs and payouts remain separately reviewed.",
+      id: "initialize-reward-config",
+      label: "Initialize Reward Config",
+    }),
+    safeProtocolPreview({
+      authorityAddress,
+      build: (address) =>
+        buildUpdateFeeConfigTransactionPlan({
+          authorityAddress: address,
+          baseFeeBps: PLATFORM_ACTION_BASE_FEE_BPS,
+          tierFeeReductionBps,
+        }),
+      description: "Prepare the platform/action fee update with staking-tier reductions.",
+      executionRule: "Admin-only protocol config update; no arbitrary wallet transfer tax is enforced here.",
+      id: "update-fee-config",
+      label: "Update Platform Fee Config",
+    }),
+    {
+      blockers: [
+        "The live RYP mint uses the legacy SPL Token program, so universal transfer-fee enforcement needs a reviewed wrapper, migration, or token-extension route.",
+      ],
+      description: `Track the ${RYP_TOKEN_TRANSFER_FEE_BPS / 100}% RYP token-transfer fee target using the same core split policy.`,
+      executionRule: "Blocked for direct legacy SPL mint enforcement; app-controlled routes remain previewable.",
+      id: "ryp-transfer-fee-route",
+      label: "RYP Transfer Fee Route",
+      status: "BLOCKED",
+      warnings: [`Core split total: ${BPS_DENOMINATOR} bps across holders, stakers, and independent treasury.`],
+    },
+  ];
+}
+
+function safeProtocolPreview({
+  authorityAddress,
+  build,
+  description,
+  executionRule,
+  id,
+  label,
+}: {
+  authorityAddress?: string;
+  build: (authorityAddress: string) => PreparedSolanaTransactionPlan;
+  description: string;
+  executionRule: string;
+  id: string;
+  label: string;
+}): AdminProtocolPreview {
+  if (!authorityAddress) {
+    return {
+      blockers: ["Configured admin authority is required before this transaction can be previewed."],
+      description,
+      executionRule,
+      id,
+      label,
+      status: "BLOCKED",
+      warnings: [],
+    };
+  }
+
+  try {
+    const plan = build(authorityAddress);
+    return {
+      blockers: [],
+      description,
+      executionRule,
+      id,
+      label,
+      plan,
+      status: "READY",
+      warnings: plan.warnings,
+    };
+  } catch (error) {
+    return {
+      blockers: [`Transaction preview failed: ${error instanceof Error ? error.message : "unknown error"}.`],
+      description,
+      executionRule,
+      id,
+      label,
+      status: "BLOCKED",
+      warnings: [],
+    };
+  }
+}
+
+function splitBps(bucket: "HOLDERS" | "STAKERS" | "INDEPENDENT_TREASURY") {
+  const entry = draftCoreFeeSplit.find((candidate) => candidate.bucket === bucket);
+  if (!entry) throw new Error(`Missing fee split bucket: ${bucket}`);
+  return entry.shareBps;
 }

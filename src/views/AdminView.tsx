@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useConnection } from "@solana/wallet-adapter-react";
 import { AlertTriangle, Database, FileCog, Landmark, LockKeyhole, ShieldCheck, WalletCards } from "lucide-react";
 import { appConfig } from "../config/env";
-import { adminActionPreviews, buildAdminAccess } from "../domain/admin";
+import { adminActionPreviews, buildAdminAccess, buildAdminProtocolPreviews } from "../domain/admin";
 import { basisPointsToPercent, feeRoutePolicies } from "../domain/feeRouter";
 import {
   buildRewardAccountInspectionPreview,
@@ -21,6 +21,10 @@ export function AdminView({
 }) {
   const { connection } = useConnection();
   const access = buildAdminAccess({ config: appConfig, walletAddress, demoMode });
+  const protocolPreviews = buildAdminProtocolPreviews({
+    authorityAddress: access.configuredAdminAddress,
+    rypDecimals: appConfig.rypDecimals,
+  });
   const [rewardInspection, setRewardInspection] = useState<RewardAccountInspection>(() =>
     buildRewardAccountInspectionPreview({ epochId: appConfig.rewardInspectionEpochId }),
   );
@@ -87,6 +91,46 @@ export function AdminView({
             ))}
           </div>
         )}
+      </section>
+
+      <section className="governance-section admin-protocol-preview">
+        <div className="view-header">
+          <div>
+            <ShieldCheck size={20} />
+            <strong>Protocol Transaction Previews</strong>
+          </div>
+          <span>Preview-only / no broadcast</span>
+        </div>
+        <div className="authority-grid ops-grid">
+          {protocolPreviews.map((preview) => {
+            const instruction = preview.plan?.instructions[0];
+            return (
+              <article className={`authority-card admin-protocol-card ${preview.status.toLowerCase()}`} key={preview.id}>
+                <div className="authority-card-top">
+                  <FileCog size={17} />
+                  <span>{formatLabel(preview.status)}</span>
+                </div>
+                <strong>{preview.label}</strong>
+                <p>{preview.description}</p>
+                {preview.plan && instruction ? (
+                  <div className="admin-transaction-summary">
+                    <span>{formatLabel(preview.plan.action)}</span>
+                    <code>{instruction.instructionName}</code>
+                    <small>{shortAddress(preview.plan.feePayer)} / {instruction.accounts.length} accounts</small>
+                    <small>{shortData(instruction.dataHex)}</small>
+                  </div>
+                ) : (
+                  <div className="admin-blocker-list compact">
+                    {preview.blockers.map((blocker) => (
+                      <span key={blocker}><AlertTriangle size={14} /> {blocker}</span>
+                    ))}
+                  </div>
+                )}
+                <em>{preview.executionRule}</em>
+              </article>
+            );
+          })}
+        </div>
       </section>
 
       <section className="governance-section">
@@ -222,4 +266,8 @@ export function AdminView({
 
 function shortAddress(address: string) {
   return `${address.slice(0, 4)}...${address.slice(-4)}`;
+}
+
+function shortData(dataHex: string) {
+  return `${dataHex.slice(0, 18)}...${dataHex.slice(-10)} (${dataHex.length / 2} bytes)`;
 }

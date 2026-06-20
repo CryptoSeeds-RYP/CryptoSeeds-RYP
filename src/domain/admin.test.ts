@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { adminActionPreviews, buildAdminAccess } from "./admin";
+import { adminActionPreviews, buildAdminAccess, buildAdminProtocolPreviews } from "./admin";
 
 const adminAddress = "Admin111111111111111111111111111111111111111";
+const validAdminAddress = "11111111111111111111111111111111";
 
 describe("admin access", () => {
   it("keeps dashboard locked until an admin address is configured", () => {
@@ -86,5 +87,31 @@ describe("admin access", () => {
   it("keeps all MVP admin actions non-executable from the UI", () => {
     expect(adminActionPreviews.some((action) => action.executionRule.includes("No production"))).toBe(true);
     expect(adminActionPreviews.every((action) => !action.executionRule.includes("Execute live"))).toBe(true);
+  });
+
+  it("builds preview-only protocol transactions for a valid admin authority", () => {
+    const previews = buildAdminProtocolPreviews({
+      authorityAddress: validAdminAddress,
+      rypDecimals: 6,
+    });
+    const readyActions = previews.flatMap((preview) => preview.plan?.action ?? []);
+
+    expect(readyActions).toEqual(["INITIALIZE_CONFIG", "INITIALIZE_REWARD_CONFIG", "UPDATE_FEE_CONFIG"]);
+    expect(previews.find((preview) => preview.id === "ryp-transfer-fee-route")?.status).toBe("BLOCKED");
+
+    const initializeConfig = previews.find((preview) => preview.plan?.action === "INITIALIZE_CONFIG")?.plan;
+    const initializeRewardConfig = previews.find((preview) => preview.plan?.action === "INITIALIZE_REWARD_CONFIG")?.plan;
+    const updateFeeConfig = previews.find((preview) => preview.plan?.action === "UPDATE_FEE_CONFIG")?.plan;
+
+    expect(initializeConfig?.instructions[0].dataHex).toContain("00f2052a01000000");
+    expect(initializeRewardConfig?.instructions[0].dataHex).toBe("542d0dc2ebb539ab803a090000000000060d050d050d");
+    expect(updateFeeConfig?.instructions[0].dataHex).toBe("68b867f258976b145e0100002300460069008c00");
+  });
+
+  it("blocks protocol transaction previews without a configured authority", () => {
+    const previews = buildAdminProtocolPreviews({ rypDecimals: 6 });
+
+    expect(previews.filter((preview) => preview.status === "READY")).toHaveLength(0);
+    expect(previews.every((preview) => preview.blockers.length > 0)).toBe(true);
   });
 });

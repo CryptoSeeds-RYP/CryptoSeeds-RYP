@@ -174,6 +174,21 @@ export type StakePlanInput = {
   amountUi?: number | string;
 };
 
+export type InitializeConfigPlanInput = {
+  authorityAddress: string;
+  baseFeeBps: number;
+  tierThresholdsBaseUnits: [bigint | number | string, bigint | number | string, bigint | number | string, bigint | number | string, bigint | number | string];
+  tierFeeReductionBps: [number, number, number, number, number];
+};
+
+export type InitializeRewardConfigPlanInput = {
+  authorityAddress: string;
+  epochCadenceSeconds: bigint | number | string;
+  holderSplitBps: number;
+  stakerSplitBps: number;
+  treasurySplitBps: number;
+};
+
 export type UnstakePlanInput = {
   ownerAddress: string;
   amountUi: number | string;
@@ -396,6 +411,78 @@ export function buildStakeRypTransactionPlan({
     warnings: [
       "Requires initialized protocol config and RYP vault on the selected Solana cluster.",
       "No transaction is signed or broadcast until the connected Solana wallet approves it.",
+    ],
+  });
+}
+
+export function buildInitializeConfigTransactionPlan({
+  authorityAddress,
+  baseFeeBps,
+  tierThresholdsBaseUnits,
+  tierFeeReductionBps,
+}: InitializeConfigPlanInput): PreparedSolanaTransactionPlan {
+  const addresses = {
+    ...deriveProtocolAddresses(authorityAddress),
+    authority: new PublicKey(authorityAddress).toBase58(),
+  };
+  const spec = instructionSpec("initialize_config");
+  const instruction = instructionPlan({
+    accounts: accountsFromSpec(spec, addresses),
+    argDataHex: [
+      u16LeHex(baseFeeBps),
+      ...tierThresholdsBaseUnits.map((threshold) => u64LeHex(toU64(threshold))),
+      ...tierFeeReductionBps.map(u16LeHex),
+    ].join(""),
+    discriminatorHex: spec.discriminatorHex,
+    instructionName: "initialize_config",
+    programId: addresses.programId,
+  });
+
+  return transactionPlan({
+    action: "INITIALIZE_CONFIG",
+    addresses,
+    feePayer: addresses.authority,
+    instruction,
+    warnings: [
+      "Initializes the protocol config PDA and program-owned RYP staking vault.",
+      "Must only be signed by the approved deployment authority on the selected cluster.",
+    ],
+  });
+}
+
+export function buildInitializeRewardConfigTransactionPlan({
+  authorityAddress,
+  epochCadenceSeconds,
+  holderSplitBps,
+  stakerSplitBps,
+  treasurySplitBps,
+}: InitializeRewardConfigPlanInput): PreparedSolanaTransactionPlan {
+  const addresses = {
+    ...deriveProtocolAddresses(authorityAddress),
+    authority: new PublicKey(authorityAddress).toBase58(),
+  };
+  const spec = instructionSpec("initialize_reward_config");
+  const instruction = instructionPlan({
+    accounts: accountsFromSpec(spec, addresses),
+    argDataHex: [
+      i64LeHex(toI64(epochCadenceSeconds)),
+      u16LeHex(holderSplitBps),
+      u16LeHex(stakerSplitBps),
+      u16LeHex(treasurySplitBps),
+    ].join(""),
+    discriminatorHex: spec.discriminatorHex,
+    instructionName: "initialize_reward_config",
+    programId: addresses.programId,
+  });
+
+  return transactionPlan({
+    action: "INITIALIZE_REWARD_CONFIG",
+    addresses,
+    feePayer: addresses.authority,
+    instruction,
+    warnings: [
+      "Initializes draft-only reward routing config for holder, staker, and independent treasury buckets.",
+      "Reward execution remains review-gated; this does not create a payout epoch by itself.",
     ],
   });
 }
