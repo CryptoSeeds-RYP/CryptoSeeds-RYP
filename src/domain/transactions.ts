@@ -62,13 +62,17 @@ export type PreparedSolanaTransactionPlan = {
   action:
     | "ACTIVATE_VOTING_RIGHTS"
     | "CLAIM_REWARD"
+    | "CLOSE_GOVERNANCE_PROPOSAL"
+    | "CREATE_GOVERNANCE_PROPOSAL"
     | "CREATE_REWARD_CLAIM_RECORD"
     | "CREATE_SEEDBOT_PERMISSION"
     | "PARTICIPATE_PROJECT"
+    | "REGISTER_PROJECT"
     | "REVOKE_PERMISSION"
     | "STAKE_RYP"
     | "UNSTAKE_RYP"
     | "UPDATE_FEE_CONFIG"
+    | "UPDATE_PROJECT_STATUS"
     | "VOTE_PROPOSAL";
   feePayer: string;
   amountBaseUnits?: string;

@@ -38,8 +38,7 @@ This slice expands the CryptoSeeds Anchor program from staking plus reward draft
 
 - Fund the devnet authority wallet and create the devnet RYP test mint.
 - Deploy the expanded program to devnet.
-- Add funded reward vault transfer mechanics after review.
 - Add successful governance voting path once local time-warp or test-only voting setup is available.
-- Add project status lifecycle updates for milestone/harvest/completion.
 - Add SeedBot permission renewal/update flow.
-- Add frontend transaction builders for the new instructions after devnet inspection is stable.
+- Add production fee-router funding instructions for holder/staker/treasury reward vaults.
+- Add public UI gates for reviewed project/governance actions after devnet deployment is stable.

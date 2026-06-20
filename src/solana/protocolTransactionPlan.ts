@@ -54,6 +54,26 @@ type ProtocolAddressBook = ReturnType<typeof deriveProtocolAddresses> &
   };
 
 export type RewardClaimRole = "HOLDER_REWARD" | "STAKER_REWARD";
+export type GovernanceProposalCategory =
+  | "PROJECT_APPROVAL"
+  | "TREASURY_ALLOCATION"
+  | "PROTOCOL_UPGRADE"
+  | "DONATION_CAUSE"
+  | "SEEDBOT_FEATURE"
+  | "RISK_POLICY";
+export type ProjectRiskLevel = "LOW" | "MEDIUM" | "HIGH" | "EXPERIMENTAL" | "DONATION";
+export type ProjectLifecycleStatus =
+  | "PROPOSED"
+  | "UNDER_REVIEW"
+  | "GOVERNANCE_VOTE"
+  | "APPROVED"
+  | "OPEN"
+  | "ACTIVE"
+  | "MILESTONE_REACHED"
+  | "HARVEST_AVAILABLE"
+  | "COMPLETED"
+  | "PAUSED"
+  | "REJECTED";
 
 export const PROTOCOL_INSTRUCTION_SPECS = protocolInstructionSpecsJson as Record<string, ProtocolInstructionSpec>;
 const U16_MAX = 2n ** 16n - 1n;
@@ -69,6 +89,45 @@ const REWARD_ROLE_VARIANTS: Record<RewardClaimRole, number> = {
 const REWARD_ROLE_SEEDS: Record<RewardClaimRole, string> = {
   HOLDER_REWARD: "holder-reward",
   STAKER_REWARD: "staker-reward",
+};
+
+const GOVERNANCE_CATEGORY_VARIANTS: Record<GovernanceProposalCategory, number> = {
+  PROJECT_APPROVAL: 0,
+  TREASURY_ALLOCATION: 1,
+  PROTOCOL_UPGRADE: 2,
+  DONATION_CAUSE: 3,
+  SEEDBOT_FEATURE: 4,
+  RISK_POLICY: 5,
+};
+
+const PROJECT_RISK_LEVEL_VARIANTS: Record<ProjectRiskLevel, number> = {
+  LOW: 0,
+  MEDIUM: 1,
+  HIGH: 2,
+  EXPERIMENTAL: 3,
+  DONATION: 4,
+};
+
+const PROJECT_STATUS_VARIANTS: Record<ProjectLifecycleStatus, number> = {
+  PROPOSED: 0,
+  UNDER_REVIEW: 1,
+  GOVERNANCE_VOTE: 2,
+  APPROVED: 3,
+  OPEN: 4,
+  ACTIVE: 5,
+  MILESTONE_REACHED: 6,
+  HARVEST_AVAILABLE: 7,
+  COMPLETED: 8,
+  PAUSED: 9,
+  REJECTED: 10,
+};
+
+const STAKE_TIER_VARIANTS: Record<Exclude<StakingTier, "NONE">, number> = {
+  SEED: 1,
+  SPROUT: 2,
+  SAPLING: 3,
+  TREE: 4,
+  FRUIT: 5,
 };
 
 export type StakePlanInput = {
@@ -111,6 +170,36 @@ export type GovernanceVotePlanInput = {
   ownerAddress: string;
   proposalId: bigint | number | string;
   approve: boolean;
+};
+
+export type CreateGovernanceProposalPlanInput = {
+  authorityAddress: string;
+  proposalId: bigint | number | string;
+  category: GovernanceProposalCategory;
+  metadataHash: string | Uint8Array | number[];
+};
+
+export type CloseGovernanceProposalPlanInput = {
+  authorityAddress: string;
+  proposalId: bigint | number | string;
+  approved: boolean;
+};
+
+export type RegisterProjectPlanInput = {
+  authorityAddress: string;
+  projectId: bigint | number | string;
+  requiredTier: Exclude<StakingTier, "NONE">;
+  riskLevel: ProjectRiskLevel;
+  status: ProjectLifecycleStatus;
+  metadataHash: string | Uint8Array | number[];
+  receivingAccountAddress: string;
+  governanceProposalAddress: string;
+};
+
+export type UpdateProjectStatusPlanInput = {
+  authorityAddress: string;
+  projectId: bigint | number | string;
+  status: ProjectLifecycleStatus;
 };
 
 export type ProjectParticipationPlanInput = {
@@ -355,6 +444,150 @@ export function buildCastGovernanceVoteTransactionPlan({
     warnings: [
       "Voting requires active on-chain voting rights after the staking delay.",
       "One wallet can create only one vote record per proposal.",
+    ],
+  });
+}
+
+export function buildCreateGovernanceProposalTransactionPlan({
+  authorityAddress,
+  category,
+  metadataHash,
+  proposalId,
+}: CreateGovernanceProposalPlanInput): PreparedSolanaTransactionPlan {
+  const proposal = toU64(proposalId);
+  const addresses = {
+    ...deriveProtocolAddresses(authorityAddress),
+    authority: new PublicKey(authorityAddress).toBase58(),
+    proposal: deriveGovernanceProposalAddress(proposal),
+  };
+  const spec = instructionSpec("create_governance_proposal");
+  const instruction = instructionPlan({
+    accounts: accountsFromSpec(spec, addresses),
+    argDataHex: `${u64LeHex(proposal)}${enumVariantHex(category, GOVERNANCE_CATEGORY_VARIANTS)}${fixedHashHex(metadataHash)}`,
+    discriminatorHex: spec.discriminatorHex,
+    instructionName: "create_governance_proposal",
+    programId: addresses.programId,
+  });
+
+  return transactionPlan({
+    action: "CREATE_GOVERNANCE_PROPOSAL",
+    addresses,
+    feePayer: addresses.authority,
+    instruction,
+    warnings: [
+      "Admin-only governance proposal creation; metadata must point to reviewed off-chain proposal content.",
+      "No proposal is created until the configured protocol authority signs.",
+    ],
+  });
+}
+
+export function buildCloseGovernanceProposalTransactionPlan({
+  approved,
+  authorityAddress,
+  proposalId,
+}: CloseGovernanceProposalPlanInput): PreparedSolanaTransactionPlan {
+  const proposal = toU64(proposalId);
+  const addresses = {
+    ...deriveProtocolAddresses(authorityAddress),
+    authority: new PublicKey(authorityAddress).toBase58(),
+    proposal: deriveGovernanceProposalAddress(proposal),
+  };
+  const spec = instructionSpec("close_governance_proposal");
+  const instruction = instructionPlan({
+    accounts: accountsFromSpec(spec, addresses),
+    argDataHex: `${u64LeHex(proposal)}${approved ? "01" : "00"}`,
+    discriminatorHex: spec.discriminatorHex,
+    instructionName: "close_governance_proposal",
+    programId: addresses.programId,
+  });
+
+  return transactionPlan({
+    action: "CLOSE_GOVERNANCE_PROPOSAL",
+    addresses,
+    feePayer: addresses.authority,
+    instruction,
+    warnings: [
+      "Admin-only proposal close; the on-chain proposal must still be open.",
+      "Closing a proposal only records the approval result; execution remains separate.",
+    ],
+  });
+}
+
+export function buildRegisterProjectTransactionPlan({
+  authorityAddress,
+  governanceProposalAddress,
+  metadataHash,
+  projectId,
+  receivingAccountAddress,
+  requiredTier,
+  riskLevel,
+  status,
+}: RegisterProjectPlanInput): PreparedSolanaTransactionPlan {
+  const project = toU64(projectId);
+  const receivingAccount = new PublicKey(receivingAccountAddress);
+  const governanceProposal = new PublicKey(governanceProposalAddress);
+  const addresses = {
+    ...deriveProtocolAddresses(authorityAddress),
+    authority: new PublicKey(authorityAddress).toBase58(),
+    project: deriveProjectRecordAddress(project),
+  };
+  const spec = instructionSpec("register_project");
+  const instruction = instructionPlan({
+    accounts: accountsFromSpec(spec, addresses),
+    argDataHex: [
+      u64LeHex(project),
+      enumVariantHex(requiredTier, STAKE_TIER_VARIANTS),
+      enumVariantHex(riskLevel, PROJECT_RISK_LEVEL_VARIANTS),
+      enumVariantHex(status, PROJECT_STATUS_VARIANTS),
+      fixedHashHex(metadataHash),
+      pubkeyHex(receivingAccount),
+      pubkeyHex(governanceProposal),
+    ].join(""),
+    discriminatorHex: spec.discriminatorHex,
+    instructionName: "register_project",
+    programId: addresses.programId,
+  });
+
+  return transactionPlan({
+    action: "REGISTER_PROJECT",
+    addresses,
+    feePayer: addresses.authority,
+    instruction,
+    warnings: [
+      "Admin-only project registration; project metadata and receiving account must be reviewed before signing.",
+      "The receiving account is recorded only; project fund custody remains outside this instruction.",
+    ],
+  });
+}
+
+export function buildUpdateProjectStatusTransactionPlan({
+  authorityAddress,
+  projectId,
+  status,
+}: UpdateProjectStatusPlanInput): PreparedSolanaTransactionPlan {
+  const project = toU64(projectId);
+  const addresses = {
+    ...deriveProtocolAddresses(authorityAddress),
+    authority: new PublicKey(authorityAddress).toBase58(),
+    project: deriveProjectRecordAddress(project),
+  };
+  const spec = instructionSpec("update_project_status");
+  const instruction = instructionPlan({
+    accounts: accountsFromSpec(spec, addresses),
+    argDataHex: `${u64LeHex(project)}${enumVariantHex(status, PROJECT_STATUS_VARIANTS)}`,
+    discriminatorHex: spec.discriminatorHex,
+    instructionName: "update_project_status",
+    programId: addresses.programId,
+  });
+
+  return transactionPlan({
+    action: "UPDATE_PROJECT_STATUS",
+    addresses,
+    feePayer: addresses.authority,
+    instruction,
+    warnings: [
+      "Admin-only project lifecycle update.",
+      "Status changes should match reviewed milestone, disclosure, or governance evidence.",
     ],
   });
 }
@@ -846,7 +1079,24 @@ function rewardRoleVariantHex(rewardRole: RewardClaimRole) {
   if (variant === undefined) {
     throw new Error(`Unsupported reward claim role: ${rewardRole}`);
   }
-  return variant.toString(16).padStart(2, "0");
+  return u8Hex(variant);
+}
+
+function enumVariantHex<T extends string>(value: T, variants: Record<T, number>) {
+  const variant = variants[value];
+  if (variant === undefined) {
+    throw new Error(`Unsupported enum variant: ${value}`);
+  }
+  return u8Hex(variant);
+}
+
+function pubkeyHex(publicKey: PublicKey) {
+  return bytesToHex(publicKey.toBytes());
+}
+
+function u8Hex(value: number) {
+  assertU8(value);
+  return value.toString(16).padStart(2, "0");
 }
 
 function u16LeHex(value: number) {
@@ -901,6 +1151,12 @@ function toIntegerBigInt(value: bigint | number | string, label: string) {
 function assertU16(value: number) {
   if (!Number.isInteger(value) || value < 0 || BigInt(value) > U16_MAX) {
     throw new Error("Value exceeds Solana u16 bounds");
+  }
+}
+
+function assertU8(value: number) {
+  if (!Number.isInteger(value) || value < 0 || value > 255) {
+    throw new Error("Value exceeds Solana u8 bounds");
   }
 }
 

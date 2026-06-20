@@ -4,13 +4,17 @@ import {
   buildCastGovernanceVoteTransactionPlan,
   buildClaimRewardRecordTransactionPlan,
   buildClaimRewardTokensTransactionPlan,
+  buildCloseGovernanceProposalTransactionPlan,
+  buildCreateGovernanceProposalTransactionPlan,
   buildCreateRewardClaimRecordTransactionPlan,
   buildCreateSeedBotPermissionTransactionPlan,
   buildProjectParticipationTransactionPlan,
+  buildRegisterProjectTransactionPlan,
   buildRevokeSeedBotPermissionTransactionPlan,
   buildStakeRypTransactionPlan,
   buildUnstakeRypTransactionPlan,
   buildUpdateFeeConfigTransactionPlan,
+  buildUpdateProjectStatusTransactionPlan,
   deriveProtocolAddresses,
   deriveRewardClaimRecordAddress,
   parseRypAmountToBaseUnits,
@@ -153,6 +157,61 @@ describe("protocol transaction plan", () => {
     expect(participation.amountBaseUnits).toBe("1000");
     expect(participation.instructions[0].dataHex).toBe(
       `b8bfbc29229bc6240900000000000000e803000000000000${"ab".repeat(32)}`,
+    );
+  });
+
+  it("builds governance proposal admin lifecycle plans", () => {
+    const createProposal = buildCreateGovernanceProposalTransactionPlan({
+      authorityAddress: ownerAddress,
+      category: "PROJECT_APPROVAL",
+      metadataHash: "cd".repeat(32),
+      proposalId: 42n,
+    });
+    const closeProposal = buildCloseGovernanceProposalTransactionPlan({
+      approved: false,
+      authorityAddress: ownerAddress,
+      proposalId: 42n,
+    });
+
+    expect(createProposal.action).toBe("CREATE_GOVERNANCE_PROPOSAL");
+    expect(createProposal.feePayer).toBe(ownerAddress);
+    expect(createProposal.instructions[0].dataHex).toBe(`665a7285933f71a82a0000000000000000${"cd".repeat(32)}`);
+    expect(createProposal.instructions[0].accounts.map((account) => account.anchorName)).toEqual(
+      PROTOCOL_INSTRUCTION_SPECS.create_governance_proposal.accounts.map((account) => account.name),
+    );
+    expect(closeProposal.action).toBe("CLOSE_GOVERNANCE_PROPOSAL");
+    expect(closeProposal.instructions[0].dataHex).toBe("b91c8c08c270de112a0000000000000000");
+  });
+
+  it("builds project registry admin lifecycle plans", () => {
+    const receivingAccount = "So11111111111111111111111111111111111111112";
+    const governanceProposalAddress = "11111111111111111111111111111111";
+    const registerProject = buildRegisterProjectTransactionPlan({
+      authorityAddress: ownerAddress,
+      governanceProposalAddress,
+      metadataHash: "ef".repeat(32),
+      projectId: 9n,
+      receivingAccountAddress: receivingAccount,
+      requiredTier: "SPROUT",
+      riskLevel: "MEDIUM",
+      status: "OPEN",
+    });
+    const updateStatus = buildUpdateProjectStatusTransactionPlan({
+      authorityAddress: ownerAddress,
+      projectId: 9n,
+      status: "HARVEST_AVAILABLE",
+    });
+
+    expect(registerProject.action).toBe("REGISTER_PROJECT");
+    expect(registerProject.instructions[0].dataHex).toMatch(/^829679d8b7e1f3c00900000000000000020104/);
+    expect(registerProject.instructions[0].dataHex).toContain("ef".repeat(32));
+    expect(registerProject.instructions[0].accounts.map((account) => account.anchorName)).toEqual(
+      PROTOCOL_INSTRUCTION_SPECS.register_project.accounts.map((account) => account.name),
+    );
+    expect(updateStatus.action).toBe("UPDATE_PROJECT_STATUS");
+    expect(updateStatus.instructions[0].dataHex).toBe("322efca04fdd0544090000000000000007");
+    expect(updateStatus.instructions[0].accounts.map((account) => account.anchorName)).toEqual(
+      PROTOCOL_INSTRUCTION_SPECS.update_project_status.accounts.map((account) => account.name),
     );
   });
 
