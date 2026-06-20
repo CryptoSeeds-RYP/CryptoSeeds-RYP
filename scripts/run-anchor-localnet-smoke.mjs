@@ -492,6 +492,9 @@ async function runSmoke(connection) {
   assertEqual("registered project total participants", registeredProject.totalParticipants, 0n);
   assertEqual("registered project participation start", registeredProject.participationStartsAt, PROJECT_PARTICIPATION_START_TS);
   assertEqual("registered project participation end", registeredProject.participationEndsAt, PROJECT_PARTICIPATION_END_TS);
+  assertEqual("registered project cancelled at", registeredProject.cancelledAt, 0n);
+  assertEqual("registered project refund pool", registeredProject.refundPoolAmount, 0n);
+  assertEqual("registered project total refunded", registeredProject.totalRefundedAmount, 0n);
 
   await expectFailure(
     "update_project_status rejects open project before approved governance",
@@ -521,6 +524,38 @@ async function runSmoke(connection) {
     "custom program error",
   );
   await assertMissingAccount(connection, projectParticipation, "project participation after non-open rejection");
+
+  await expectFailure(
+    "cancel_project rejects refund pool above recorded participation",
+    () =>
+      cancelProject(connection, {
+        authority,
+        config,
+        project,
+        projectId,
+        refundPoolAmount: 1n,
+      }),
+    "custom program error",
+  );
+
+  log("calling cancel_project for draft project accounting");
+  await cancelProject(connection, { authority, config, project, projectId, refundPoolAmount: 0n });
+  const cancelledProject = parseProjectRecord(await getAccountData(connection, project));
+  assertEqual("cancelled project status", cancelledProject.status, 11);
+  assertEqual("cancelled project refund pool", cancelledProject.refundPoolAmount, 0n);
+  assertEqual("cancelled project total refunded", cancelledProject.totalRefundedAmount, 0n);
+  assertEqual("cancelled project timestamp set", cancelledProject.cancelledAt > 0n, true);
+
+  await expectFailure(
+    "record_project_refund rejects zero amount",
+    () => recordProjectRefund(connection, { authority, config, project, projectId, refundAmount: 0n }),
+    "custom program error",
+  );
+  await expectFailure(
+    "record_project_refund rejects refund above pool",
+    () => recordProjectRefund(connection, { authority, config, project, projectId, refundAmount: 1n }),
+    "custom program error",
+  );
 
   const seedBotPermission = deriveSeedBotPermissionAddress(owner.publicKey);
   const permissionExpiresAt = (await recentRewardSnapshotTime(connection)) + 60n * 60n;
@@ -865,6 +900,9 @@ async function runSmoke(connection) {
 	      "project_participation_bounds_accounting",
 	      "reject_project_status_open_before_approved_governance",
 	      "reject_participation_before_project_open",
+	      "reject_project_refund_pool_above_participation",
+	      "cancel_project_accounting",
+	      "reject_invalid_project_refund_accounting",
 	      "create_seedbot_permission",
 	      "revoke_seedbot_permission",
 	      "update_seedbot_permission",
@@ -1943,6 +1981,44 @@ async function updateProjectStatus(
   await sendAndConfirm(connection, new Transaction().add(instruction), [authority]);
 }
 
+async function cancelProject(connection, { authority, config, project, projectId, refundPoolAmount }) {
+  const data = Buffer.alloc(8 + 8 + 32 + 8);
+  discriminator("cancel_project").copy(data, 0);
+  data.writeBigUInt64LE(projectId, 8);
+  REWARD_METADATA_HASH.copy(data, 16);
+  data.writeBigUInt64LE(refundPoolAmount, 48);
+  const instruction = new TransactionInstruction({
+    programId,
+    keys: [
+      accountMeta(authority.publicKey, true, false),
+      accountMeta(config, false, false),
+      accountMeta(project, false, true),
+    ],
+    data,
+  });
+
+  await sendAndConfirm(connection, new Transaction().add(instruction), [authority]);
+}
+
+async function recordProjectRefund(connection, { authority, config, project, projectId, refundAmount }) {
+  const data = Buffer.alloc(8 + 8 + 8 + 32);
+  discriminator("record_project_refund").copy(data, 0);
+  data.writeBigUInt64LE(projectId, 8);
+  data.writeBigUInt64LE(refundAmount, 16);
+  REWARD_METADATA_HASH.copy(data, 24);
+  const instruction = new TransactionInstruction({
+    programId,
+    keys: [
+      accountMeta(authority.publicKey, true, false),
+      accountMeta(config, false, false),
+      accountMeta(project, false, true),
+    ],
+    data,
+  });
+
+  await sendAndConfirm(connection, new Transaction().add(instruction), [authority]);
+}
+
 async function participateProject(
   connection,
   { amount = PROJECT_MIN_PARTICIPATION_AMOUNT, config, owner, participation, position, project, projectId },
@@ -2539,6 +2615,9 @@ function parseProjectRecord(data) {
     totalParticipationAmount: data.readBigUInt64LE(offset.total_participation_amount),
     participationStartsAt: data.readBigInt64LE(offset.participation_starts_at),
     participationEndsAt: data.readBigInt64LE(offset.participation_ends_at),
+    cancelledAt: data.readBigInt64LE(offset.cancelled_at),
+    refundPoolAmount: data.readBigUInt64LE(offset.refund_pool_amount),
+    totalRefundedAmount: data.readBigUInt64LE(offset.total_refunded_amount),
     bump: data.readUInt8(offset.bump),
   };
 }

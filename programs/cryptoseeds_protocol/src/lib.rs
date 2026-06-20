@@ -1375,6 +1375,10 @@ pub mod cryptoseeds_protocol {
         project.total_participation_amount = 0;
         project.participation_starts_at = participation_starts_at;
         project.participation_ends_at = participation_ends_at;
+        project.cancellation_hash = [0; 32];
+        project.cancelled_at = 0;
+        project.refund_pool_amount = 0;
+        project.total_refunded_amount = 0;
         project.bump = ctx.bumps.project;
 
         emit!(ProjectRegistered {
@@ -1414,6 +1418,50 @@ pub mod cryptoseeds_protocol {
         emit!(ProjectStatusUpdated {
             project: ctx.accounts.project.key(),
             status,
+        });
+
+        Ok(())
+    }
+
+    pub fn cancel_project(
+        ctx: Context<CancelProject>,
+        _project_id: u64,
+        cancellation_hash: [u8; 32],
+        refund_pool_amount: u64,
+    ) -> Result<()> {
+        validate_protocol_authority(&ctx.accounts.config, &ctx.accounts.authority.key())?;
+        validate_metadata_hash(&cancellation_hash)?;
+        cancel_project_accounting(
+            &mut ctx.accounts.project,
+            Clock::get()?.unix_timestamp,
+            cancellation_hash,
+            refund_pool_amount,
+        )?;
+
+        emit!(ProjectCancelled {
+            project: ctx.accounts.project.key(),
+            cancelled_at: ctx.accounts.project.cancelled_at,
+            refund_pool_amount,
+        });
+
+        Ok(())
+    }
+
+    pub fn record_project_refund(
+        ctx: Context<RecordProjectRefund>,
+        _project_id: u64,
+        refund_amount: u64,
+        refund_metadata_hash: [u8; 32],
+    ) -> Result<()> {
+        validate_protocol_authority(&ctx.accounts.config, &ctx.accounts.authority.key())?;
+        validate_metadata_hash(&refund_metadata_hash)?;
+        record_project_refund_accounting(&mut ctx.accounts.project, refund_amount)?;
+
+        emit!(ProjectRefundRecorded {
+            project: ctx.accounts.project.key(),
+            refund_amount,
+            total_refunded_amount: ctx.accounts.project.total_refunded_amount,
+            refund_metadata_hash,
         });
 
         Ok(())
@@ -2336,6 +2384,34 @@ pub struct UpdateProjectStatus<'info> {
 
 #[derive(Accounts)]
 #[instruction(project_id: u64)]
+pub struct CancelProject<'info> {
+    pub authority: Signer<'info>,
+    #[account(seeds = [CONFIG_SEED], bump = config.bump)]
+    pub config: Account<'info, ProtocolConfig>,
+    #[account(
+        mut,
+        seeds = [PROJECT_RECORD_SEED, project_id.to_le_bytes().as_ref()],
+        bump = project.bump
+    )]
+    pub project: Account<'info, ProjectRecord>,
+}
+
+#[derive(Accounts)]
+#[instruction(project_id: u64)]
+pub struct RecordProjectRefund<'info> {
+    pub authority: Signer<'info>,
+    #[account(seeds = [CONFIG_SEED], bump = config.bump)]
+    pub config: Account<'info, ProtocolConfig>,
+    #[account(
+        mut,
+        seeds = [PROJECT_RECORD_SEED, project_id.to_le_bytes().as_ref()],
+        bump = project.bump
+    )]
+    pub project: Account<'info, ProjectRecord>,
+}
+
+#[derive(Accounts)]
+#[instruction(project_id: u64)]
 pub struct ParticipateProject<'info> {
     #[account(mut)]
     pub owner: Signer<'info>,
@@ -2596,6 +2672,10 @@ pub struct ProjectRecord {
     pub total_participation_amount: u64,
     pub participation_starts_at: i64,
     pub participation_ends_at: i64,
+    pub cancellation_hash: [u8; 32],
+    pub cancelled_at: i64,
+    pub refund_pool_amount: u64,
+    pub total_refunded_amount: u64,
     pub bump: u8,
 }
 
@@ -2719,6 +2799,7 @@ pub enum ProjectStatus {
     Completed,
     Paused,
     Rejected,
+    Cancelled,
 }
 
 impl ProjectStatus {
@@ -3046,6 +3127,21 @@ pub struct ProjectStatusUpdated {
 }
 
 #[event]
+pub struct ProjectCancelled {
+    pub project: Pubkey,
+    pub cancelled_at: i64,
+    pub refund_pool_amount: u64,
+}
+
+#[event]
+pub struct ProjectRefundRecorded {
+    pub project: Pubkey,
+    pub refund_amount: u64,
+    pub total_refunded_amount: u64,
+    pub refund_metadata_hash: [u8; 32],
+}
+
+#[event]
 pub struct ProjectParticipationRecorded {
     pub project: Pubkey,
     pub wallet: Pubkey,
@@ -3209,6 +3305,12 @@ pub enum CryptoSeedsError {
     ProjectParticipationAboveWalletLimit,
     #[msg("Project participation exceeds the project allocation cap.")]
     ProjectParticipationCapExceeded,
+    #[msg("Project status transition is invalid.")]
+    InvalidProjectStatusTransition,
+    #[msg("Project refund accounting exceeds the recorded refund pool.")]
+    ProjectRefundExceedsPool,
+    #[msg("Project must be cancelled before refund accounting is recorded.")]
+    ProjectNotCancelled,
     #[msg("Wallet tier is insufficient for this action.")]
     InsufficientTier,
     #[msg("Project is not open for participation.")]
@@ -3922,7 +4024,8 @@ fn validate_project_status_against_governance(
         | ProjectStatus::MilestoneReached
         | ProjectStatus::HarvestAvailable
         | ProjectStatus::Completed
-        | ProjectStatus::Paused => {
+        | ProjectStatus::Paused
+        | ProjectStatus::Cancelled => {
             require!(
                 proposal.status == GovernanceProposalStatus::Approved,
                 CryptoSeedsError::ProjectGovernanceNotApproved
@@ -4001,6 +4104,50 @@ fn record_project_participation_amount(
         .total_participants
         .checked_add(1)
         .ok_or(CryptoSeedsError::MathOverflow)?;
+    Ok(())
+}
+
+fn cancel_project_accounting(
+    project: &mut ProjectRecord,
+    now: i64,
+    cancellation_hash: [u8; 32],
+    refund_pool_amount: u64,
+) -> Result<()> {
+    require!(
+        project.status != ProjectStatus::Completed && project.status != ProjectStatus::Cancelled,
+        CryptoSeedsError::InvalidProjectStatusTransition
+    );
+    require!(
+        refund_pool_amount <= project.total_participation_amount,
+        CryptoSeedsError::ProjectRefundExceedsPool
+    );
+
+    project.status = ProjectStatus::Cancelled;
+    project.cancellation_hash = cancellation_hash;
+    project.cancelled_at = now;
+    project.refund_pool_amount = refund_pool_amount;
+    project.total_refunded_amount = 0;
+
+    Ok(())
+}
+
+fn record_project_refund_accounting(project: &mut ProjectRecord, refund_amount: u64) -> Result<()> {
+    require!(refund_amount > 0, CryptoSeedsError::InvalidAmount);
+    require!(
+        project.status == ProjectStatus::Cancelled,
+        CryptoSeedsError::ProjectNotCancelled
+    );
+
+    let updated_total = project
+        .total_refunded_amount
+        .checked_add(refund_amount)
+        .ok_or(CryptoSeedsError::MathOverflow)?;
+    require!(
+        updated_total <= project.refund_pool_amount,
+        CryptoSeedsError::ProjectRefundExceedsPool
+    );
+    project.total_refunded_amount = updated_total;
+
     Ok(())
 }
 
@@ -4771,6 +4918,13 @@ mod tests {
             ProjectStatus::HarvestAvailable,
         )
         .is_ok());
+        assert!(validate_project_governance_binding(
+            &proposal,
+            proposal_key,
+            proposal_key,
+            ProjectStatus::Cancelled,
+        )
+        .is_ok());
 
         proposal.status = GovernanceProposalStatus::Rejected;
         assert!(validate_project_governance_binding(
@@ -4862,6 +5016,7 @@ mod tests {
         assert!(!ProjectStatus::Proposed.is_participation_open());
         assert!(!ProjectStatus::Paused.is_participation_open());
         assert!(!ProjectStatus::Completed.is_participation_open());
+        assert!(!ProjectStatus::Cancelled.is_participation_open());
     }
 
     #[test]
@@ -4910,6 +5065,36 @@ mod tests {
         assert!(validate_project_participation_window_open(&project, 150).is_ok());
         assert!(validate_project_participation_window_open(&project, 200).is_ok());
         assert!(validate_project_participation_window_open(&project, 201).is_err());
+    }
+
+    #[test]
+    fn records_project_cancellation_and_refund_accounting() {
+        let mut project = project_record();
+        project.total_participation_amount = 1_000;
+
+        assert!(cancel_project_accounting(&mut project, 2_000, [8; 32], 1_001).is_err());
+        assert!(cancel_project_accounting(&mut project, 2_000, [8; 32], 800).is_ok());
+        assert!(project.status == ProjectStatus::Cancelled);
+        assert_eq!(project.cancellation_hash, [8; 32]);
+        assert_eq!(project.cancelled_at, 2_000);
+        assert_eq!(project.refund_pool_amount, 800);
+        assert_eq!(project.total_refunded_amount, 0);
+
+        assert!(record_project_refund_accounting(&mut project, 0).is_err());
+        assert!(record_project_refund_accounting(&mut project, 500).is_ok());
+        assert_eq!(project.total_refunded_amount, 500);
+        assert!(record_project_refund_accounting(&mut project, 301).is_err());
+        assert!(record_project_refund_accounting(&mut project, 300).is_ok());
+        assert_eq!(project.total_refunded_amount, 800);
+
+        assert!(cancel_project_accounting(&mut project, 3_000, [9; 32], 0).is_err());
+
+        let mut active_project = project_record();
+        assert!(record_project_refund_accounting(&mut active_project, 1).is_err());
+
+        let mut completed_project = project_record();
+        completed_project.status = ProjectStatus::Completed;
+        assert!(cancel_project_accounting(&mut completed_project, 3_000, [9; 32], 0).is_err());
     }
 
     fn reward_vault_state(
@@ -5019,6 +5204,10 @@ mod tests {
             total_participation_amount: 0,
             participation_starts_at: 0,
             participation_ends_at: 4_102_444_800,
+            cancellation_hash: [0; 32],
+            cancelled_at: 0,
+            refund_pool_amount: 0,
+            total_refunded_amount: 0,
             bump: 255,
         }
     }

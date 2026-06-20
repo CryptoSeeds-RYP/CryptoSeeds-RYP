@@ -88,7 +88,8 @@ export type ProjectLifecycleStatus =
   | "HARVEST_AVAILABLE"
   | "COMPLETED"
   | "PAUSED"
-  | "REJECTED";
+  | "REJECTED"
+  | "CANCELLED";
 
 export const PROTOCOL_INSTRUCTION_SPECS = protocolInstructionSpecsJson as Record<string, ProtocolInstructionSpec>;
 const U16_MAX = 2n ** 16n - 1n;
@@ -140,6 +141,7 @@ const PROJECT_STATUS_VARIANTS: Record<ProjectLifecycleStatus, number> = {
   COMPLETED: 8,
   PAUSED: 9,
   REJECTED: 10,
+  CANCELLED: 11,
 };
 
 const STAKE_TIER_VARIANTS: Record<Exclude<StakingTier, "NONE">, number> = {
@@ -253,6 +255,20 @@ export type UpdateProjectStatusPlanInput = {
   projectId: bigint | number | string;
   governanceProposalAddress: string;
   status: ProjectLifecycleStatus;
+};
+
+export type CancelProjectPlanInput = {
+  authorityAddress: string;
+  projectId: bigint | number | string;
+  cancellationHash: string | Uint8Array | number[];
+  refundPoolAmountBaseUnits: bigint | number | string;
+};
+
+export type RecordProjectRefundPlanInput = {
+  authorityAddress: string;
+  projectId: bigint | number | string;
+  refundAmountBaseUnits: bigint | number | string;
+  refundMetadataHash: string | Uint8Array | number[];
 };
 
 export type ProjectParticipationPlanInput = {
@@ -807,6 +823,76 @@ export function buildUpdateProjectStatusTransactionPlan({
     warnings: [
       "Admin-only project lifecycle update.",
       "Public project statuses require the stored ProjectApproval proposal to be approved on-chain.",
+    ],
+  });
+}
+
+export function buildCancelProjectTransactionPlan({
+  authorityAddress,
+  cancellationHash,
+  projectId,
+  refundPoolAmountBaseUnits,
+}: CancelProjectPlanInput): PreparedSolanaTransactionPlan {
+  const project = toU64(projectId);
+  const refundPoolAmount = toU64(refundPoolAmountBaseUnits);
+  const addresses = {
+    ...deriveProtocolAddresses(authorityAddress),
+    authority: new PublicKey(authorityAddress).toBase58(),
+    project: deriveProjectRecordAddress(project),
+  };
+  const spec = instructionSpec("cancel_project");
+  const instruction = instructionPlan({
+    accounts: accountsFromSpec(spec, addresses),
+    argDataHex: [u64LeHex(project), fixedHashHex(cancellationHash), u64LeHex(refundPoolAmount)].join(""),
+    discriminatorHex: spec.discriminatorHex,
+    instructionName: "cancel_project",
+    programId: addresses.programId,
+  });
+
+  return transactionPlan({
+    action: "CANCEL_PROJECT",
+    addresses,
+    feePayer: addresses.authority,
+    instruction,
+    warnings: [
+      "Admin-only project cancellation accounting; this does not move funds.",
+      "The cancellation hash should match the reviewed project cancellation packet.",
+      "Refund pool accounting cannot exceed recorded project participation.",
+    ],
+  });
+}
+
+export function buildRecordProjectRefundTransactionPlan({
+  authorityAddress,
+  projectId,
+  refundAmountBaseUnits,
+  refundMetadataHash,
+}: RecordProjectRefundPlanInput): PreparedSolanaTransactionPlan {
+  const project = toU64(projectId);
+  const refundAmount = toU64(refundAmountBaseUnits);
+  const addresses = {
+    ...deriveProtocolAddresses(authorityAddress),
+    authority: new PublicKey(authorityAddress).toBase58(),
+    project: deriveProjectRecordAddress(project),
+  };
+  const spec = instructionSpec("record_project_refund");
+  const instruction = instructionPlan({
+    accounts: accountsFromSpec(spec, addresses),
+    argDataHex: [u64LeHex(project), u64LeHex(refundAmount), fixedHashHex(refundMetadataHash)].join(""),
+    discriminatorHex: spec.discriminatorHex,
+    instructionName: "record_project_refund",
+    programId: addresses.programId,
+  });
+
+  return transactionPlan({
+    action: "RECORD_PROJECT_REFUND",
+    addresses,
+    amountBaseUnits: refundAmount.toString(),
+    feePayer: addresses.authority,
+    instruction,
+    warnings: [
+      "Admin-only refund accounting; this records external refund progress and does not transfer tokens.",
+      "Refund metadata should match the reviewed refund evidence packet.",
     ],
   });
 }

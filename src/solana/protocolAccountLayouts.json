@@ -169,7 +169,7 @@
   },
   "ProjectRecord": {
     "discriminatorHex": "5dae70cbe77b5c38",
-    "minimumLength": 204,
+    "minimumLength": 260,
     "fields": [
       {
         "name": "project_id",
@@ -262,9 +262,33 @@
         "size": 8
       },
       {
+        "name": "cancellation_hash",
+        "type": "array:u8:32",
+        "offset": 203,
+        "size": 32
+      },
+      {
+        "name": "cancelled_at",
+        "type": "i64",
+        "offset": 235,
+        "size": 8
+      },
+      {
+        "name": "refund_pool_amount",
+        "type": "u64",
+        "offset": 243,
+        "size": 8
+      },
+      {
+        "name": "total_refunded_amount",
+        "type": "u64",
+        "offset": 251,
+        "size": 8
+      },
+      {
         "name": "bump",
         "type": "u8",
-        "offset": 203,
+        "offset": 259,
         "size": 1
       }
     ]

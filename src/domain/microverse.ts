@@ -25,7 +25,8 @@ export type ProjectStatus =
   | "HARVEST_AVAILABLE"
   | "COMPLETED"
   | "PAUSED"
-  | "REJECTED";
+  | "REJECTED"
+  | "CANCELLED";
 
 export type RiskLevel = "LOW" | "MEDIUM" | "HIGH" | "EXPERIMENTAL" | "DONATION";
 

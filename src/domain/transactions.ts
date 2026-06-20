@@ -61,6 +61,7 @@ export type PreparedInstructionPlan = {
 export type PreparedSolanaTransactionPlan = {
   action:
     | "ACTIVATE_VOTING_RIGHTS"
+    | "CANCEL_PROJECT"
     | "CLAIM_REWARD"
     | "CLOSE_GOVERNANCE_PROPOSAL"
     | "CREATE_GOVERNANCE_PROPOSAL"
@@ -69,6 +70,7 @@ export type PreparedSolanaTransactionPlan = {
     | "CREATE_SEEDBOT_PERMISSION"
     | "EXPIRE_REWARD_EPOCH_CLAIMS"
     | "PARTICIPATE_PROJECT"
+    | "RECORD_PROJECT_REFUND"
     | "RECORD_SEEDBOT_USAGE"
     | "REGISTER_PROJECT"
     | "REVOKE_PERMISSION"

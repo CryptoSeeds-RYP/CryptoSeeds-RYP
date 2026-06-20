@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildActivateVotingRightsTransactionPlan,
+  buildCancelProjectTransactionPlan,
   buildCastGovernanceVoteTransactionPlan,
   buildClaimRewardRecordTransactionPlan,
   buildClaimRewardTokensTransactionPlan,
@@ -12,6 +13,7 @@ import {
   buildExpireRewardEpochClaimsTransactionPlan,
   buildProjectParticipationTransactionPlan,
   buildRegisterProjectTransactionPlan,
+  buildRecordProjectRefundTransactionPlan,
   buildRecordSeedBotUsageTransactionPlan,
   buildRevokeSeedBotPermissionTransactionPlan,
   buildRoutePlatformFeeTransactionPlan,
@@ -293,6 +295,18 @@ describe("protocol transaction plan", () => {
       projectId: 9n,
       status: "HARVEST_AVAILABLE",
     });
+    const cancelProject = buildCancelProjectTransactionPlan({
+      authorityAddress: ownerAddress,
+      cancellationHash: "aa".repeat(32),
+      projectId: 9n,
+      refundPoolAmountBaseUnits: 800n,
+    });
+    const recordRefund = buildRecordProjectRefundTransactionPlan({
+      authorityAddress: ownerAddress,
+      projectId: 9n,
+      refundAmountBaseUnits: 300n,
+      refundMetadataHash: "bb".repeat(32),
+    });
 
     expect(registerProject.action).toBe("REGISTER_PROJECT");
     expect(registerProject.instructions[0].dataHex).toMatch(/^829679d8b7e1f3c00900000000000000020104/);
@@ -316,6 +330,21 @@ describe("protocol transaction plan", () => {
       updateStatus.instructions[0].accounts.find((account) => account.anchorName === "governance_proposal_account")
         ?.address,
     ).toBe(governanceProposalAddress);
+    expect(cancelProject.action).toBe("CANCEL_PROJECT");
+    expect(cancelProject.instructions[0].dataHex).toBe(
+      `68950388a0030d840900000000000000${"aa".repeat(32)}2003000000000000`,
+    );
+    expect(cancelProject.instructions[0].accounts.map((account) => account.anchorName)).toEqual(
+      PROTOCOL_INSTRUCTION_SPECS.cancel_project.accounts.map((account) => account.name),
+    );
+    expect(recordRefund.action).toBe("RECORD_PROJECT_REFUND");
+    expect(recordRefund.amountBaseUnits).toBe("300");
+    expect(recordRefund.instructions[0].dataHex).toBe(
+      `3b36ddd8bef52b1b09000000000000002c01000000000000${"bb".repeat(32)}`,
+    );
+    expect(recordRefund.instructions[0].accounts.map((account) => account.anchorName)).toEqual(
+      PROTOCOL_INSTRUCTION_SPECS.record_project_refund.accounts.map((account) => account.name),
+    );
   });
 
   it("builds SeedBot permission and fee config plans with bounded args", () => {
