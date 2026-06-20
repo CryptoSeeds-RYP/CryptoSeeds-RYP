@@ -50,6 +50,7 @@ export default function App() {
     prepareProjectIntent,
     prepareSeedBotAllocation,
     prepareSolanaTransactionBoundary,
+    prepareUnstakeIntent,
     requestSolanaTransactionSignature,
     transactionBoundaryLoading,
     transactionSignatureLoading,
@@ -161,6 +162,7 @@ export default function App() {
               goldenKeyNft={user.goldenKeyNft}
               votingRightsNft={user.votingRightsNft}
               onTierChange={setSelectedTier}
+              onUnstakePreview={prepareUnstakeIntent}
             />
             <TransactionPanel
               intent={intent}

@@ -872,6 +872,48 @@ button:disabled {
   font-weight: 800;
 }
 
+.unstake-preview-form {
+  display: grid;
+  gap: 8px;
+  padding-top: 2px;
+}
+
+.unstake-preview-form label {
+  display: grid;
+  gap: 6px;
+}
+
+.unstake-preview-form input {
+  width: 100%;
+  min-height: 38px;
+  padding: 0 10px;
+  border: 1px solid rgba(236, 218, 157, 0.16);
+  border-radius: 8px;
+  background: rgba(244, 239, 226, 0.08);
+  color: #fff8df;
+  font: inherit;
+}
+
+.unstake-preview-form input:focus {
+  border-color: rgba(236, 218, 157, 0.42);
+  outline: none;
+}
+
+.unstake-preview-status {
+  min-height: 20px;
+  color: #aeb9aa;
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
+.unstake-preview-status.valid {
+  color: #cfe7be;
+}
+
+.unstake-preview-status.blocked {
+  color: #ffd3ad;
+}
+
 .transaction-panel p {
   margin: 0;
   line-height: 1.45;

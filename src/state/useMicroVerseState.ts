@@ -15,6 +15,7 @@ import {
   buildSeedBotAllocationIntent,
   buildSeedBotSwapIntent,
   buildStakePreviewIntent,
+  buildUnstakePreviewIntent,
   markSignedBroadcastDisabled,
   resetTransactionIntent,
 } from "../services/transactionIntentService";
@@ -76,6 +77,10 @@ export function useMicroVerseState() {
     if (tier !== "NONE") {
       setIntent(buildStakePreviewIntent(effectiveIntentWalletAddress(), tier));
     }
+  }
+
+  function prepareUnstakeIntent(amount: number) {
+    setIntent(buildUnstakePreviewIntent(effectiveIntentWalletAddress(), amount, snapshot?.user.stakedAmount ?? 0));
   }
 
   function selectProject(project: Project) {
@@ -211,6 +216,7 @@ export function useMicroVerseState() {
     selectProject,
     openProject,
     prepareProjectIntent,
+    prepareUnstakeIntent,
     prepareSeedBotAllocation,
     prepareSolanaTransactionBoundary,
     requestSolanaTransactionSignature,

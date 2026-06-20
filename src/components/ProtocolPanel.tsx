@@ -1,7 +1,8 @@
-import { Activity } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Activity, ArrowDownToLine } from "lucide-react";
 import { appConfig } from "../config/env";
 import { basisPointsToPercent, RYP_TOKEN_TRANSFER_FEE_BPS } from "../domain/feeRouter";
-import { summarizeStakingPosition } from "../domain/staking";
+import { summarizeStakingPosition, validateUnstakePreview } from "../domain/staking";
 import { RYP_CONFIRMED_SUPPLY, shortAddress } from "../domain/token";
 import { buildTokenTrustChecks, tokenTrustSummary } from "../domain/tokenTrust";
 import { selectableTiers } from "../domain/tiering";
@@ -19,6 +20,7 @@ export function ProtocolPanel({
   goldenKeyNft,
   votingRightsNft,
   onTierChange,
+  onUnstakePreview,
 }: {
   walletConnected: boolean;
   activeTier: StakingTier;
@@ -29,7 +31,9 @@ export function ProtocolPanel({
   goldenKeyNft: boolean;
   votingRightsNft: boolean;
   onTierChange: (tier: StakingTier) => void;
+  onUnstakePreview: (amount: number) => void;
 }) {
+  const [unstakeAmount, setUnstakeAmount] = useState("5000");
   const stakingSummary = summarizeStakingPosition({
     walletConnected,
     rypBalance,
@@ -42,6 +46,16 @@ export function ProtocolPanel({
   });
   const trustChecks = buildTokenTrustChecks();
   const trustSummary = tokenTrustSummary(trustChecks);
+  const unstakeAmountNumber = Number(unstakeAmount.replace(/,/g, "").trim());
+  const unstakeValidation = useMemo(
+    () =>
+      validateUnstakePreview({
+        currentStakedAmount: stakedAmount,
+        unstakeAmount: Number.isFinite(unstakeAmountNumber) ? unstakeAmountNumber : unstakeAmount,
+      }),
+    [stakedAmount, unstakeAmount, unstakeAmountNumber],
+  );
+  const unstakeDisabled = stakedAmount <= 0 || !walletConnected || !Number.isFinite(unstakeAmountNumber) || unstakeAmountNumber <= 0;
 
   return (
     <section className="side-panel">
@@ -92,6 +106,34 @@ export function ProtocolPanel({
             {tier.slice(0, 2)}
           </button>
         ))}
+      </div>
+      <div className="unstake-preview-form">
+        <label htmlFor="unstake-preview-amount">
+          <span>Unstake Preview</span>
+          <input
+            id="unstake-preview-amount"
+            inputMode="decimal"
+            min="0"
+            onChange={(event) => setUnstakeAmount(event.target.value)}
+            type="number"
+            value={unstakeAmount}
+          />
+        </label>
+        <span className={`unstake-preview-status ${unstakeValidation.valid ? "valid" : "blocked"}`}>
+          {unstakeValidation.valid
+            ? unstakeValidation.remainingAmount === 0
+              ? "Full exit"
+              : `${formatRyp(unstakeValidation.remainingAmount)} RYP remains`
+            : unstakeValidation.reason}
+        </span>
+        <button
+          className="secondary-action compact-action"
+          disabled={unstakeDisabled}
+          onClick={() => onUnstakePreview(unstakeAmountNumber)}
+        >
+          <ArrowDownToLine size={16} />
+          Prepare Unstake
+        </button>
       </div>
     </section>
   );
