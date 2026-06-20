@@ -1392,6 +1392,7 @@ pub mod cryptoseeds_protocol {
             max_total_participation_amount,
         )?;
         validate_project_participation_window(participation_starts_at, participation_ends_at)?;
+        validate_project_initial_status(status)?;
         require!(
             required_tier != StakeTier::None,
             CryptoSeedsError::StakeBelowSeedTier
@@ -1563,6 +1564,7 @@ pub mod cryptoseeds_protocol {
             &ctx.accounts.governance_proposal_account,
             status,
         )?;
+        validate_project_status_transition(ctx.accounts.project.status, status)?;
 
         ctx.accounts.project.status = status;
 
@@ -1596,6 +1598,7 @@ pub mod cryptoseeds_protocol {
             &ctx.accounts.governance_proposal_account,
             status,
         )?;
+        validate_project_status_transition(ctx.accounts.project.status, status)?;
 
         ctx.accounts.project.status = status;
 
@@ -4665,6 +4668,26 @@ fn validate_project_participation_not_paused(project: &ProjectRecord) -> Result<
     Ok(())
 }
 
+fn validate_project_initial_status(status: ProjectStatus) -> Result<()> {
+    require!(
+        !matches!(status, ProjectStatus::Completed | ProjectStatus::Cancelled),
+        CryptoSeedsError::InvalidProjectStatusTransition
+    );
+    Ok(())
+}
+
+fn validate_project_status_transition(current: ProjectStatus, next: ProjectStatus) -> Result<()> {
+    require!(
+        next != ProjectStatus::Cancelled,
+        CryptoSeedsError::InvalidProjectStatusTransition
+    );
+    require!(
+        !matches!(current, ProjectStatus::Completed | ProjectStatus::Cancelled) || current == next,
+        CryptoSeedsError::InvalidProjectStatusTransition
+    );
+    Ok(())
+}
+
 fn validate_project_participation_amount(
     project: &ProjectRecord,
     participation_amount: u64,
@@ -5734,6 +5757,49 @@ mod tests {
         assert!(!ProjectStatus::Paused.is_participation_open());
         assert!(!ProjectStatus::Completed.is_participation_open());
         assert!(!ProjectStatus::Cancelled.is_participation_open());
+    }
+
+    #[test]
+    fn validates_project_status_lifecycle_guards() {
+        assert!(validate_project_initial_status(ProjectStatus::Proposed).is_ok());
+        assert!(validate_project_initial_status(ProjectStatus::Open).is_ok());
+        assert!(validate_project_initial_status(ProjectStatus::Rejected).is_ok());
+        assert!(validate_project_initial_status(ProjectStatus::Completed).is_err());
+        assert!(validate_project_initial_status(ProjectStatus::Cancelled).is_err());
+
+        assert!(
+            validate_project_status_transition(ProjectStatus::Open, ProjectStatus::Active).is_ok()
+        );
+        assert!(validate_project_status_transition(
+            ProjectStatus::Active,
+            ProjectStatus::Completed
+        )
+        .is_ok());
+        assert!(validate_project_status_transition(
+            ProjectStatus::Open,
+            ProjectStatus::Cancelled
+        )
+        .is_err());
+        assert!(validate_project_status_transition(
+            ProjectStatus::Completed,
+            ProjectStatus::Open
+        )
+        .is_err());
+        assert!(validate_project_status_transition(
+            ProjectStatus::Cancelled,
+            ProjectStatus::Open
+        )
+        .is_err());
+        assert!(validate_project_status_transition(
+            ProjectStatus::Completed,
+            ProjectStatus::Completed
+        )
+        .is_ok());
+        assert!(validate_project_status_transition(
+            ProjectStatus::Cancelled,
+            ProjectStatus::Cancelled
+        )
+        .is_err());
     }
 
     #[test]
