@@ -18,6 +18,7 @@ import {
   buildInitializeRewardConfigTransactionPlan,
   buildOperatorSetProjectPauseTransactionPlan,
   buildOperatorUpdateProjectStatusTransactionPlan,
+  buildProjectDirectSettlementParticipationTransactionPlan,
   buildProjectParticipationTransactionPlan,
   buildRegisterProjectTransactionPlan,
   buildRegisterRewardVaultTransactionPlan,
@@ -322,6 +323,15 @@ describe("protocol transaction plan", () => {
       participationAmountBaseUnits: 1_000n,
       projectId: 9n,
     });
+    const projectReceivingAccountAddress = "So11111111111111111111111111111111111111112";
+    const directSettlement = buildProjectDirectSettlementParticipationTransactionPlan({
+      disclosureHash: "ac".repeat(32),
+      disclosureRevisionId: 1n,
+      ownerAddress,
+      participationAmountBaseUnits: 1_000n,
+      projectId: 9n,
+      projectReceivingAccountAddress,
+    });
 
     expect(vote.action).toBe("VOTE_PROPOSAL");
     expect(vote.instructions[0].dataHex).toBe("9d64dbf71b2dbc290b0000000000000001");
@@ -333,6 +343,19 @@ describe("protocol transaction plan", () => {
     expect(participation.instructions[0].dataHex).toBe(
       `b8bfbc29229bc6240900000000000000e803000000000000${"ab".repeat(32)}`,
     );
+    expect(directSettlement.action).toBe("PARTICIPATE_PROJECT_DIRECT_SETTLEMENT");
+    expect(directSettlement.amountBaseUnits).toBe("1000");
+    expect(directSettlement.instructions[0].dataHex).toBe(
+      `f0c6a2c97095e5980900000000000000e803000000000000${"ac".repeat(32)}`,
+    );
+    expect(directSettlement.instructions[0].accounts.map((account) => account.anchorName)).toEqual(
+      PROTOCOL_INSTRUCTION_SPECS.participate_project_direct_settlement.accounts.map((account) => account.name),
+    );
+    expect(
+      directSettlement.instructions[0].accounts.find((account) => account.anchorName === "project_receiving_account")
+        ?.address,
+    ).toBe(projectReceivingAccountAddress);
+    expect(directSettlement.warnings.join(" ")).toContain("does not custody");
   });
 
   it("builds governance proposal admin lifecycle plans", () => {

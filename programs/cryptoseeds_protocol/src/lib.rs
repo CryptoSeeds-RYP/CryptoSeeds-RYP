@@ -1745,55 +1745,76 @@ pub mod cryptoseeds_protocol {
         participation_amount: u64,
         disclosure_hash: [u8; 32],
     ) -> Result<()> {
-        require!(
-            !ctx.accounts.config.paused,
-            CryptoSeedsError::ProtocolPaused
-        );
-        validate_metadata_hash(&disclosure_hash)?;
-        require!(participation_amount > 0, CryptoSeedsError::InvalidAmount);
-        require_keys_eq!(
-            ctx.accounts.position.owner,
-            ctx.accounts.owner.key(),
-            CryptoSeedsError::Unauthorized
-        );
-        require!(
-            ctx.accounts
-                .position
-                .tier
-                .can_access(ctx.accounts.project.required_tier),
-            CryptoSeedsError::InsufficientTier
-        );
-        require!(
-            ctx.accounts.project.current_disclosure_revision_id > 0,
-            CryptoSeedsError::ProjectDisclosureRequired
-        );
-        require_keys_eq!(
-            ctx.accounts.project_disclosure_revision.project,
-            ctx.accounts.project.key(),
-            CryptoSeedsError::InvalidProjectDisclosureRevision
-        );
-        require!(
-            ctx.accounts.project_disclosure_revision.revision_id
-                == ctx.accounts.project.current_disclosure_revision_id,
-            CryptoSeedsError::InvalidProjectDisclosureRevision
-        );
-        require!(
-            ctx.accounts
-                .project_disclosure_revision
-                .risk_disclosure_hash
-                == disclosure_hash
-                && ctx.accounts.project.current_disclosure_hash == disclosure_hash,
-            CryptoSeedsError::ProjectDisclosureMismatch
-        );
-        require!(
-            ctx.accounts.project.status.is_participation_open(),
-            CryptoSeedsError::ProjectNotOpen
-        );
-        validate_project_participation_not_paused(&ctx.accounts.project)?;
-
         let clock = Clock::get()?;
-        validate_project_participation_window_open(&ctx.accounts.project, clock.unix_timestamp)?;
         let project_key = ctx.accounts.project.key();
+        validate_project_participation_entry(
+            &ctx.accounts.config,
+            &ctx.accounts.position,
+            ctx.accounts.owner.key(),
+            &ctx.accounts.project,
+            project_key,
+            &ctx.accounts.project_disclosure_revision,
+            participation_amount,
+            &disclosure_hash,
+            ProjectFundingModel::RecordOnly,
+            clock.unix_timestamp,
+        )?;
+        record_project_participation_amount(&mut ctx.accounts.project, participation_amount)?;
+
+        let participation = &mut ctx.accounts.participation;
+        participation.project = project_key;
+        participation.wallet = ctx.accounts.owner.key();
+        participation.participation_amount = participation_amount;
+        participation.disclosure_hash = disclosure_hash;
+        participation.joined_at = clock.unix_timestamp;
+        participation.status = ProjectParticipationStatus::Active;
+        participation.bump = ctx.bumps.participation;
+
+        emit!(ProjectParticipationRecorded {
+            project: participation.project,
+            wallet: participation.wallet,
+            participation_amount,
+            total_participation_amount: ctx.accounts.project.total_participation_amount,
+            total_participants: ctx.accounts.project.total_participants,
+        });
+
+        Ok(())
+    }
+
+    pub fn participate_project_direct_settlement(
+        ctx: Context<ParticipateProjectDirectSettlement>,
+        _project_id: u64,
+        participation_amount: u64,
+        disclosure_hash: [u8; 32],
+    ) -> Result<()> {
+        let clock = Clock::get()?;
+        let project_key = ctx.accounts.project.key();
+        validate_project_participation_entry(
+            &ctx.accounts.config,
+            &ctx.accounts.position,
+            ctx.accounts.owner.key(),
+            &ctx.accounts.project,
+            project_key,
+            &ctx.accounts.project_disclosure_revision,
+            participation_amount,
+            &disclosure_hash,
+            ProjectFundingModel::DirectSettlement,
+            clock.unix_timestamp,
+        )?;
+
+        let cpi_accounts = TransferChecked {
+            from: ctx.accounts.owner_ryp_account.to_account_info(),
+            mint: ctx.accounts.ryp_mint.to_account_info(),
+            to: ctx.accounts.project_receiving_account.to_account_info(),
+            authority: ctx.accounts.owner.to_account_info(),
+        };
+        let cpi_context = CpiContext::new(ctx.accounts.token_program.key(), cpi_accounts);
+        transfer_checked(
+            cpi_context,
+            participation_amount,
+            ctx.accounts.ryp_mint.decimals,
+        )?;
+
         record_project_participation_amount(&mut ctx.accounts.project, participation_amount)?;
 
         let participation = &mut ctx.accounts.participation;
@@ -2902,6 +2923,60 @@ pub struct ParticipateProject<'info> {
         bump
     )]
     pub participation: Account<'info, ProjectParticipationRecord>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+#[instruction(project_id: u64)]
+pub struct ParticipateProjectDirectSettlement<'info> {
+    #[account(mut)]
+    pub owner: Signer<'info>,
+    #[account(seeds = [CONFIG_SEED], bump = config.bump, has_one = ryp_mint)]
+    pub config: Box<Account<'info, ProtocolConfig>>,
+    #[account(
+        seeds = [STAKE_POSITION_SEED, owner.key().as_ref()],
+        bump = position.bump
+    )]
+    pub position: Box<Account<'info, StakePosition>>,
+    #[account(
+        mut,
+        seeds = [PROJECT_RECORD_SEED, project_id.to_le_bytes().as_ref()],
+        bump = project.bump
+    )]
+    pub project: Box<Account<'info, ProjectRecord>>,
+    #[account(
+        seeds = [
+            PROJECT_DISCLOSURE_REVISION_SEED,
+            project.key().as_ref(),
+            project.current_disclosure_revision_id.to_le_bytes().as_ref()
+        ],
+        bump = project_disclosure_revision.bump
+    )]
+    pub project_disclosure_revision: Box<Account<'info, ProjectDisclosureRevision>>,
+    #[account(
+        init,
+        payer = owner,
+        space = 8 + ProjectParticipationRecord::INIT_SPACE,
+        seeds = [PROJECT_PARTICIPATION_SEED, project.key().as_ref(), owner.key().as_ref()],
+        bump
+    )]
+    pub participation: Box<Account<'info, ProjectParticipationRecord>>,
+    pub ryp_mint: Box<InterfaceAccount<'info, Mint>>,
+    #[account(
+        mut,
+        associated_token::mint = ryp_mint,
+        associated_token::authority = owner,
+        associated_token::token_program = token_program
+    )]
+    pub owner_ryp_account: Box<InterfaceAccount<'info, TokenAccount>>,
+    #[account(
+        mut,
+        constraint = project_receiving_account.key() == project.receiving_account @ CryptoSeedsError::InvalidProjectAccount,
+        constraint = project_receiving_account.mint == ryp_mint.key() @ CryptoSeedsError::InvalidProjectAccount
+    )]
+    pub project_receiving_account: Box<InterfaceAccount<'info, TokenAccount>>,
+    pub token_program: Interface<'info, TokenInterface>,
+    pub associated_token_program: Program<'info, AssociatedToken>,
     pub system_program: Program<'info, System>,
 }
 
@@ -4610,9 +4685,65 @@ fn validate_project_disclosure_revision_id(
 
 fn validate_project_funding_model(funding_model: ProjectFundingModel) -> Result<()> {
     require!(
-        funding_model == ProjectFundingModel::RecordOnly,
+        matches!(
+            funding_model,
+            ProjectFundingModel::RecordOnly | ProjectFundingModel::DirectSettlement
+        ),
         CryptoSeedsError::UnsupportedProjectFundingModel
     );
+    Ok(())
+}
+
+fn validate_project_participation_entry(
+    config: &ProtocolConfig,
+    position: &StakePosition,
+    owner: Pubkey,
+    project: &ProjectRecord,
+    project_key: Pubkey,
+    project_disclosure_revision: &ProjectDisclosureRevision,
+    participation_amount: u64,
+    disclosure_hash: &[u8; 32],
+    expected_funding_model: ProjectFundingModel,
+    now: i64,
+) -> Result<()> {
+    require!(!config.paused, CryptoSeedsError::ProtocolPaused);
+    validate_metadata_hash(disclosure_hash)?;
+    require!(participation_amount > 0, CryptoSeedsError::InvalidAmount);
+    validate_project_funding_model(project.funding_model)?;
+    require_keys_eq!(position.owner, owner, CryptoSeedsError::Unauthorized);
+    require!(
+        position.tier.can_access(project.required_tier),
+        CryptoSeedsError::InsufficientTier
+    );
+    require!(
+        project.funding_model == expected_funding_model,
+        CryptoSeedsError::UnsupportedProjectFundingModel
+    );
+    require!(
+        project.current_disclosure_revision_id > 0,
+        CryptoSeedsError::ProjectDisclosureRequired
+    );
+    require_keys_eq!(
+        project_disclosure_revision.project,
+        project_key,
+        CryptoSeedsError::InvalidProjectDisclosureRevision
+    );
+    require!(
+        project_disclosure_revision.revision_id == project.current_disclosure_revision_id,
+        CryptoSeedsError::InvalidProjectDisclosureRevision
+    );
+    require!(
+        project_disclosure_revision.risk_disclosure_hash == *disclosure_hash
+            && project.current_disclosure_hash == *disclosure_hash,
+        CryptoSeedsError::ProjectDisclosureMismatch
+    );
+    require!(
+        project.status.is_participation_open(),
+        CryptoSeedsError::ProjectNotOpen
+    );
+    validate_project_participation_not_paused(project)?;
+    validate_project_participation_window_open(project, now)?;
+
     Ok(())
 }
 
@@ -5626,10 +5757,94 @@ mod tests {
     }
 
     #[test]
-    fn limits_project_funding_model_to_record_only_for_mvp() {
+    fn enables_non_custodial_project_funding_models_for_mvp() {
         assert!(validate_project_funding_model(ProjectFundingModel::RecordOnly).is_ok());
-        assert!(validate_project_funding_model(ProjectFundingModel::DirectSettlement).is_err());
+        assert!(validate_project_funding_model(ProjectFundingModel::DirectSettlement).is_ok());
         assert!(validate_project_funding_model(ProjectFundingModel::ProgramEscrow).is_err());
+    }
+
+    #[test]
+    fn validates_project_participation_entry_funding_model() {
+        let owner = Pubkey::new_unique();
+        let config = protocol_config(Pubkey::new_unique());
+        let position = stake_position(owner, StakeTier::Seed);
+        let project_key = Pubkey::new_unique();
+        let mut project = project_record();
+        let disclosure_revision = project_disclosure_revision(
+            project_key,
+            project.current_disclosure_revision_id,
+            project.current_disclosure_hash,
+        );
+
+        assert!(validate_project_participation_entry(
+            &config,
+            &position,
+            owner,
+            &project,
+            project_key,
+            &disclosure_revision,
+            100,
+            &project.current_disclosure_hash,
+            ProjectFundingModel::RecordOnly,
+            1_000,
+        )
+        .is_ok());
+        assert!(validate_project_participation_entry(
+            &config,
+            &position,
+            owner,
+            &project,
+            project_key,
+            &disclosure_revision,
+            100,
+            &project.current_disclosure_hash,
+            ProjectFundingModel::DirectSettlement,
+            1_000,
+        )
+        .is_err());
+
+        project.funding_model = ProjectFundingModel::DirectSettlement;
+        assert!(validate_project_participation_entry(
+            &config,
+            &position,
+            owner,
+            &project,
+            project_key,
+            &disclosure_revision,
+            100,
+            &project.current_disclosure_hash,
+            ProjectFundingModel::DirectSettlement,
+            1_000,
+        )
+        .is_ok());
+        assert!(validate_project_participation_entry(
+            &config,
+            &position,
+            owner,
+            &project,
+            project_key,
+            &disclosure_revision,
+            100,
+            &project.current_disclosure_hash,
+            ProjectFundingModel::RecordOnly,
+            1_000,
+        )
+        .is_err());
+
+        project.funding_model = ProjectFundingModel::ProgramEscrow;
+        assert!(validate_project_participation_entry(
+            &config,
+            &position,
+            owner,
+            &project,
+            project_key,
+            &disclosure_revision,
+            100,
+            &project.current_disclosure_hash,
+            ProjectFundingModel::ProgramEscrow,
+            1_000,
+        )
+        .is_err());
     }
 
     #[test]
@@ -6320,6 +6535,42 @@ mod tests {
             pending_authority: Pubkey::default(),
             project_authority: authority,
             pending_project_authority: Pubkey::default(),
+        }
+    }
+
+    fn stake_position(owner: Pubkey, tier: StakeTier) -> StakePosition {
+        StakePosition {
+            owner,
+            staked_amount: THRESHOLDS[0],
+            tier,
+            staking_start_ts: 1_000,
+            voting_rights_eligible_ts: 1_000 + VOTING_RIGHTS_DELAY_SECONDS,
+            last_reward_claim_ts: 1_000,
+            voting_rights_active: true,
+            golden_key_active: true,
+            golden_key_issued_at: 1_000,
+            golden_key_revoked_at: 0,
+            voting_rights_activated_at: 1_000 + VOTING_RIGHTS_DELAY_SECONDS,
+            voting_rights_level: 1,
+            vote_count: 0,
+            bump: 255,
+        }
+    }
+
+    fn project_disclosure_revision(
+        project: Pubkey,
+        revision_id: u64,
+        risk_disclosure_hash: [u8; 32],
+    ) -> ProjectDisclosureRevision {
+        ProjectDisclosureRevision {
+            project,
+            authority: Pubkey::new_unique(),
+            revision_id,
+            metadata_hash: [7; 32],
+            risk_disclosure_hash,
+            terms_hash: [9; 32],
+            created_at: 1_000,
+            bump: 255,
         }
     }
 

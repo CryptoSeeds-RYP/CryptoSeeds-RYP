@@ -61,6 +61,7 @@ type ProtocolAddressBook = ReturnType<typeof deriveProtocolAddresses> &
     permission?: string;
     project?: string;
     projectDisclosureRevision?: string;
+    projectReceivingAccount?: string;
     refundRecord?: string;
     proposal?: string;
     rewardEpoch?: string;
@@ -401,6 +402,10 @@ export type ProjectParticipationPlanInput = {
   disclosureRevisionId: bigint | number | string;
   participationAmountBaseUnits: bigint | number | string;
   disclosureHash: string | Uint8Array | number[];
+};
+
+export type ProjectDirectSettlementParticipationPlanInput = ProjectParticipationPlanInput & {
+  projectReceivingAccountAddress: string;
 };
 
 export type SeedBotPermissionPlanInput = {
@@ -1522,6 +1527,46 @@ export function buildProjectParticipationTransactionPlan({
   });
 }
 
+export function buildProjectDirectSettlementParticipationTransactionPlan({
+  disclosureHash,
+  disclosureRevisionId,
+  ownerAddress,
+  participationAmountBaseUnits,
+  projectId,
+  projectReceivingAccountAddress,
+}: ProjectDirectSettlementParticipationPlanInput): PreparedSolanaTransactionPlan {
+  const project = toU64(projectId);
+  const disclosureRevision = toU64(disclosureRevisionId);
+  const amount = toU64(participationAmountBaseUnits);
+  const addresses = {
+    ...deriveProtocolAddresses(ownerAddress),
+    participation: deriveProjectParticipationAddress({ projectId: project, walletAddress: ownerAddress }),
+    project: deriveProjectRecordAddress(project),
+    projectDisclosureRevision: deriveProjectDisclosureRevisionAddress({ projectId: project, revisionId: disclosureRevision }),
+    projectReceivingAccount: new PublicKey(projectReceivingAccountAddress).toBase58(),
+  };
+  const spec = instructionSpec("participate_project_direct_settlement");
+  const instruction = instructionPlan({
+    accounts: accountsFromSpec(spec, addresses),
+    argDataHex: `${u64LeHex(project)}${u64LeHex(amount)}${fixedHashHex(disclosureHash)}`,
+    discriminatorHex: spec.discriminatorHex,
+    instructionName: "participate_project_direct_settlement",
+    programId: addresses.programId,
+  });
+
+  return transactionPlan({
+    action: "PARTICIPATE_PROJECT_DIRECT_SETTLEMENT",
+    addresses,
+    amountBaseUnits: amount.toString(),
+    instruction,
+    warnings: [
+      "Direct settlement transfers wallet-approved RYP from the owner account to the project's declared receiving token account.",
+      "CryptoSeeds does not custody these project participation funds in this route.",
+      "The disclosure hash must match the current reviewed project disclosure revision.",
+    ],
+  });
+}
+
 export function buildCreateSeedBotPermissionTransactionPlan({
   expiresAtUnix,
   maxDailyVolumeAmountBaseUnits,
@@ -1989,6 +2034,7 @@ function derivedAccountReferences(addresses: ProtocolAddressBook): TransactionAc
     ["vote_record", "Governance vote record"],
     ["project", "Project record"],
     ["project_disclosure_revision", "Project disclosure revision"],
+    ["project_receiving_account", "Project receiving token account"],
     ["participation", "Project participation"],
     ["refund_record", "Project refund record"],
     ["operator_record", "Project operator"],
@@ -2057,6 +2103,8 @@ function addressForProtocolAccountIfPresent(addresses: ProtocolAddressBook, name
       return addresses.project;
     case "project_disclosure_revision":
       return addresses.projectDisclosureRevision;
+    case "project_receiving_account":
+      return addresses.projectReceivingAccount;
     case "refund_record":
       return addresses.refundRecord;
     case "proposal":

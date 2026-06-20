@@ -1117,6 +1117,100 @@
       }
     ]
   },
+  "participate_project_direct_settlement": {
+    "discriminatorHex": "f0c6a2c97095e598",
+    "args": [
+      "_project_id",
+      "participation_amount",
+      "disclosure_hash"
+    ],
+    "accounts": [
+      {
+        "name": "owner",
+        "label": "owner",
+        "role": "owner",
+        "signer": true,
+        "writable": true
+      },
+      {
+        "name": "config",
+        "label": "config",
+        "role": "config",
+        "signer": false,
+        "writable": false
+      },
+      {
+        "name": "position",
+        "label": "position",
+        "role": "position",
+        "signer": false,
+        "writable": false
+      },
+      {
+        "name": "project",
+        "label": "project",
+        "role": "project",
+        "signer": false,
+        "writable": true
+      },
+      {
+        "name": "project_disclosure_revision",
+        "label": "project disclosure revision",
+        "role": "project disclosure revision",
+        "signer": false,
+        "writable": false
+      },
+      {
+        "name": "participation",
+        "label": "participation",
+        "role": "participation",
+        "signer": false,
+        "writable": true
+      },
+      {
+        "name": "ryp_mint",
+        "label": "ryp mint",
+        "role": "ryp mint",
+        "signer": false,
+        "writable": false
+      },
+      {
+        "name": "owner_ryp_account",
+        "label": "owner ryp account",
+        "role": "owner ryp account",
+        "signer": false,
+        "writable": true
+      },
+      {
+        "name": "project_receiving_account",
+        "label": "project receiving account",
+        "role": "project receiving account",
+        "signer": false,
+        "writable": true
+      },
+      {
+        "name": "token_program",
+        "label": "token program",
+        "role": "token program",
+        "signer": false,
+        "writable": false
+      },
+      {
+        "name": "associated_token_program",
+        "label": "associated token program",
+        "role": "associated token program",
+        "signer": false,
+        "writable": false
+      },
+      {
+        "name": "system_program",
+        "label": "system program",
+        "role": "system program",
+        "signer": false,
+        "writable": false
+      }
+    ]
+  },
   "create_project_disclosure_revision": {
     "discriminatorHex": "c6e5153371e7495d",
     "args": [

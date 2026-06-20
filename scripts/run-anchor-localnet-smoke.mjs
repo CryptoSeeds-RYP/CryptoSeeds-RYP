@@ -248,6 +248,16 @@ async function runSmoke(connection) {
     payer: authority,
     tokenAccount: intruderRypAccount,
   });
+  const directSettlementReceivingAccount = deriveAssociatedTokenAddress({
+    mint: mint.publicKey,
+    owner: projectAuthority.publicKey,
+  });
+  await createAssociatedTokenAccount(connection, {
+    mint: mint.publicKey,
+    owner: projectAuthority.publicKey,
+    payer: authority,
+    tokenAccount: directSettlementReceivingAccount,
+  });
   await mintTo(connection, {
     amount: SEED_STAKE_AMOUNT + PLATFORM_FEE_ROUTE_AMOUNT,
     authority,
@@ -710,6 +720,71 @@ async function runSmoke(connection) {
   );
   await assertMissingAccount(connection, projectParticipation, "project participation after non-open rejection");
 
+  const directSettlementProjectId = 22n;
+  const directSettlementProject = deriveProjectAddress(directSettlementProjectId);
+  const directSettlementParticipation = deriveProjectParticipationAddress({
+    project: directSettlementProject,
+    wallet: owner.publicKey,
+  });
+  const directSettlementDisclosureRevisionId = 1n;
+  const directSettlementDisclosureRevision = deriveProjectDisclosureRevisionAddress({
+    project: directSettlementProject,
+    revisionId: directSettlementDisclosureRevisionId,
+  });
+  log("calling register_project for direct-settlement governance-vote draft project");
+  await registerProject(connection, {
+    authority: projectAuthority,
+    config,
+    fundingModelVariant: 1,
+    governanceProposal: draftProposal,
+    project: directSettlementProject,
+    projectId: directSettlementProjectId,
+    receivingAccount: directSettlementReceivingAccount,
+  });
+  const directSettlementDraftProject = parseProjectRecord(await getAccountData(connection, directSettlementProject));
+  assertEqual("direct settlement project funding model", directSettlementDraftProject.fundingModel, 1);
+  assertPublicKey(
+    "direct settlement project receiving token account",
+    directSettlementDraftProject.receivingAccount,
+    directSettlementReceivingAccount,
+  );
+  await createProjectDisclosureRevision(connection, {
+    authority: projectAuthority,
+    config,
+    disclosureRevision: directSettlementDisclosureRevision,
+    project: directSettlementProject,
+    projectId: directSettlementProjectId,
+    revisionId: directSettlementDisclosureRevisionId,
+  });
+  const directSettlementReceiverBefore = await readTokenBalance(connection, directSettlementReceivingAccount);
+  await expectFailure(
+    "participate_project_direct_settlement rejects project before open status",
+    () =>
+      participateProjectDirectSettlement(connection, {
+        config,
+        disclosureRevision: directSettlementDisclosureRevision,
+        owner,
+        ownerRypAccount,
+        participation: directSettlementParticipation,
+        position,
+        project: directSettlementProject,
+        projectId: directSettlementProjectId,
+        projectReceivingAccount: directSettlementReceivingAccount,
+        rypMint: mint.publicKey,
+      }),
+    "custom program error",
+  );
+  assertEqual(
+    "direct settlement receiver balance unchanged after non-open rejection",
+    await readTokenBalance(connection, directSettlementReceivingAccount),
+    directSettlementReceiverBefore,
+  );
+  await assertMissingAccount(
+    connection,
+    directSettlementParticipation,
+    "direct settlement participation after non-open rejection",
+  );
+
   await expectFailure(
     "cancel_project rejects refund pool above recorded participation",
     () =>
@@ -1124,6 +1199,7 @@ async function runSmoke(connection) {
 	      "reject_revoked_project_operator",
 	      "reject_project_status_open_before_approved_governance",
 	      "reject_participation_before_project_open",
+	      "reject_direct_settlement_before_project_open",
 	      "reject_project_refund_pool_above_participation",
 	      "cancel_project_accounting",
 	      "reject_invalid_project_refund_accounting",
@@ -2428,6 +2504,50 @@ async function participateProject(
       accountMeta(project, false, true),
       accountMeta(disclosureRevision, false, false),
       accountMeta(participation, false, true),
+      accountMeta(SystemProgram.programId, false, false),
+    ],
+    data,
+  });
+
+  await sendAndConfirm(connection, new Transaction().add(instruction), [owner]);
+}
+
+async function participateProjectDirectSettlement(
+  connection,
+  {
+    amount = PROJECT_MIN_PARTICIPATION_AMOUNT,
+    config,
+    disclosureHash = PROJECT_RISK_DISCLOSURE_HASH,
+    disclosureRevision,
+    owner,
+    ownerRypAccount,
+    participation,
+    position,
+    project,
+    projectId,
+    projectReceivingAccount,
+    rypMint,
+  },
+) {
+  const data = Buffer.alloc(8 + 8 + 8 + 32);
+  discriminator("participate_project_direct_settlement").copy(data, 0);
+  data.writeBigUInt64LE(projectId, 8);
+  data.writeBigUInt64LE(amount, 16);
+  disclosureHash.copy(data, 24);
+  const instruction = new TransactionInstruction({
+    programId,
+    keys: [
+      accountMeta(owner.publicKey, true, true),
+      accountMeta(config, false, false),
+      accountMeta(position, false, false),
+      accountMeta(project, false, true),
+      accountMeta(disclosureRevision, false, false),
+      accountMeta(participation, false, true),
+      accountMeta(rypMint, false, false),
+      accountMeta(ownerRypAccount, false, true),
+      accountMeta(projectReceivingAccount, false, true),
+      accountMeta(TOKEN_PROGRAM_ID, false, false),
+      accountMeta(ASSOCIATED_TOKEN_PROGRAM_ID, false, false),
       accountMeta(SystemProgram.programId, false, false),
     ],
     data,
