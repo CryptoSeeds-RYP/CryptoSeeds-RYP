@@ -32,8 +32,7 @@ This keeps project participation self-custodial while preventing the protocol re
 
 - Positive project participation cap update in localnet after a safe approved-governance test path exists.
 - Wallet-approved project funding transfer composition.
-- Per-wallet project participation limits.
-- Project allocation window start/end timestamps.
+- Participation top-up or withdrawal accounting.
 
 ## Verification
 

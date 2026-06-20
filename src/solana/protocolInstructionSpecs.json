@@ -807,7 +807,10 @@
       "receiving_account",
       "governance_proposal",
       "min_participation_amount",
-      "max_total_participation_amount"
+      "max_wallet_participation_amount",
+      "max_total_participation_amount",
+      "participation_starts_at",
+      "participation_ends_at"
     ],
     "accounts": [
       {

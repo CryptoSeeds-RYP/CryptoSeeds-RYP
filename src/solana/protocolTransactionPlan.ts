@@ -242,7 +242,10 @@ export type RegisterProjectPlanInput = {
   receivingAccountAddress: string;
   governanceProposalAddress: string;
   minParticipationAmountBaseUnits: bigint | number | string;
+  maxWalletParticipationAmountBaseUnits: bigint | number | string;
   maxTotalParticipationAmountBaseUnits: bigint | number | string;
+  participationStartsAtUnix: bigint | number | string;
+  participationEndsAtUnix: bigint | number | string;
 };
 
 export type UpdateProjectStatusPlanInput = {
@@ -711,9 +714,12 @@ export function buildCloseGovernanceProposalTransactionPlan({
 export function buildRegisterProjectTransactionPlan({
   authorityAddress,
   governanceProposalAddress,
+  maxWalletParticipationAmountBaseUnits,
   maxTotalParticipationAmountBaseUnits,
   metadataHash,
   minParticipationAmountBaseUnits,
+  participationEndsAtUnix,
+  participationStartsAtUnix,
   projectId,
   receivingAccountAddress,
   requiredTier,
@@ -724,7 +730,10 @@ export function buildRegisterProjectTransactionPlan({
   const receivingAccount = new PublicKey(receivingAccountAddress);
   const governanceProposal = new PublicKey(governanceProposalAddress);
   const minParticipationAmount = toU64(minParticipationAmountBaseUnits);
+  const maxWalletParticipationAmount = toU64(maxWalletParticipationAmountBaseUnits);
   const maxTotalParticipationAmount = toU64(maxTotalParticipationAmountBaseUnits);
+  const participationStartsAt = toI64(participationStartsAtUnix);
+  const participationEndsAt = toI64(participationEndsAtUnix);
   const addresses = {
     ...deriveProtocolAddresses(authorityAddress),
     authority: new PublicKey(authorityAddress).toBase58(),
@@ -743,7 +752,10 @@ export function buildRegisterProjectTransactionPlan({
       pubkeyHex(receivingAccount),
       pubkeyHex(governanceProposal),
       u64LeHex(minParticipationAmount),
+      u64LeHex(maxWalletParticipationAmount),
       u64LeHex(maxTotalParticipationAmount),
+      i64LeHex(participationStartsAt),
+      i64LeHex(participationEndsAt),
     ].join(""),
     discriminatorHex: spec.discriminatorHex,
     instructionName: "register_project",
@@ -758,7 +770,7 @@ export function buildRegisterProjectTransactionPlan({
     warnings: [
       "Admin-only project registration; project metadata and receiving account must be reviewed before signing.",
       "Public project statuses require an approved ProjectApproval governance proposal on-chain.",
-      "Project participation minimums and allocation caps are enforced by the protocol record.",
+      "Project participation minimums, wallet caps, allocation caps, and allocation windows are enforced by the protocol record.",
       "The receiving account is recorded only; project fund custody remains outside this instruction.",
     ],
   });

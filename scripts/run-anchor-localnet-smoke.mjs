@@ -28,7 +28,10 @@ const SPROUT_STAKE_AMOUNT = 20_000_000_000n;
 const HOLDER_REWARD_CLAIM_AMOUNT = 700n;
 const PLATFORM_FEE_ROUTE_AMOUNT = 30_000n;
 const PROJECT_MIN_PARTICIPATION_AMOUNT = 100n;
+const PROJECT_MAX_WALLET_PARTICIPATION_AMOUNT = 600n;
 const PROJECT_MAX_TOTAL_PARTICIPATION_AMOUNT = 1_000n;
+const PROJECT_PARTICIPATION_START_TS = 0n;
+const PROJECT_PARTICIPATION_END_TS = 4_102_444_800n;
 const SEEDBOT_MAX_TRADE_AMOUNT = 500n;
 const SEEDBOT_MAX_DAILY_VOLUME_AMOUNT = 1_500n;
 const SEEDBOT_MAX_DAILY_TRADES = 3;
@@ -437,6 +440,26 @@ async function runSmoke(connection) {
   );
   await assertMissingAccount(connection, invalidBoundsProject, "project after invalid bounds rejection");
 
+  const invalidWindowProjectId = 23n;
+  const invalidWindowProject = deriveProjectAddress(invalidWindowProjectId);
+  await expectFailure(
+    "register_project rejects invalid participation window",
+    () =>
+      registerProject(connection, {
+        authority,
+        config,
+        governanceProposal: draftProposal,
+        participationEndsAt: 1_000n,
+        participationStartsAt: 1_000n,
+        project: invalidWindowProject,
+        projectId: invalidWindowProjectId,
+        receivingAccount: Keypair.generate().publicKey,
+        statusVariant: 2,
+      }),
+    "custom program error",
+  );
+  await assertMissingAccount(connection, invalidWindowProject, "project after invalid window rejection");
+
   const projectId = 21n;
   const project = deriveProjectAddress(projectId);
   const projectParticipation = deriveProjectParticipationAddress({ project, wallet: owner.publicKey });
@@ -456,12 +479,19 @@ async function runSmoke(connection) {
   assertPublicKey("registered project governance proposal", registeredProject.governanceProposal, draftProposal);
   assertEqual("registered project min participation", registeredProject.minParticipationAmount, PROJECT_MIN_PARTICIPATION_AMOUNT);
   assertEqual(
+    "registered project max wallet participation",
+    registeredProject.maxWalletParticipationAmount,
+    PROJECT_MAX_WALLET_PARTICIPATION_AMOUNT,
+  );
+  assertEqual(
     "registered project max participation",
     registeredProject.maxTotalParticipationAmount,
     PROJECT_MAX_TOTAL_PARTICIPATION_AMOUNT,
   );
   assertEqual("registered project total participation", registeredProject.totalParticipationAmount, 0n);
   assertEqual("registered project total participants", registeredProject.totalParticipants, 0n);
+  assertEqual("registered project participation start", registeredProject.participationStartsAt, PROJECT_PARTICIPATION_START_TS);
+  assertEqual("registered project participation end", registeredProject.participationEndsAt, PROJECT_PARTICIPATION_END_TS);
 
   await expectFailure(
     "update_project_status rejects open project before approved governance",
@@ -830,6 +860,7 @@ async function runSmoke(connection) {
 	      "close_governance_proposal_after_window",
 	      "reject_open_project_before_approved_governance",
 	      "reject_invalid_project_participation_bounds",
+	      "reject_invalid_project_participation_window",
 	      "register_governance_vote_project",
 	      "project_participation_bounds_accounting",
 	      "reject_project_status_open_before_approved_governance",
@@ -1850,15 +1881,18 @@ async function registerProject(
     authority,
     config,
     governanceProposal,
+    maxWalletParticipationAmount = PROJECT_MAX_WALLET_PARTICIPATION_AMOUNT,
     maxTotalParticipationAmount = PROJECT_MAX_TOTAL_PARTICIPATION_AMOUNT,
     minParticipationAmount = PROJECT_MIN_PARTICIPATION_AMOUNT,
+    participationEndsAt = PROJECT_PARTICIPATION_END_TS,
+    participationStartsAt = PROJECT_PARTICIPATION_START_TS,
     project,
     projectId,
     receivingAccount,
     statusVariant = 2,
   },
 ) {
-  const data = Buffer.alloc(8 + 8 + 1 + 1 + 1 + 32 + 32 + 32 + 8 + 8);
+  const data = Buffer.alloc(8 + 8 + 1 + 1 + 1 + 32 + 32 + 32 + 8 + 8 + 8 + 8 + 8);
   discriminator("register_project").copy(data, 0);
   data.writeBigUInt64LE(projectId, 8);
   data.writeUInt8(1, 16);
@@ -1868,7 +1902,10 @@ async function registerProject(
   receivingAccount.toBuffer().copy(data, 51);
   governanceProposal.toBuffer().copy(data, 83);
   data.writeBigUInt64LE(minParticipationAmount, 115);
-  data.writeBigUInt64LE(maxTotalParticipationAmount, 123);
+  data.writeBigUInt64LE(maxWalletParticipationAmount, 123);
+  data.writeBigUInt64LE(maxTotalParticipationAmount, 131);
+  data.writeBigInt64LE(participationStartsAt, 139);
+  data.writeBigInt64LE(participationEndsAt, 147);
   const instruction = new TransactionInstruction({
     programId,
     keys: [
@@ -1906,11 +1943,14 @@ async function updateProjectStatus(
   await sendAndConfirm(connection, new Transaction().add(instruction), [authority]);
 }
 
-async function participateProject(connection, { config, owner, participation, position, project, projectId }) {
+async function participateProject(
+  connection,
+  { amount = PROJECT_MIN_PARTICIPATION_AMOUNT, config, owner, participation, position, project, projectId },
+) {
   const data = Buffer.alloc(8 + 8 + 8 + 32);
   discriminator("participate_project").copy(data, 0);
   data.writeBigUInt64LE(projectId, 8);
-  data.writeBigUInt64LE(1_000n, 16);
+  data.writeBigUInt64LE(amount, 16);
   REWARD_METADATA_HASH.copy(data, 24);
   const instruction = new TransactionInstruction({
     programId,
@@ -2494,8 +2534,11 @@ function parseProjectRecord(data) {
     governanceProposal: new PublicKey(data.subarray(offset.governance_proposal, offset.governance_proposal + 32)),
     totalParticipants: data.readBigUInt64LE(offset.total_participants),
     minParticipationAmount: data.readBigUInt64LE(offset.min_participation_amount),
+    maxWalletParticipationAmount: data.readBigUInt64LE(offset.max_wallet_participation_amount),
     maxTotalParticipationAmount: data.readBigUInt64LE(offset.max_total_participation_amount),
     totalParticipationAmount: data.readBigUInt64LE(offset.total_participation_amount),
+    participationStartsAt: data.readBigInt64LE(offset.participation_starts_at),
+    participationEndsAt: data.readBigInt64LE(offset.participation_ends_at),
     bump: data.readUInt8(offset.bump),
   };
 }

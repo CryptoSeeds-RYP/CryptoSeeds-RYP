@@ -1331,14 +1331,19 @@ pub mod cryptoseeds_protocol {
         receiving_account: Pubkey,
         governance_proposal: Pubkey,
         min_participation_amount: u64,
+        max_wallet_participation_amount: u64,
         max_total_participation_amount: u64,
+        participation_starts_at: i64,
+        participation_ends_at: i64,
     ) -> Result<()> {
         validate_protocol_authority(&ctx.accounts.config, &ctx.accounts.authority.key())?;
         validate_metadata_hash(&metadata_hash)?;
         validate_project_participation_bounds(
             min_participation_amount,
+            max_wallet_participation_amount,
             max_total_participation_amount,
         )?;
+        validate_project_participation_window(participation_starts_at, participation_ends_at)?;
         require!(
             required_tier != StakeTier::None,
             CryptoSeedsError::StakeBelowSeedTier
@@ -1365,8 +1370,11 @@ pub mod cryptoseeds_protocol {
         project.governance_proposal = ctx.accounts.governance_proposal_account.key();
         project.total_participants = 0;
         project.min_participation_amount = min_participation_amount;
+        project.max_wallet_participation_amount = max_wallet_participation_amount;
         project.max_total_participation_amount = max_total_participation_amount;
         project.total_participation_amount = 0;
+        project.participation_starts_at = participation_starts_at;
+        project.participation_ends_at = participation_ends_at;
         project.bump = ctx.bumps.project;
 
         emit!(ProjectRegistered {
@@ -1376,7 +1384,10 @@ pub mod cryptoseeds_protocol {
             risk_level,
             status,
             min_participation_amount,
+            max_wallet_participation_amount,
             max_total_participation_amount,
+            participation_starts_at,
+            participation_ends_at,
         });
 
         Ok(())
@@ -1438,6 +1449,7 @@ pub mod cryptoseeds_protocol {
         );
 
         let clock = Clock::get()?;
+        validate_project_participation_window_open(&ctx.accounts.project, clock.unix_timestamp)?;
         let project_key = ctx.accounts.project.key();
         record_project_participation_amount(&mut ctx.accounts.project, participation_amount)?;
 
@@ -2579,8 +2591,11 @@ pub struct ProjectRecord {
     pub governance_proposal: Pubkey,
     pub total_participants: u64,
     pub min_participation_amount: u64,
+    pub max_wallet_participation_amount: u64,
     pub max_total_participation_amount: u64,
     pub total_participation_amount: u64,
+    pub participation_starts_at: i64,
+    pub participation_ends_at: i64,
     pub bump: u8,
 }
 
@@ -3018,7 +3033,10 @@ pub struct ProjectRegistered {
     pub risk_level: ProjectRiskLevel,
     pub status: ProjectStatus,
     pub min_participation_amount: u64,
+    pub max_wallet_participation_amount: u64,
     pub max_total_participation_amount: u64,
+    pub participation_starts_at: i64,
+    pub participation_ends_at: i64,
 }
 
 #[event]
@@ -3181,8 +3199,14 @@ pub enum CryptoSeedsError {
     ProjectGovernanceNotApproved,
     #[msg("Project participation bounds are invalid.")]
     InvalidProjectParticipationBounds,
+    #[msg("Project participation window is invalid.")]
+    InvalidProjectParticipationWindow,
+    #[msg("Project participation window is closed.")]
+    ProjectParticipationWindowClosed,
     #[msg("Project participation amount is below the project minimum.")]
     ProjectParticipationBelowMinimum,
+    #[msg("Project participation amount exceeds the wallet limit.")]
+    ProjectParticipationAboveWalletLimit,
     #[msg("Project participation exceeds the project allocation cap.")]
     ProjectParticipationCapExceeded,
     #[msg("Wallet tier is insufficient for this action.")]
@@ -3911,11 +3935,33 @@ fn validate_project_status_against_governance(
 
 fn validate_project_participation_bounds(
     min_participation_amount: u64,
+    max_wallet_participation_amount: u64,
     max_total_participation_amount: u64,
 ) -> Result<()> {
     require!(
-        min_participation_amount > 0 && max_total_participation_amount >= min_participation_amount,
+        min_participation_amount > 0
+            && max_wallet_participation_amount >= min_participation_amount
+            && max_total_participation_amount >= max_wallet_participation_amount,
         CryptoSeedsError::InvalidProjectParticipationBounds
+    );
+    Ok(())
+}
+
+fn validate_project_participation_window(
+    participation_starts_at: i64,
+    participation_ends_at: i64,
+) -> Result<()> {
+    require!(
+        participation_ends_at > participation_starts_at,
+        CryptoSeedsError::InvalidProjectParticipationWindow
+    );
+    Ok(())
+}
+
+fn validate_project_participation_window_open(project: &ProjectRecord, now: i64) -> Result<()> {
+    require!(
+        now >= project.participation_starts_at && now <= project.participation_ends_at,
+        CryptoSeedsError::ProjectParticipationWindowClosed
     );
     Ok(())
 }
@@ -3927,6 +3973,10 @@ fn validate_project_participation_amount(
     require!(
         participation_amount >= project.min_participation_amount,
         CryptoSeedsError::ProjectParticipationBelowMinimum
+    );
+    require!(
+        participation_amount <= project.max_wallet_participation_amount,
+        CryptoSeedsError::ProjectParticipationAboveWalletLimit
     );
 
     let updated_total = project
@@ -4816,17 +4866,20 @@ mod tests {
 
     #[test]
     fn validates_project_participation_bounds_and_caps() {
-        assert!(validate_project_participation_bounds(1, 1).is_ok());
-        assert!(validate_project_participation_bounds(100, 1_000).is_ok());
-        assert!(validate_project_participation_bounds(0, 1_000).is_err());
-        assert!(validate_project_participation_bounds(1_001, 1_000).is_err());
+        assert!(validate_project_participation_bounds(1, 1, 1).is_ok());
+        assert!(validate_project_participation_bounds(100, 500, 1_000).is_ok());
+        assert!(validate_project_participation_bounds(0, 500, 1_000).is_err());
+        assert!(validate_project_participation_bounds(501, 500, 1_000).is_err());
+        assert!(validate_project_participation_bounds(100, 1_001, 1_000).is_err());
 
         let mut project = project_record();
         project.min_participation_amount = 100;
+        project.max_wallet_participation_amount = 600;
         project.max_total_participation_amount = 1_000;
         project.total_participation_amount = 400;
 
         assert!(record_project_participation_amount(&mut project, 99).is_err());
+        assert!(record_project_participation_amount(&mut project, 601).is_err());
         assert!(record_project_participation_amount(&mut project, 700).is_err());
 
         assert!(record_project_participation_amount(&mut project, 600).is_ok());
@@ -4840,6 +4893,23 @@ mod tests {
         let mut participant_overflow = project_record();
         participant_overflow.total_participants = u64::MAX;
         assert!(record_project_participation_amount(&mut participant_overflow, 100).is_err());
+    }
+
+    #[test]
+    fn validates_project_participation_windows() {
+        assert!(validate_project_participation_window(100, 200).is_ok());
+        assert!(validate_project_participation_window(200, 200).is_err());
+        assert!(validate_project_participation_window(300, 200).is_err());
+
+        let mut project = project_record();
+        project.participation_starts_at = 100;
+        project.participation_ends_at = 200;
+
+        assert!(validate_project_participation_window_open(&project, 99).is_err());
+        assert!(validate_project_participation_window_open(&project, 100).is_ok());
+        assert!(validate_project_participation_window_open(&project, 150).is_ok());
+        assert!(validate_project_participation_window_open(&project, 200).is_ok());
+        assert!(validate_project_participation_window_open(&project, 201).is_err());
     }
 
     fn reward_vault_state(
@@ -4944,8 +5014,11 @@ mod tests {
             governance_proposal: Pubkey::new_unique(),
             total_participants: 0,
             min_participation_amount: 100,
+            max_wallet_participation_amount: 600,
             max_total_participation_amount: 1_000,
             total_participation_amount: 0,
+            participation_starts_at: 0,
+            participation_ends_at: 4_102_444_800,
             bump: 255,
         }
     }

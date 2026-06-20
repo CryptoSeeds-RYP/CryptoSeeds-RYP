@@ -169,7 +169,7 @@
   },
   "ProjectRecord": {
     "discriminatorHex": "5dae70cbe77b5c38",
-    "minimumLength": 180,
+    "minimumLength": 204,
     "fields": [
       {
         "name": "project_id",
@@ -232,21 +232,39 @@
         "size": 8
       },
       {
-        "name": "max_total_participation_amount",
+        "name": "max_wallet_participation_amount",
         "type": "u64",
         "offset": 163,
         "size": 8
       },
       {
-        "name": "total_participation_amount",
+        "name": "max_total_participation_amount",
         "type": "u64",
         "offset": 171,
         "size": 8
       },
       {
+        "name": "total_participation_amount",
+        "type": "u64",
+        "offset": 179,
+        "size": 8
+      },
+      {
+        "name": "participation_starts_at",
+        "type": "i64",
+        "offset": 187,
+        "size": 8
+      },
+      {
+        "name": "participation_ends_at",
+        "type": "i64",
+        "offset": 195,
+        "size": 8
+      },
+      {
         "name": "bump",
         "type": "u8",
-        "offset": 179,
+        "offset": 203,
         "size": 1
       }
     ]

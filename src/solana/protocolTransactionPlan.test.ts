@@ -275,9 +275,12 @@ describe("protocol transaction plan", () => {
     const registerProject = buildRegisterProjectTransactionPlan({
       authorityAddress: ownerAddress,
       governanceProposalAddress,
+      maxWalletParticipationAmountBaseUnits: 600n,
       maxTotalParticipationAmountBaseUnits: 1_000n,
       metadataHash: "ef".repeat(32),
       minParticipationAmountBaseUnits: 100n,
+      participationEndsAtUnix: 1_700_604_800n,
+      participationStartsAtUnix: 1_700_000_000n,
       projectId: 9n,
       receivingAccountAddress: receivingAccount,
       requiredTier: "SPROUT",
@@ -294,7 +297,9 @@ describe("protocol transaction plan", () => {
     expect(registerProject.action).toBe("REGISTER_PROJECT");
     expect(registerProject.instructions[0].dataHex).toMatch(/^829679d8b7e1f3c00900000000000000020104/);
     expect(registerProject.instructions[0].dataHex).toContain("ef".repeat(32));
-    expect(registerProject.instructions[0].dataHex.endsWith("6400000000000000e803000000000000")).toBe(true);
+    expect(registerProject.instructions[0].dataHex.endsWith("64000000000000005802000000000000e80300000000000000f1536500000000802b5d6500000000")).toBe(
+      true,
+    );
     expect(registerProject.instructions[0].accounts.map((account) => account.anchorName)).toEqual(
       PROTOCOL_INSTRUCTION_SPECS.register_project.accounts.map((account) => account.name),
     );
