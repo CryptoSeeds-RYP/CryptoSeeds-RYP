@@ -27,6 +27,8 @@ const ADD_TO_SPROUT_AMOUNT = 15_000_000_000n;
 const SPROUT_STAKE_AMOUNT = 20_000_000_000n;
 const HOLDER_REWARD_CLAIM_AMOUNT = 700n;
 const PLATFORM_FEE_ROUTE_AMOUNT = 30_000n;
+const PROJECT_MIN_PARTICIPATION_AMOUNT = 100n;
+const PROJECT_MAX_TOTAL_PARTICIPATION_AMOUNT = 1_000n;
 const SEEDBOT_MAX_TRADE_AMOUNT = 500n;
 const SEEDBOT_MAX_DAILY_VOLUME_AMOUNT = 1_500n;
 const SEEDBOT_MAX_DAILY_TRADES = 3;
@@ -415,6 +417,26 @@ async function runSmoke(connection) {
   const createdDraftProposal = parseGovernanceProposal(await getAccountData(connection, draftProposal));
   assertEqual("draft project proposal open status", createdDraftProposal.status, 0);
 
+  const invalidBoundsProjectId = 22n;
+  const invalidBoundsProject = deriveProjectAddress(invalidBoundsProjectId);
+  await expectFailure(
+    "register_project rejects invalid participation bounds",
+    () =>
+      registerProject(connection, {
+        authority,
+        config,
+        governanceProposal: draftProposal,
+        maxTotalParticipationAmount: 99n,
+        minParticipationAmount: PROJECT_MIN_PARTICIPATION_AMOUNT,
+        project: invalidBoundsProject,
+        projectId: invalidBoundsProjectId,
+        receivingAccount: Keypair.generate().publicKey,
+        statusVariant: 2,
+      }),
+    "custom program error",
+  );
+  await assertMissingAccount(connection, invalidBoundsProject, "project after invalid bounds rejection");
+
   const projectId = 21n;
   const project = deriveProjectAddress(projectId);
   const projectParticipation = deriveProjectParticipationAddress({ project, wallet: owner.publicKey });
@@ -432,6 +454,14 @@ async function runSmoke(connection) {
   assertEqual("registered project required tier", registeredProject.requiredTier, 1);
   assertEqual("registered project status", registeredProject.status, 2);
   assertPublicKey("registered project governance proposal", registeredProject.governanceProposal, draftProposal);
+  assertEqual("registered project min participation", registeredProject.minParticipationAmount, PROJECT_MIN_PARTICIPATION_AMOUNT);
+  assertEqual(
+    "registered project max participation",
+    registeredProject.maxTotalParticipationAmount,
+    PROJECT_MAX_TOTAL_PARTICIPATION_AMOUNT,
+  );
+  assertEqual("registered project total participation", registeredProject.totalParticipationAmount, 0n);
+  assertEqual("registered project total participants", registeredProject.totalParticipants, 0n);
 
   await expectFailure(
     "update_project_status rejects open project before approved governance",
@@ -799,7 +829,9 @@ async function runSmoke(connection) {
 	      "reject_governance_close_before_window_end",
 	      "close_governance_proposal_after_window",
 	      "reject_open_project_before_approved_governance",
+	      "reject_invalid_project_participation_bounds",
 	      "register_governance_vote_project",
+	      "project_participation_bounds_accounting",
 	      "reject_project_status_open_before_approved_governance",
 	      "reject_participation_before_project_open",
 	      "create_seedbot_permission",
@@ -1814,9 +1846,19 @@ async function closeGovernanceProposal(connection, { approved, authority, config
 
 async function registerProject(
   connection,
-  { authority, config, governanceProposal, project, projectId, receivingAccount, statusVariant = 2 },
+  {
+    authority,
+    config,
+    governanceProposal,
+    maxTotalParticipationAmount = PROJECT_MAX_TOTAL_PARTICIPATION_AMOUNT,
+    minParticipationAmount = PROJECT_MIN_PARTICIPATION_AMOUNT,
+    project,
+    projectId,
+    receivingAccount,
+    statusVariant = 2,
+  },
 ) {
-  const data = Buffer.alloc(8 + 8 + 1 + 1 + 1 + 32 + 32 + 32);
+  const data = Buffer.alloc(8 + 8 + 1 + 1 + 1 + 32 + 32 + 32 + 8 + 8);
   discriminator("register_project").copy(data, 0);
   data.writeBigUInt64LE(projectId, 8);
   data.writeUInt8(1, 16);
@@ -1825,6 +1867,8 @@ async function registerProject(
   REWARD_METADATA_HASH.copy(data, 19);
   receivingAccount.toBuffer().copy(data, 51);
   governanceProposal.toBuffer().copy(data, 83);
+  data.writeBigUInt64LE(minParticipationAmount, 115);
+  data.writeBigUInt64LE(maxTotalParticipationAmount, 123);
   const instruction = new TransactionInstruction({
     programId,
     keys: [
@@ -2449,6 +2493,9 @@ function parseProjectRecord(data) {
     receivingAccount: new PublicKey(data.subarray(offset.receiving_account, offset.receiving_account + 32)),
     governanceProposal: new PublicKey(data.subarray(offset.governance_proposal, offset.governance_proposal + 32)),
     totalParticipants: data.readBigUInt64LE(offset.total_participants),
+    minParticipationAmount: data.readBigUInt64LE(offset.min_participation_amount),
+    maxTotalParticipationAmount: data.readBigUInt64LE(offset.max_total_participation_amount),
+    totalParticipationAmount: data.readBigUInt64LE(offset.total_participation_amount),
     bump: data.readUInt8(offset.bump),
   };
 }

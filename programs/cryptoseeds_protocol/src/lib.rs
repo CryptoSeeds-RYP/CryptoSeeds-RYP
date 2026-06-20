@@ -1330,9 +1330,15 @@ pub mod cryptoseeds_protocol {
         metadata_hash: [u8; 32],
         receiving_account: Pubkey,
         governance_proposal: Pubkey,
+        min_participation_amount: u64,
+        max_total_participation_amount: u64,
     ) -> Result<()> {
         validate_protocol_authority(&ctx.accounts.config, &ctx.accounts.authority.key())?;
         validate_metadata_hash(&metadata_hash)?;
+        validate_project_participation_bounds(
+            min_participation_amount,
+            max_total_participation_amount,
+        )?;
         require!(
             required_tier != StakeTier::None,
             CryptoSeedsError::StakeBelowSeedTier
@@ -1358,6 +1364,9 @@ pub mod cryptoseeds_protocol {
         project.receiving_account = receiving_account;
         project.governance_proposal = ctx.accounts.governance_proposal_account.key();
         project.total_participants = 0;
+        project.min_participation_amount = min_participation_amount;
+        project.max_total_participation_amount = max_total_participation_amount;
+        project.total_participation_amount = 0;
         project.bump = ctx.bumps.project;
 
         emit!(ProjectRegistered {
@@ -1366,6 +1375,8 @@ pub mod cryptoseeds_protocol {
             required_tier,
             risk_level,
             status,
+            min_participation_amount,
+            max_total_participation_amount,
         });
 
         Ok(())
@@ -1427,8 +1438,11 @@ pub mod cryptoseeds_protocol {
         );
 
         let clock = Clock::get()?;
+        let project_key = ctx.accounts.project.key();
+        record_project_participation_amount(&mut ctx.accounts.project, participation_amount)?;
+
         let participation = &mut ctx.accounts.participation;
-        participation.project = ctx.accounts.project.key();
+        participation.project = project_key;
         participation.wallet = ctx.accounts.owner.key();
         participation.participation_amount = participation_amount;
         participation.disclosure_hash = disclosure_hash;
@@ -1436,17 +1450,12 @@ pub mod cryptoseeds_protocol {
         participation.status = ProjectParticipationStatus::Active;
         participation.bump = ctx.bumps.participation;
 
-        ctx.accounts.project.total_participants = ctx
-            .accounts
-            .project
-            .total_participants
-            .checked_add(1)
-            .ok_or(CryptoSeedsError::MathOverflow)?;
-
         emit!(ProjectParticipationRecorded {
             project: participation.project,
             wallet: participation.wallet,
             participation_amount,
+            total_participation_amount: ctx.accounts.project.total_participation_amount,
+            total_participants: ctx.accounts.project.total_participants,
         });
 
         Ok(())
@@ -2569,6 +2578,9 @@ pub struct ProjectRecord {
     pub receiving_account: Pubkey,
     pub governance_proposal: Pubkey,
     pub total_participants: u64,
+    pub min_participation_amount: u64,
+    pub max_total_participation_amount: u64,
+    pub total_participation_amount: u64,
     pub bump: u8,
 }
 
@@ -3005,6 +3017,8 @@ pub struct ProjectRegistered {
     pub required_tier: StakeTier,
     pub risk_level: ProjectRiskLevel,
     pub status: ProjectStatus,
+    pub min_participation_amount: u64,
+    pub max_total_participation_amount: u64,
 }
 
 #[event]
@@ -3018,6 +3032,8 @@ pub struct ProjectParticipationRecorded {
     pub project: Pubkey,
     pub wallet: Pubkey,
     pub participation_amount: u64,
+    pub total_participation_amount: u64,
+    pub total_participants: u64,
 }
 
 #[event]
@@ -3163,6 +3179,12 @@ pub enum CryptoSeedsError {
     InvalidProjectGovernanceProposal,
     #[msg("Project governance proposal is not approved for this project status.")]
     ProjectGovernanceNotApproved,
+    #[msg("Project participation bounds are invalid.")]
+    InvalidProjectParticipationBounds,
+    #[msg("Project participation amount is below the project minimum.")]
+    ProjectParticipationBelowMinimum,
+    #[msg("Project participation exceeds the project allocation cap.")]
+    ProjectParticipationCapExceeded,
     #[msg("Wallet tier is insufficient for this action.")]
     InsufficientTier,
     #[msg("Project is not open for participation.")]
@@ -3884,6 +3906,51 @@ fn validate_project_status_against_governance(
         }
     }
 
+    Ok(())
+}
+
+fn validate_project_participation_bounds(
+    min_participation_amount: u64,
+    max_total_participation_amount: u64,
+) -> Result<()> {
+    require!(
+        min_participation_amount > 0 && max_total_participation_amount >= min_participation_amount,
+        CryptoSeedsError::InvalidProjectParticipationBounds
+    );
+    Ok(())
+}
+
+fn validate_project_participation_amount(
+    project: &ProjectRecord,
+    participation_amount: u64,
+) -> Result<u64> {
+    require!(
+        participation_amount >= project.min_participation_amount,
+        CryptoSeedsError::ProjectParticipationBelowMinimum
+    );
+
+    let updated_total = project
+        .total_participation_amount
+        .checked_add(participation_amount)
+        .ok_or(CryptoSeedsError::MathOverflow)?;
+    require!(
+        updated_total <= project.max_total_participation_amount,
+        CryptoSeedsError::ProjectParticipationCapExceeded
+    );
+
+    Ok(updated_total)
+}
+
+fn record_project_participation_amount(
+    project: &mut ProjectRecord,
+    participation_amount: u64,
+) -> Result<()> {
+    let updated_total = validate_project_participation_amount(project, participation_amount)?;
+    project.total_participation_amount = updated_total;
+    project.total_participants = project
+        .total_participants
+        .checked_add(1)
+        .ok_or(CryptoSeedsError::MathOverflow)?;
     Ok(())
 }
 
@@ -4747,6 +4814,34 @@ mod tests {
         assert!(!ProjectStatus::Completed.is_participation_open());
     }
 
+    #[test]
+    fn validates_project_participation_bounds_and_caps() {
+        assert!(validate_project_participation_bounds(1, 1).is_ok());
+        assert!(validate_project_participation_bounds(100, 1_000).is_ok());
+        assert!(validate_project_participation_bounds(0, 1_000).is_err());
+        assert!(validate_project_participation_bounds(1_001, 1_000).is_err());
+
+        let mut project = project_record();
+        project.min_participation_amount = 100;
+        project.max_total_participation_amount = 1_000;
+        project.total_participation_amount = 400;
+
+        assert!(record_project_participation_amount(&mut project, 99).is_err());
+        assert!(record_project_participation_amount(&mut project, 700).is_err());
+
+        assert!(record_project_participation_amount(&mut project, 600).is_ok());
+        assert_eq!(project.total_participation_amount, 1_000);
+        assert_eq!(project.total_participants, 1);
+
+        let mut overflowing = project_record();
+        overflowing.total_participation_amount = u64::MAX;
+        assert!(record_project_participation_amount(&mut overflowing, 1).is_err());
+
+        let mut participant_overflow = project_record();
+        participant_overflow.total_participants = u64::MAX;
+        assert!(record_project_participation_amount(&mut participant_overflow, 100).is_err());
+    }
+
     fn reward_vault_state(
         reward_config: Pubkey,
         reward_mint: Pubkey,
@@ -4833,6 +4928,24 @@ mod tests {
             voting_ends_at: 2_000,
             minimum_votes: 1,
             closed_at: 0,
+            bump: 255,
+        }
+    }
+
+    fn project_record() -> ProjectRecord {
+        ProjectRecord {
+            project_id: 9,
+            authority: Pubkey::new_unique(),
+            required_tier: StakeTier::Seed,
+            risk_level: ProjectRiskLevel::Medium,
+            status: ProjectStatus::Open,
+            metadata_hash: [7; 32],
+            receiving_account: Pubkey::new_unique(),
+            governance_proposal: Pubkey::new_unique(),
+            total_participants: 0,
+            min_participation_amount: 100,
+            max_total_participation_amount: 1_000,
+            total_participation_amount: 0,
             bump: 255,
         }
     }

@@ -805,7 +805,9 @@
       "status",
       "metadata_hash",
       "receiving_account",
-      "governance_proposal"
+      "governance_proposal",
+      "min_participation_amount",
+      "max_total_participation_amount"
     ],
     "accounts": [
       {

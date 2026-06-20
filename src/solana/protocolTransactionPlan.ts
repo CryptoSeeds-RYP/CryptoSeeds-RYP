@@ -241,6 +241,8 @@ export type RegisterProjectPlanInput = {
   metadataHash: string | Uint8Array | number[];
   receivingAccountAddress: string;
   governanceProposalAddress: string;
+  minParticipationAmountBaseUnits: bigint | number | string;
+  maxTotalParticipationAmountBaseUnits: bigint | number | string;
 };
 
 export type UpdateProjectStatusPlanInput = {
@@ -709,7 +711,9 @@ export function buildCloseGovernanceProposalTransactionPlan({
 export function buildRegisterProjectTransactionPlan({
   authorityAddress,
   governanceProposalAddress,
+  maxTotalParticipationAmountBaseUnits,
   metadataHash,
+  minParticipationAmountBaseUnits,
   projectId,
   receivingAccountAddress,
   requiredTier,
@@ -719,6 +723,8 @@ export function buildRegisterProjectTransactionPlan({
   const project = toU64(projectId);
   const receivingAccount = new PublicKey(receivingAccountAddress);
   const governanceProposal = new PublicKey(governanceProposalAddress);
+  const minParticipationAmount = toU64(minParticipationAmountBaseUnits);
+  const maxTotalParticipationAmount = toU64(maxTotalParticipationAmountBaseUnits);
   const addresses = {
     ...deriveProtocolAddresses(authorityAddress),
     authority: new PublicKey(authorityAddress).toBase58(),
@@ -736,6 +742,8 @@ export function buildRegisterProjectTransactionPlan({
       fixedHashHex(metadataHash),
       pubkeyHex(receivingAccount),
       pubkeyHex(governanceProposal),
+      u64LeHex(minParticipationAmount),
+      u64LeHex(maxTotalParticipationAmount),
     ].join(""),
     discriminatorHex: spec.discriminatorHex,
     instructionName: "register_project",
@@ -750,6 +758,7 @@ export function buildRegisterProjectTransactionPlan({
     warnings: [
       "Admin-only project registration; project metadata and receiving account must be reviewed before signing.",
       "Public project statuses require an approved ProjectApproval governance proposal on-chain.",
+      "Project participation minimums and allocation caps are enforced by the protocol record.",
       "The receiving account is recorded only; project fund custody remains outside this instruction.",
     ],
   });

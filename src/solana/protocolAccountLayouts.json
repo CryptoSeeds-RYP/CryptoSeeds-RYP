@@ -169,7 +169,7 @@
   },
   "ProjectRecord": {
     "discriminatorHex": "5dae70cbe77b5c38",
-    "minimumLength": 156,
+    "minimumLength": 180,
     "fields": [
       {
         "name": "project_id",
@@ -226,9 +226,27 @@
         "size": 8
       },
       {
+        "name": "min_participation_amount",
+        "type": "u64",
+        "offset": 155,
+        "size": 8
+      },
+      {
+        "name": "max_total_participation_amount",
+        "type": "u64",
+        "offset": 163,
+        "size": 8
+      },
+      {
+        "name": "total_participation_amount",
+        "type": "u64",
+        "offset": 171,
+        "size": 8
+      },
+      {
         "name": "bump",
         "type": "u8",
-        "offset": 155,
+        "offset": 179,
         "size": 1
       }
     ]
