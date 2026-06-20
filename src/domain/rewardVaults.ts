@@ -178,7 +178,7 @@ export function validateRewardEpochDraft({
   }
 
   if (holderEpoch.rewardPoolBaseUnits === 0n) {
-    warnings.push("Holder epoch reward pool is zero.");
+    blockers.push("Holder epoch reward pool must be greater than zero.");
   }
 
   return {

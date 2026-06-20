@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import { PublicKey } from "@solana/web3.js";
 
 const tierRules = [
   { tier: "CANOPY", minimum: 100_000_000_000n, cadence: "WEEKLY" },
@@ -16,6 +17,7 @@ if (!inputPath) {
 }
 
 const input = JSON.parse(await readFile(inputPath, "utf8"));
+validateRawInput(input);
 const draft = buildDraft(input);
 
 console.log(JSON.stringify(draft, null, 2));
@@ -233,6 +235,106 @@ function validateDraft(input, holderEpoch) {
     blockers,
     warnings,
   };
+}
+
+function validateRawInput(input) {
+  if (!input || typeof input !== "object") {
+    throw new Error("Reward epoch input must be a JSON object.");
+  }
+  if (!String(input.id ?? "").trim()) {
+    throw new Error("Reward epoch id cannot be empty.");
+  }
+  canonicalPublicKey(input.rewardMint, "Reward mint");
+  validateIsoDate(input.createdAt, "Created timestamp");
+  validateIsoDate(input.snapshotTakenAt, "Snapshot timestamp");
+  parseBaseUnits(input.rewardPoolBaseUnits, "Reward pool", { allowZero: false });
+  parseBaseUnits(input.estimatedDeliveryCostPerPayoutBaseUnits, "Estimated delivery cost", { allowZero: true });
+  parseBaseUnits(input.minimumNetPayoutBaseUnits, "Minimum net payout", { allowZero: true });
+  validateScheduledCadences(input.scheduledCadences ?? ["WEEKLY"]);
+  validateSnapshotEntries(input.entries ?? []);
+  validateVaultPublicKeys(input.vaults ?? []);
+}
+
+function validateSnapshotEntries(entries) {
+  if (!Array.isArray(entries)) {
+    throw new Error("Snapshot entries must be an array.");
+  }
+
+  const seenWallets = new Set();
+  for (const [index, entry] of entries.entries()) {
+    const wallet = canonicalPublicKey(entry?.walletAddress, `Snapshot wallet ${index}`);
+    if (seenWallets.has(wallet)) {
+      throw new Error(`Duplicate snapshot wallet address: ${wallet}.`);
+    }
+    seenWallets.add(wallet);
+    parseBaseUnits(entry?.rypBalanceBaseUnits, `Snapshot balance for ${wallet}`, { allowZero: true });
+    if (entry?.excluded && !String(entry.exclusionReason ?? "").trim()) {
+      throw new Error(`Excluded snapshot wallet ${wallet} must include an exclusion reason.`);
+    }
+  }
+}
+
+function validateVaultPublicKeys(vaults) {
+  if (!Array.isArray(vaults)) {
+    throw new Error("Reward vaults must be an array.");
+  }
+
+  const seenVaultAddresses = new Set();
+  for (const vault of vaults) {
+    if (vault?.rewardMint !== undefined) canonicalPublicKey(vault.rewardMint, `${vault.label ?? vault.role ?? "Vault"} reward mint`);
+    if (vault?.address) {
+      const address = canonicalPublicKey(vault.address, `${vault.label ?? vault.role ?? "Vault"} address`);
+      if (seenVaultAddresses.has(address)) {
+        throw new Error(`Duplicate reward vault address: ${address}.`);
+      }
+      seenVaultAddresses.add(address);
+    }
+  }
+}
+
+function validateScheduledCadences(cadences) {
+  if (!Array.isArray(cadences) || cadences.length === 0) {
+    throw new Error("Scheduled cadences must be a non-empty array.");
+  }
+
+  const allowed = new Set(["WEEKLY", "MONTHLY", "QUARTERLY", "CLAIM_ONLY"]);
+  const seen = new Set();
+  for (const cadence of cadences) {
+    if (!allowed.has(cadence)) {
+      throw new Error(`Unsupported holder reward cadence: ${cadence}.`);
+    }
+    if (seen.has(cadence)) {
+      throw new Error(`Duplicate holder reward cadence: ${cadence}.`);
+    }
+    seen.add(cadence);
+  }
+}
+
+function validateIsoDate(value, label) {
+  const date = String(value ?? "").trim();
+  if (!date || Number.isNaN(Date.parse(date))) {
+    throw new Error(`${label} must be a valid ISO date.`);
+  }
+}
+
+function parseBaseUnits(value, label, { allowZero }) {
+  const text = String(value ?? "").trim();
+  if (!/^\d+$/.test(text)) {
+    throw new Error(`${label} must be a non-negative integer base-unit amount.`);
+  }
+  const amount = BigInt(text);
+  if (!allowZero && amount === 0n) {
+    throw new Error(`${label} must be greater than zero.`);
+  }
+  return amount;
+}
+
+function canonicalPublicKey(value, label) {
+  try {
+    return new PublicKey(String(value ?? "").trim()).toBase58();
+  } catch {
+    throw new Error(`${label} must be a valid Solana public key.`);
+  }
 }
 
 function tierForBalance(balance) {

@@ -125,6 +125,27 @@ describe("reward vault epoch drafts", () => {
     expect(draft.validation.warnings.join(" ")).toContain("not verified yet");
   });
 
+  it("blocks zero reward pools before review", () => {
+    const draft = buildRewardEpochDraft({
+      id: "reward-epoch-zero",
+      label: "Zero reward epoch",
+      createdAt: "2026-06-07T00:00:00.000Z",
+      vaults: vaults(),
+      holderEpochInput: {
+        id: "holder-epoch-zero",
+        rewardMint,
+        rewardPoolBaseUnits: 0n,
+        snapshotTakenAt: "2026-06-07T00:00:00.000Z",
+        estimatedDeliveryCostPerPayoutBaseUnits: 1_000n,
+        minimumNetPayoutBaseUnits: 2_000n,
+        entries: [{ walletAddress: "holder", rypBalanceBaseUnits: 20_000n * RYP }],
+      },
+    });
+
+    expect(draft.status).toBe("BLOCKED");
+    expect(draft.validation.blockers.join(" ")).toContain("reward pool must be greater than zero");
+  });
+
   it("serializes bigint accounting into reviewable JSON strings", () => {
     const draft = buildRewardEpochDraft({
       id: "reward-epoch-004",
