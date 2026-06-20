@@ -115,7 +115,9 @@
   },
   "claim_reward_record": {
     "discriminatorHex": "bad5cb11c7fba2e1",
-    "args": [],
+    "args": [
+      "reward_role"
+    ],
     "accounts": [
       {
         "name": "owner",
@@ -137,6 +139,78 @@
         "role": "claim record",
         "signer": false,
         "writable": true
+      }
+    ]
+  },
+  "claim_reward_tokens": {
+    "discriminatorHex": "254378326c1751c9",
+    "args": [
+      "_epoch_id",
+      "reward_role"
+    ],
+    "accounts": [
+      {
+        "name": "owner",
+        "label": "owner",
+        "role": "owner",
+        "signer": true,
+        "writable": true
+      },
+      {
+        "name": "reward_config",
+        "label": "reward config",
+        "role": "reward config",
+        "signer": false,
+        "writable": false
+      },
+      {
+        "name": "reward_epoch",
+        "label": "reward epoch",
+        "role": "reward epoch",
+        "signer": false,
+        "writable": true
+      },
+      {
+        "name": "claim_record",
+        "label": "claim record",
+        "role": "claim record",
+        "signer": false,
+        "writable": true
+      },
+      {
+        "name": "reward_vault_state",
+        "label": "reward vault state",
+        "role": "reward vault state",
+        "signer": false,
+        "writable": false
+      },
+      {
+        "name": "reward_source_vault",
+        "label": "reward source vault",
+        "role": "reward source vault",
+        "signer": false,
+        "writable": true
+      },
+      {
+        "name": "owner_reward_account",
+        "label": "owner reward account",
+        "role": "owner reward account",
+        "signer": false,
+        "writable": true
+      },
+      {
+        "name": "reward_mint",
+        "label": "reward mint",
+        "role": "reward mint",
+        "signer": false,
+        "writable": false
+      },
+      {
+        "name": "token_program",
+        "label": "token program",
+        "role": "token program",
+        "signer": false,
+        "writable": false
       }
     ]
   },
@@ -212,6 +286,7 @@
     "discriminatorHex": "957279d551758059",
     "args": [
       "_epoch_id",
+      "reward_role",
       "wallet",
       "gross_allocation_amount",
       "delivery_cost_amount",
@@ -245,7 +320,7 @@
         "label": "reward epoch",
         "role": "reward epoch",
         "signer": false,
-        "writable": false
+        "writable": true
       },
       {
         "name": "claim_record",

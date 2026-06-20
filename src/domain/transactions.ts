@@ -59,7 +59,17 @@ export type PreparedInstructionPlan = {
 };
 
 export type PreparedSolanaTransactionPlan = {
-  action: "STAKE_RYP" | "UNSTAKE_RYP" | "ACTIVATE_VOTING_RIGHTS";
+  action:
+    | "ACTIVATE_VOTING_RIGHTS"
+    | "CLAIM_REWARD"
+    | "CREATE_REWARD_CLAIM_RECORD"
+    | "CREATE_SEEDBOT_PERMISSION"
+    | "PARTICIPATE_PROJECT"
+    | "REVOKE_PERMISSION"
+    | "STAKE_RYP"
+    | "UNSTAKE_RYP"
+    | "UPDATE_FEE_CONFIG"
+    | "VOTE_PROPOSAL";
   feePayer: string;
   amountBaseUnits?: string;
   amountUi?: string;

@@ -477,6 +477,9 @@ pub mod cryptoseeds_protocol {
         reward_epoch.distributed_net_amount = distributed_net_amount;
         reward_epoch.reserved_delivery_cost_amount = reserved_delivery_cost_amount;
         reward_epoch.rolled_forward_amount = rolled_forward_amount;
+        reward_epoch.recorded_gross_allocation_amount = 0;
+        reward_epoch.recorded_net_claim_amount = 0;
+        reward_epoch.claimed_net_amount = 0;
         reward_epoch.exclusion_list_hash = exclusion_list_hash;
         reward_epoch.status = RewardEpochStatus::Drafted;
         reward_epoch.execution_blocked = true;
@@ -593,6 +596,7 @@ pub mod cryptoseeds_protocol {
     pub fn create_reward_claim_record(
         ctx: Context<CreateRewardClaimRecord>,
         _epoch_id: u64,
+        reward_role: RewardVaultRole,
         wallet: Pubkey,
         gross_allocation_amount: u64,
         delivery_cost_amount: u64,
@@ -605,6 +609,7 @@ pub mod cryptoseeds_protocol {
             ctx.accounts.config.key(),
             &ctx.accounts.authority.key(),
         )?;
+        validate_reward_claim_role(reward_role)?;
         validate_reward_epoch_claimable(&ctx.accounts.reward_epoch)?;
         validate_reward_claim_accounting(
             gross_allocation_amount,
@@ -617,8 +622,15 @@ pub mod cryptoseeds_protocol {
             CryptoSeedsError::InvalidRewardClaim
         );
 
+        record_reward_claim_amounts(
+            &mut ctx.accounts.reward_epoch,
+            gross_allocation_amount,
+            net_claim_amount,
+        )?;
+
         let claim_record = &mut ctx.accounts.claim_record;
         claim_record.reward_epoch = ctx.accounts.reward_epoch.key();
+        claim_record.reward_role = reward_role;
         claim_record.wallet = wallet;
         claim_record.gross_allocation_amount = gross_allocation_amount;
         claim_record.delivery_cost_amount = delivery_cost_amount;
@@ -629,6 +641,7 @@ pub mod cryptoseeds_protocol {
 
         emit!(RewardClaimRecordCreated {
             reward_epoch: claim_record.reward_epoch,
+            reward_role,
             wallet,
             gross_allocation_amount,
             net_claim_amount,
@@ -638,7 +651,11 @@ pub mod cryptoseeds_protocol {
         Ok(())
     }
 
-    pub fn claim_reward_record(ctx: Context<ClaimRewardRecord>) -> Result<()> {
+    pub fn claim_reward_record(
+        ctx: Context<ClaimRewardRecord>,
+        reward_role: RewardVaultRole,
+    ) -> Result<()> {
+        validate_reward_claim_role(reward_role)?;
         validate_reward_epoch_claimable(&ctx.accounts.reward_epoch)?;
         require_keys_eq!(
             ctx.accounts.claim_record.wallet,
@@ -650,7 +667,19 @@ pub mod cryptoseeds_protocol {
             CryptoSeedsError::RewardAlreadyClaimed
         );
         require!(
-            ctx.accounts.claim_record.net_claim_amount > 0,
+            ctx.accounts.claim_record.reward_role == reward_role,
+            CryptoSeedsError::InvalidRewardClaim
+        );
+        require!(
+            ctx.accounts.claim_record.reward_epoch == ctx.accounts.reward_epoch.key(),
+            CryptoSeedsError::InvalidRewardClaim
+        );
+        require!(
+            ctx.accounts.claim_record.net_claim_amount == 0,
+            CryptoSeedsError::RewardTokenClaimRequired
+        );
+        require!(
+            ctx.accounts.claim_record.rolled_forward_amount > 0,
             CryptoSeedsError::InvalidRewardClaim
         );
 
@@ -659,8 +688,95 @@ pub mod cryptoseeds_protocol {
 
         emit!(RewardClaimed {
             reward_epoch: claim_record.reward_epoch,
+            reward_role,
             wallet: claim_record.wallet,
             net_claim_amount: claim_record.net_claim_amount,
+        });
+
+        Ok(())
+    }
+
+    pub fn claim_reward_tokens(
+        ctx: Context<ClaimRewardTokens>,
+        _epoch_id: u64,
+        reward_role: RewardVaultRole,
+    ) -> Result<()> {
+        validate_reward_claim_role(reward_role)?;
+        validate_reward_epoch_claimable(&ctx.accounts.reward_epoch)?;
+        validate_reward_vault_for_token_claim(
+            &ctx.accounts.reward_vault_state,
+            ctx.accounts.reward_config.key(),
+            ctx.accounts.reward_mint.key(),
+            reward_role,
+        )?;
+        require_keys_eq!(
+            ctx.accounts.reward_epoch.reward_config,
+            ctx.accounts.reward_config.key(),
+            CryptoSeedsError::InvalidRewardClaim
+        );
+        require_keys_eq!(
+            ctx.accounts.reward_epoch.reward_mint,
+            ctx.accounts.reward_mint.key(),
+            CryptoSeedsError::InvalidRewardClaim
+        );
+        require_keys_eq!(
+            ctx.accounts.claim_record.reward_epoch,
+            ctx.accounts.reward_epoch.key(),
+            CryptoSeedsError::InvalidRewardClaim
+        );
+        require_keys_eq!(
+            ctx.accounts.claim_record.wallet,
+            ctx.accounts.owner.key(),
+            CryptoSeedsError::Unauthorized
+        );
+        require!(
+            ctx.accounts.claim_record.reward_role == reward_role,
+            CryptoSeedsError::InvalidRewardClaim
+        );
+        require!(
+            !ctx.accounts.claim_record.claimed,
+            CryptoSeedsError::RewardAlreadyClaimed
+        );
+        require!(
+            ctx.accounts.claim_record.net_claim_amount > 0,
+            CryptoSeedsError::InvalidRewardClaim
+        );
+
+        let claim_amount = ctx.accounts.claim_record.net_claim_amount;
+        let updated_claimed_amount = ctx
+            .accounts
+            .reward_epoch
+            .claimed_net_amount
+            .checked_add(claim_amount)
+            .ok_or(CryptoSeedsError::MathOverflow)?;
+        require!(
+            updated_claimed_amount <= ctx.accounts.reward_epoch.distributed_net_amount,
+            CryptoSeedsError::RewardClaimExceedsEpoch
+        );
+
+        let reward_config_bump = ctx.accounts.reward_config.bump;
+        let signer_seeds: &[&[&[u8]]] = &[&[REWARD_CONFIG_SEED, &[reward_config_bump]]];
+        let cpi_accounts = TransferChecked {
+            from: ctx.accounts.reward_source_vault.to_account_info(),
+            mint: ctx.accounts.reward_mint.to_account_info(),
+            to: ctx.accounts.owner_reward_account.to_account_info(),
+            authority: ctx.accounts.reward_config.to_account_info(),
+        };
+        let cpi_context = CpiContext::new_with_signer(
+            ctx.accounts.token_program.key(),
+            cpi_accounts,
+            signer_seeds,
+        );
+        transfer_checked(cpi_context, claim_amount, ctx.accounts.reward_mint.decimals)?;
+
+        ctx.accounts.reward_epoch.claimed_net_amount = updated_claimed_amount;
+        ctx.accounts.claim_record.claimed = true;
+
+        emit!(RewardClaimed {
+            reward_epoch: ctx.accounts.claim_record.reward_epoch,
+            reward_role,
+            wallet: ctx.accounts.claim_record.wallet,
+            net_claim_amount: claim_amount,
         });
 
         Ok(())
@@ -1087,7 +1203,7 @@ pub struct InitializeRewardConfig<'info> {
         seeds = [REWARD_CONFIG_SEED],
         bump
     )]
-    pub reward_config: Account<'info, RewardConfig>,
+    pub reward_config: Box<Account<'info, RewardConfig>>,
     pub system_program: Program<'info, System>,
 }
 
@@ -1227,7 +1343,7 @@ pub struct ReviewRewardEpoch<'info> {
         ],
         bump = reward_epoch.bump
     )]
-    pub reward_epoch: Account<'info, RewardEpoch>,
+    pub reward_epoch: Box<Account<'info, RewardEpoch>>,
 }
 
 #[derive(Accounts)]
@@ -1251,7 +1367,7 @@ pub struct CancelRewardEpoch<'info> {
 }
 
 #[derive(Accounts)]
-#[instruction(epoch_id: u64, wallet: Pubkey)]
+#[instruction(epoch_id: u64, reward_role: RewardVaultRole, wallet: Pubkey)]
 pub struct CreateRewardClaimRecord<'info> {
     #[account(mut)]
     pub authority: Signer<'info>,
@@ -1260,6 +1376,7 @@ pub struct CreateRewardClaimRecord<'info> {
     #[account(seeds = [REWARD_CONFIG_SEED], bump = reward_config.bump)]
     pub reward_config: Account<'info, RewardConfig>,
     #[account(
+        mut,
         seeds = [
             REWARD_EPOCH_SEED,
             reward_config.key().as_ref(),
@@ -1272,24 +1389,89 @@ pub struct CreateRewardClaimRecord<'info> {
         init,
         payer = authority,
         space = 8 + RewardClaimRecord::INIT_SPACE,
-        seeds = [REWARD_CLAIM_SEED, reward_epoch.key().as_ref(), wallet.as_ref()],
+        seeds = [
+            REWARD_CLAIM_SEED,
+            reward_epoch.key().as_ref(),
+            reward_role.seed(),
+            wallet.as_ref()
+        ],
         bump
     )]
-    pub claim_record: Account<'info, RewardClaimRecord>,
+    pub claim_record: Box<Account<'info, RewardClaimRecord>>,
     pub system_program: Program<'info, System>,
 }
 
 #[derive(Accounts)]
+#[instruction(reward_role: RewardVaultRole)]
 pub struct ClaimRewardRecord<'info> {
     pub owner: Signer<'info>,
     #[account()]
     pub reward_epoch: Account<'info, RewardEpoch>,
     #[account(
         mut,
-        seeds = [REWARD_CLAIM_SEED, reward_epoch.key().as_ref(), owner.key().as_ref()],
+        seeds = [
+            REWARD_CLAIM_SEED,
+            reward_epoch.key().as_ref(),
+            reward_role.seed(),
+            owner.key().as_ref()
+        ],
         bump = claim_record.bump
     )]
     pub claim_record: Account<'info, RewardClaimRecord>,
+}
+
+#[derive(Accounts)]
+#[instruction(epoch_id: u64, reward_role: RewardVaultRole)]
+pub struct ClaimRewardTokens<'info> {
+    #[account(mut)]
+    pub owner: Signer<'info>,
+    #[account(seeds = [REWARD_CONFIG_SEED], bump = reward_config.bump)]
+    pub reward_config: Box<Account<'info, RewardConfig>>,
+    #[account(
+        mut,
+        seeds = [
+            REWARD_EPOCH_SEED,
+            reward_config.key().as_ref(),
+            epoch_id.to_le_bytes().as_ref()
+        ],
+        bump = reward_epoch.bump
+    )]
+    pub reward_epoch: Box<Account<'info, RewardEpoch>>,
+    #[account(
+        mut,
+        seeds = [
+            REWARD_CLAIM_SEED,
+            reward_epoch.key().as_ref(),
+            reward_role.seed(),
+            owner.key().as_ref()
+        ],
+        bump = claim_record.bump
+    )]
+    pub claim_record: Box<Account<'info, RewardClaimRecord>>,
+    #[account(
+        seeds = [
+            REWARD_VAULT_STATE_SEED,
+            reward_config.key().as_ref(),
+            reward_role.seed()
+        ],
+        bump = reward_vault_state.bump
+    )]
+    pub reward_vault_state: Box<Account<'info, RewardVaultState>>,
+    #[account(
+        mut,
+        constraint = reward_source_vault.key() == reward_vault_state.vault_address @ CryptoSeedsError::InvalidRewardVault,
+        constraint = reward_source_vault.mint == reward_mint.key() @ CryptoSeedsError::InvalidRewardVault,
+        constraint = reward_source_vault.owner == reward_config.key() @ CryptoSeedsError::InvalidRewardVault
+    )]
+    pub reward_source_vault: Box<InterfaceAccount<'info, TokenAccount>>,
+    #[account(
+        mut,
+        constraint = owner_reward_account.mint == reward_mint.key() @ CryptoSeedsError::InvalidRewardVault,
+        constraint = owner_reward_account.owner == owner.key() @ CryptoSeedsError::InvalidRewardVault
+    )]
+    pub owner_reward_account: Box<InterfaceAccount<'info, TokenAccount>>,
+    pub reward_mint: Box<InterfaceAccount<'info, Mint>>,
+    pub token_program: Interface<'info, TokenInterface>,
 }
 
 #[derive(Accounts)]
@@ -1521,6 +1703,9 @@ pub struct RewardEpoch {
     pub distributed_net_amount: u64,
     pub reserved_delivery_cost_amount: u64,
     pub rolled_forward_amount: u64,
+    pub recorded_gross_allocation_amount: u64,
+    pub recorded_net_claim_amount: u64,
+    pub claimed_net_amount: u64,
     pub exclusion_list_hash: [u8; 32],
     pub status: RewardEpochStatus,
     pub execution_blocked: bool,
@@ -1531,6 +1716,7 @@ pub struct RewardEpoch {
 #[derive(InitSpace)]
 pub struct RewardClaimRecord {
     pub reward_epoch: Pubkey,
+    pub reward_role: RewardVaultRole,
     pub wallet: Pubkey,
     pub gross_allocation_amount: u64,
     pub delivery_cost_amount: u64,
@@ -1880,6 +2066,7 @@ pub struct RewardEpochCancelled {
 #[event]
 pub struct RewardClaimRecordCreated {
     pub reward_epoch: Pubkey,
+    pub reward_role: RewardVaultRole,
     pub wallet: Pubkey,
     pub gross_allocation_amount: u64,
     pub net_claim_amount: u64,
@@ -1889,6 +2076,7 @@ pub struct RewardClaimRecordCreated {
 #[event]
 pub struct RewardClaimed {
     pub reward_epoch: Pubkey,
+    pub reward_role: RewardVaultRole,
     pub wallet: Pubkey,
     pub net_claim_amount: u64,
 }
@@ -2004,6 +2192,12 @@ pub enum CryptoSeedsError {
     InvalidRewardEpochStatus,
     #[msg("Reward claim accounting is invalid.")]
     InvalidRewardClaim,
+    #[msg("Reward claim records exceed the reviewed epoch allocation.")]
+    RewardClaimExceedsEpoch,
+    #[msg("This reward claim must use the token-transfer claim path.")]
+    RewardTokenClaimRequired,
+    #[msg("Reward vault custody model is not valid for token payouts.")]
+    InvalidRewardVaultCustody,
     #[msg("Reward claim has already been recorded as claimed.")]
     RewardAlreadyClaimed,
     #[msg("Governance proposal is not open for voting.")]
@@ -2241,6 +2435,62 @@ fn validate_reward_claim_accounting(
     Ok(())
 }
 
+fn validate_reward_claim_role(reward_role: RewardVaultRole) -> Result<()> {
+    require!(
+        matches!(
+            reward_role,
+            RewardVaultRole::HolderReward | RewardVaultRole::StakerReward
+        ),
+        CryptoSeedsError::InvalidRewardClaim
+    );
+
+    Ok(())
+}
+
+fn record_reward_claim_amounts(
+    reward_epoch: &mut RewardEpoch,
+    gross_allocation_amount: u64,
+    net_claim_amount: u64,
+) -> Result<()> {
+    let recorded_gross_allocation_amount = reward_epoch
+        .recorded_gross_allocation_amount
+        .checked_add(gross_allocation_amount)
+        .ok_or(CryptoSeedsError::MathOverflow)?;
+    require!(
+        recorded_gross_allocation_amount <= reward_epoch.reward_pool_amount,
+        CryptoSeedsError::RewardClaimExceedsEpoch
+    );
+
+    let recorded_net_claim_amount = reward_epoch
+        .recorded_net_claim_amount
+        .checked_add(net_claim_amount)
+        .ok_or(CryptoSeedsError::MathOverflow)?;
+    require!(
+        recorded_net_claim_amount <= reward_epoch.distributed_net_amount,
+        CryptoSeedsError::RewardClaimExceedsEpoch
+    );
+
+    reward_epoch.recorded_gross_allocation_amount = recorded_gross_allocation_amount;
+    reward_epoch.recorded_net_claim_amount = recorded_net_claim_amount;
+
+    Ok(())
+}
+
+fn validate_reward_vault_for_token_claim(
+    vault_state: &RewardVaultState,
+    reward_config: Pubkey,
+    reward_mint: Pubkey,
+    role: RewardVaultRole,
+) -> Result<()> {
+    validate_reward_vault_for_epoch(vault_state, reward_config, reward_mint, role)?;
+    require!(
+        vault_state.custody_model == RewardVaultCustodyModel::ProgramControlled,
+        CryptoSeedsError::InvalidRewardVaultCustody
+    );
+
+    Ok(())
+}
+
 fn validate_metadata_hash(metadata_hash: &[u8; 32]) -> Result<()> {
     require!(*metadata_hash != [0; 32], CryptoSeedsError::InvalidMetadata);
     Ok(())
@@ -2430,6 +2680,56 @@ mod tests {
     }
 
     #[test]
+    fn restricts_reward_claim_roles_to_holder_and_staker_buckets() {
+        assert!(validate_reward_claim_role(RewardVaultRole::HolderReward).is_ok());
+        assert!(validate_reward_claim_role(RewardVaultRole::StakerReward).is_ok());
+        assert!(validate_reward_claim_role(RewardVaultRole::IndependentTreasury).is_err());
+        assert!(validate_reward_claim_role(RewardVaultRole::DeliveryCostReserve).is_err());
+        assert!(validate_reward_claim_role(RewardVaultRole::Rollover).is_err());
+    }
+
+    #[test]
+    fn caps_recorded_claim_amounts_to_reviewed_epoch_totals() {
+        let mut reward_epoch = reward_epoch(1_000, 700);
+
+        assert!(record_reward_claim_amounts(&mut reward_epoch, 700, 700).is_ok());
+        assert_eq!(reward_epoch.recorded_gross_allocation_amount, 700);
+        assert_eq!(reward_epoch.recorded_net_claim_amount, 700);
+
+        assert!(record_reward_claim_amounts(&mut reward_epoch, 301, 0).is_err());
+        assert!(record_reward_claim_amounts(&mut reward_epoch, 1, 1).is_err());
+    }
+
+    #[test]
+    fn token_claim_vaults_must_be_program_controlled() {
+        let reward_config = Pubkey::new_unique();
+        let reward_mint = Pubkey::new_unique();
+        let mut vault_state = reward_vault_state(
+            reward_config,
+            reward_mint,
+            RewardVaultRole::HolderReward,
+            RewardVaultVerificationStatus::Verified,
+        );
+
+        assert!(validate_reward_vault_for_token_claim(
+            &vault_state,
+            reward_config,
+            reward_mint,
+            RewardVaultRole::HolderReward,
+        )
+        .is_ok());
+
+        vault_state.custody_model = RewardVaultCustodyModel::TreasuryControlled;
+        assert!(validate_reward_vault_for_token_claim(
+            &vault_state,
+            reward_config,
+            reward_mint,
+            RewardVaultRole::HolderReward,
+        )
+        .is_err());
+    }
+
+    #[test]
     fn validates_metadata_hashes() {
         assert!(validate_metadata_hash(&[9; 32]).is_ok());
         assert!(validate_metadata_hash(&[0; 32]).is_err());
@@ -2469,6 +2769,29 @@ mod tests {
             verification_status,
             metadata_hash: [7; 32],
             receives_user_funds: false,
+            bump: 255,
+        }
+    }
+
+    fn reward_epoch(reward_pool_amount: u64, distributed_net_amount: u64) -> RewardEpoch {
+        RewardEpoch {
+            reward_config: Pubkey::new_unique(),
+            epoch_id: 3,
+            snapshot_taken_at: 1_800_000_000,
+            created_at: 1_800_000_010,
+            reward_mint: Pubkey::new_unique(),
+            reward_pool_amount,
+            distributed_net_amount,
+            reserved_delivery_cost_amount: 100,
+            rolled_forward_amount: reward_pool_amount
+                .saturating_sub(distributed_net_amount)
+                .saturating_sub(100),
+            recorded_gross_allocation_amount: 0,
+            recorded_net_claim_amount: 0,
+            claimed_net_amount: 0,
+            exclusion_list_hash: [9; 32],
+            status: RewardEpochStatus::Reviewed,
+            execution_blocked: false,
             bump: 255,
         }
     }

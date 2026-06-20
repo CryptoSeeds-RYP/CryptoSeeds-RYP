@@ -12,22 +12,20 @@ import protocolInstructionSpecsJson from "./protocolInstructionSpecs.json";
 
 export const CONFIG_SEED = "config";
 export const STAKE_POSITION_SEED = "stake-position";
+export const REWARD_CONFIG_SEED = "reward-config";
+export const REWARD_VAULT_STATE_SEED = "reward-vault";
+export const REWARD_EPOCH_SEED = "reward-epoch";
+export const REWARD_CLAIM_SEED = "reward-claim";
+export const GOVERNANCE_PROPOSAL_SEED = "governance-proposal";
+export const GOVERNANCE_VOTE_SEED = "governance-vote";
+export const PROJECT_RECORD_SEED = "project-record";
+export const PROJECT_PARTICIPATION_SEED = "project-participation";
+export const SEEDBOT_PERMISSION_SEED = "seedbot-permission";
 export const SPL_TOKEN_PROGRAM_ID = new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
 export const ASSOCIATED_TOKEN_PROGRAM_ID = new PublicKey("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL");
 
-type ProtocolAccountName =
-  | "associated_token_program"
-  | "config"
-  | "owner"
-  | "owner_ryp_account"
-  | "position"
-  | "ryp_mint"
-  | "ryp_vault"
-  | "system_program"
-  | "token_program";
-
 type ProtocolInstructionAccountSpec = {
-  name: ProtocolAccountName;
+  name: string;
   label: string;
   role: string;
   signer: boolean;
@@ -40,11 +38,38 @@ type ProtocolInstructionSpec = {
   accounts: ProtocolInstructionAccountSpec[];
 };
 
-export const PROTOCOL_INSTRUCTION_SPECS = protocolInstructionSpecsJson as Record<
-  "activate_voting_rights" | "stake_ryp" | "unstake_ryp",
-  ProtocolInstructionSpec
->;
+type ProtocolAddressBook = ReturnType<typeof deriveProtocolAddresses> &
+  Record<string, string | undefined> & {
+    authority?: string;
+    claimRecord?: string;
+    ownerRewardAccount?: string;
+    participation?: string;
+    permission?: string;
+    project?: string;
+    proposal?: string;
+    rewardEpoch?: string;
+    rewardSourceVault?: string;
+    rewardVaultState?: string;
+    voteRecord?: string;
+  };
+
+export type RewardClaimRole = "HOLDER_REWARD" | "STAKER_REWARD";
+
+export const PROTOCOL_INSTRUCTION_SPECS = protocolInstructionSpecsJson as Record<string, ProtocolInstructionSpec>;
+const U16_MAX = 2n ** 16n - 1n;
 const U64_MAX = 2n ** 64n - 1n;
+const I64_MIN = -(2n ** 63n);
+const I64_MAX = 2n ** 63n - 1n;
+
+const REWARD_ROLE_VARIANTS: Record<RewardClaimRole, number> = {
+  HOLDER_REWARD: 0,
+  STAKER_REWARD: 1,
+};
+
+const REWARD_ROLE_SEEDS: Record<RewardClaimRole, string> = {
+  HOLDER_REWARD: "holder-reward",
+  STAKER_REWARD: "staker-reward",
+};
 
 export type StakePlanInput = {
   ownerAddress: string;
@@ -61,6 +86,54 @@ export type VotingRightsPlanInput = {
   ownerAddress: string;
 };
 
+export type ClaimRewardRecordPlanInput = {
+  ownerAddress: string;
+  epochId: bigint | number | string;
+  rewardRole: RewardClaimRole;
+};
+
+export type ClaimRewardTokensPlanInput = ClaimRewardRecordPlanInput & {
+  rewardSourceVaultAddress: string;
+};
+
+export type CreateRewardClaimRecordPlanInput = {
+  authorityAddress: string;
+  epochId: bigint | number | string;
+  rewardRole: RewardClaimRole;
+  walletAddress: string;
+  grossAllocationAmountBaseUnits: bigint | number | string;
+  deliveryCostAmountBaseUnits: bigint | number | string;
+  netClaimAmountBaseUnits: bigint | number | string;
+  rolledForwardAmountBaseUnits: bigint | number | string;
+};
+
+export type GovernanceVotePlanInput = {
+  ownerAddress: string;
+  proposalId: bigint | number | string;
+  approve: boolean;
+};
+
+export type ProjectParticipationPlanInput = {
+  ownerAddress: string;
+  projectId: bigint | number | string;
+  participationAmountBaseUnits: bigint | number | string;
+  disclosureHash: string | Uint8Array | number[];
+};
+
+export type SeedBotPermissionPlanInput = {
+  ownerAddress: string;
+  permissionHash: string | Uint8Array | number[];
+  expiresAtUnix: bigint | number | string;
+  maxTradeAmountBaseUnits: bigint | number | string;
+  maxDailyTrades: number;
+};
+
+export type FeeConfigPlanInput = {
+  authorityAddress: string;
+  baseFeeBps: number;
+  tierFeeReductionBps: [number, number, number, number, number];
+};
+
 export function buildStakeRypTransactionPlan({
   amountUi,
   ownerAddress,
@@ -69,10 +142,10 @@ export function buildStakeRypTransactionPlan({
   const amount = amountUi ?? tierRequirements[tier];
   const amountBaseUnits = parseRypAmountToBaseUnits(amount, appConfig.rypDecimals);
   const addresses = deriveProtocolAddresses(ownerAddress);
-  const spec = PROTOCOL_INSTRUCTION_SPECS.stake_ryp;
+  const spec = instructionSpec("stake_ryp");
   const instruction = instructionPlan({
     accounts: accountsFromSpec(spec, addresses),
-    amountBaseUnits,
+    argDataHex: u64LeHex(BigInt(amountBaseUnits)),
     discriminatorHex: spec.discriminatorHex,
     instructionName: "stake_ryp",
     programId: addresses.programId,
@@ -97,10 +170,10 @@ export function buildUnstakeRypTransactionPlan({
 }: UnstakePlanInput): PreparedSolanaTransactionPlan {
   const amountBaseUnits = parseRypAmountToBaseUnits(amountUi, appConfig.rypDecimals);
   const addresses = deriveProtocolAddresses(ownerAddress);
-  const spec = PROTOCOL_INSTRUCTION_SPECS.unstake_ryp;
+  const spec = instructionSpec("unstake_ryp");
   const instruction = instructionPlan({
     accounts: accountsFromSpec(spec, addresses),
-    amountBaseUnits,
+    argDataHex: u64LeHex(BigInt(amountBaseUnits)),
     discriminatorHex: spec.discriminatorHex,
     instructionName: "unstake_ryp",
     programId: addresses.programId,
@@ -123,7 +196,7 @@ export function buildActivateVotingRightsTransactionPlan({
   ownerAddress,
 }: VotingRightsPlanInput): PreparedSolanaTransactionPlan {
   const addresses = deriveProtocolAddresses(ownerAddress);
-  const spec = PROTOCOL_INSTRUCTION_SPECS.activate_voting_rights;
+  const spec = instructionSpec("activate_voting_rights");
   const instruction = instructionPlan({
     accounts: accountsFromSpec(spec, addresses),
     discriminatorHex: spec.discriminatorHex,
@@ -142,11 +215,276 @@ export function buildActivateVotingRightsTransactionPlan({
   });
 }
 
+export function buildCreateRewardClaimRecordTransactionPlan({
+  authorityAddress,
+  deliveryCostAmountBaseUnits,
+  epochId,
+  grossAllocationAmountBaseUnits,
+  netClaimAmountBaseUnits,
+  rewardRole,
+  rolledForwardAmountBaseUnits,
+  walletAddress,
+}: CreateRewardClaimRecordPlanInput): PreparedSolanaTransactionPlan {
+  const epoch = toU64(epochId);
+  const wallet = new PublicKey(walletAddress);
+  const addresses = {
+    ...deriveProtocolAddresses(authorityAddress),
+    authority: new PublicKey(authorityAddress).toBase58(),
+    claimRecord: deriveRewardClaimRecordAddress({ epochId: epoch, rewardRole, walletAddress }),
+    rewardEpoch: deriveRewardEpochAddress(epoch),
+  };
+  const spec = instructionSpec("create_reward_claim_record");
+  const instruction = instructionPlan({
+    accounts: accountsFromSpec(spec, addresses),
+    argDataHex: [
+      u64LeHex(epoch),
+      rewardRoleVariantHex(rewardRole),
+      bytesToHex(wallet.toBytes()),
+      u64LeHex(toU64(grossAllocationAmountBaseUnits)),
+      u64LeHex(toU64(deliveryCostAmountBaseUnits)),
+      u64LeHex(toU64(netClaimAmountBaseUnits)),
+      u64LeHex(toU64(rolledForwardAmountBaseUnits)),
+    ].join(""),
+    discriminatorHex: spec.discriminatorHex,
+    instructionName: "create_reward_claim_record",
+    programId: addresses.programId,
+  });
+
+  return transactionPlan({
+    action: "CREATE_REWARD_CLAIM_RECORD",
+    addresses,
+    feePayer: addresses.authority,
+    instruction,
+    warnings: [
+      "Admin-only reward record creation; the epoch must already be reviewed on-chain.",
+      "Claim records are role-keyed so holder and staker buckets cannot overwrite each other.",
+    ],
+  });
+}
+
+export function buildClaimRewardRecordTransactionPlan({
+  epochId,
+  ownerAddress,
+  rewardRole,
+}: ClaimRewardRecordPlanInput): PreparedSolanaTransactionPlan {
+  const epoch = toU64(epochId);
+  const addresses = {
+    ...deriveProtocolAddresses(ownerAddress),
+    claimRecord: deriveRewardClaimRecordAddress({ epochId: epoch, rewardRole, walletAddress: ownerAddress }),
+    rewardEpoch: deriveRewardEpochAddress(epoch),
+  };
+  const spec = instructionSpec("claim_reward_record");
+  const instruction = instructionPlan({
+    accounts: accountsFromSpec(spec, addresses),
+    argDataHex: rewardRoleVariantHex(rewardRole),
+    discriminatorHex: spec.discriminatorHex,
+    instructionName: "claim_reward_record",
+    programId: addresses.programId,
+  });
+
+  return transactionPlan({
+    action: "CLAIM_REWARD",
+    addresses,
+    instruction,
+    warnings: [
+      "This plan is only for zero-net rollover claim records.",
+      "Positive reward payouts must use the token-transfer claim path.",
+    ],
+  });
+}
+
+export function buildClaimRewardTokensTransactionPlan({
+  epochId,
+  ownerAddress,
+  rewardRole,
+  rewardSourceVaultAddress,
+}: ClaimRewardTokensPlanInput): PreparedSolanaTransactionPlan {
+  const epoch = toU64(epochId);
+  const addresses = {
+    ...deriveProtocolAddresses(ownerAddress),
+    claimRecord: deriveRewardClaimRecordAddress({ epochId: epoch, rewardRole, walletAddress: ownerAddress }),
+    ownerRewardAccount: deriveProtocolAddresses(ownerAddress).ownerRypAccount,
+    rewardEpoch: deriveRewardEpochAddress(epoch),
+    rewardSourceVault: new PublicKey(rewardSourceVaultAddress).toBase58(),
+    rewardVaultState: deriveRewardVaultStateAddress(rewardRole),
+  };
+  const spec = instructionSpec("claim_reward_tokens");
+  const instruction = instructionPlan({
+    accounts: accountsFromSpec(spec, addresses),
+    argDataHex: `${u64LeHex(epoch)}${rewardRoleVariantHex(rewardRole)}`,
+    discriminatorHex: spec.discriminatorHex,
+    instructionName: "claim_reward_tokens",
+    programId: addresses.programId,
+  });
+
+  return transactionPlan({
+    action: "CLAIM_REWARD",
+    addresses,
+    instruction,
+    warnings: [
+      "Transfers only from a verified program-controlled reward vault.",
+      "The wallet still signs explicitly; no backend key or custody route is used.",
+    ],
+  });
+}
+
+export function buildCastGovernanceVoteTransactionPlan({
+  approve,
+  ownerAddress,
+  proposalId,
+}: GovernanceVotePlanInput): PreparedSolanaTransactionPlan {
+  const proposal = toU64(proposalId);
+  const addresses = {
+    ...deriveProtocolAddresses(ownerAddress),
+    proposal: deriveGovernanceProposalAddress(proposal),
+    voteRecord: deriveGovernanceVoteRecordAddress({ proposalId: proposal, walletAddress: ownerAddress }),
+  };
+  const spec = instructionSpec("cast_governance_vote");
+  const instruction = instructionPlan({
+    accounts: accountsFromSpec(spec, addresses),
+    argDataHex: `${u64LeHex(proposal)}${approve ? "01" : "00"}`,
+    discriminatorHex: spec.discriminatorHex,
+    instructionName: "cast_governance_vote",
+    programId: addresses.programId,
+  });
+
+  return transactionPlan({
+    action: "VOTE_PROPOSAL",
+    addresses,
+    instruction,
+    warnings: [
+      "Voting requires active on-chain voting rights after the staking delay.",
+      "One wallet can create only one vote record per proposal.",
+    ],
+  });
+}
+
+export function buildProjectParticipationTransactionPlan({
+  disclosureHash,
+  ownerAddress,
+  participationAmountBaseUnits,
+  projectId,
+}: ProjectParticipationPlanInput): PreparedSolanaTransactionPlan {
+  const project = toU64(projectId);
+  const amount = toU64(participationAmountBaseUnits);
+  const addresses = {
+    ...deriveProtocolAddresses(ownerAddress),
+    participation: deriveProjectParticipationAddress({ projectId: project, walletAddress: ownerAddress }),
+    project: deriveProjectRecordAddress(project),
+  };
+  const spec = instructionSpec("participate_project");
+  const instruction = instructionPlan({
+    accounts: accountsFromSpec(spec, addresses),
+    argDataHex: `${u64LeHex(project)}${u64LeHex(amount)}${fixedHashHex(disclosureHash)}`,
+    discriminatorHex: spec.discriminatorHex,
+    instructionName: "participate_project",
+    programId: addresses.programId,
+  });
+
+  return transactionPlan({
+    action: "PARTICIPATE_PROJECT",
+    addresses,
+    amountBaseUnits: amount.toString(),
+    instruction,
+    warnings: [
+      "Project participation requires the wallet to satisfy the project tier gate.",
+      "The disclosure hash must match the reviewed project risk packet.",
+    ],
+  });
+}
+
+export function buildCreateSeedBotPermissionTransactionPlan({
+  expiresAtUnix,
+  maxDailyTrades,
+  maxTradeAmountBaseUnits,
+  ownerAddress,
+  permissionHash,
+}: SeedBotPermissionPlanInput): PreparedSolanaTransactionPlan {
+  const addresses = {
+    ...deriveProtocolAddresses(ownerAddress),
+    permission: deriveSeedBotPermissionAddress(ownerAddress),
+  };
+  const spec = instructionSpec("create_seedbot_permission");
+  const instruction = instructionPlan({
+    accounts: accountsFromSpec(spec, addresses),
+    argDataHex: [
+      fixedHashHex(permissionHash),
+      i64LeHex(toI64(expiresAtUnix)),
+      u64LeHex(toU64(maxTradeAmountBaseUnits)),
+      u16LeHex(maxDailyTrades),
+    ].join(""),
+    discriminatorHex: spec.discriminatorHex,
+    instructionName: "create_seedbot_permission",
+    programId: addresses.programId,
+  });
+
+  return transactionPlan({
+    action: "CREATE_SEEDBOT_PERMISSION",
+    addresses,
+    instruction,
+    warnings: [
+      "SeedBot permissions are bounded by on-chain expiry, max trade amount, and max daily trade count.",
+      "This does not grant custody of the wallet or seed phrase.",
+    ],
+  });
+}
+
+export function buildRevokeSeedBotPermissionTransactionPlan({
+  ownerAddress,
+}: VotingRightsPlanInput): PreparedSolanaTransactionPlan {
+  const addresses = {
+    ...deriveProtocolAddresses(ownerAddress),
+    permission: deriveSeedBotPermissionAddress(ownerAddress),
+  };
+  const spec = instructionSpec("revoke_seedbot_permission");
+  const instruction = instructionPlan({
+    accounts: accountsFromSpec(spec, addresses),
+    discriminatorHex: spec.discriminatorHex,
+    instructionName: "revoke_seedbot_permission",
+    programId: addresses.programId,
+  });
+
+  return transactionPlan({
+    action: "REVOKE_PERMISSION",
+    addresses,
+    instruction,
+    warnings: ["Revokes the wallet's SeedBot permission record on-chain."],
+  });
+}
+
+export function buildUpdateFeeConfigTransactionPlan({
+  authorityAddress,
+  baseFeeBps,
+  tierFeeReductionBps,
+}: FeeConfigPlanInput): PreparedSolanaTransactionPlan {
+  const addresses = {
+    ...deriveProtocolAddresses(authorityAddress),
+    authority: new PublicKey(authorityAddress).toBase58(),
+  };
+  const spec = instructionSpec("update_fee_config");
+  const instruction = instructionPlan({
+    accounts: accountsFromSpec(spec, addresses),
+    argDataHex: `${u16LeHex(baseFeeBps)}${tierFeeReductionBps.map(u16LeHex).join("")}`,
+    discriminatorHex: spec.discriminatorHex,
+    instructionName: "update_fee_config",
+    programId: addresses.programId,
+  });
+
+  return transactionPlan({
+    action: "UPDATE_FEE_CONFIG",
+    addresses,
+    feePayer: addresses.authority,
+    instruction,
+    warnings: ["Admin-only fee config update. The protocol authority must sign."],
+  });
+}
+
 export function deriveProtocolAddresses(ownerAddress: string) {
   const programId = new PublicKey(appConfig.protocolProgramId);
   const owner = new PublicKey(ownerAddress);
   const rypMint = new PublicKey(appConfig.rypMintAddress);
   const [config] = PublicKey.findProgramAddressSync([textSeed(CONFIG_SEED)], programId);
+  const [rewardConfig] = PublicKey.findProgramAddressSync([textSeed(REWARD_CONFIG_SEED)], programId);
   const [position] = PublicKey.findProgramAddressSync([textSeed(STAKE_POSITION_SEED), owner.toBuffer()], programId);
   const ownerRypAccount = deriveAssociatedTokenAddress({ mint: rypMint, owner });
   const rypVault = deriveAssociatedTokenAddress({ mint: rypMint, owner: config });
@@ -158,11 +496,114 @@ export function deriveProtocolAddresses(ownerAddress: string) {
     ownerRypAccount: ownerRypAccount.toBase58(),
     position: position.toBase58(),
     programId: programId.toBase58(),
+    rewardConfig: rewardConfig.toBase58(),
+    rewardMint: rypMint.toBase58(),
     rypMint: rypMint.toBase58(),
     rypVault: rypVault.toBase58(),
     systemProgramId: SystemProgram.programId.toBase58(),
     tokenProgramId: SPL_TOKEN_PROGRAM_ID.toBase58(),
   };
+}
+
+export function deriveRewardEpochAddress(epochId: bigint | number | string) {
+  const programId = new PublicKey(appConfig.protocolProgramId);
+  const rewardConfig = new PublicKey(deriveProtocolAddresses(SystemProgram.programId.toBase58()).rewardConfig);
+  const [address] = PublicKey.findProgramAddressSync(
+    [textSeed(REWARD_EPOCH_SEED), rewardConfig.toBuffer(), u64LeBytes(toU64(epochId))],
+    programId,
+  );
+  return address.toBase58();
+}
+
+export function deriveRewardClaimRecordAddress({
+  epochId,
+  rewardRole,
+  walletAddress,
+}: {
+  epochId: bigint | number | string;
+  rewardRole: RewardClaimRole;
+  walletAddress: string;
+}) {
+  const programId = new PublicKey(appConfig.protocolProgramId);
+  const rewardEpoch = new PublicKey(deriveRewardEpochAddress(epochId));
+  const wallet = new PublicKey(walletAddress);
+  const [address] = PublicKey.findProgramAddressSync(
+    [textSeed(REWARD_CLAIM_SEED), rewardEpoch.toBuffer(), textSeed(REWARD_ROLE_SEEDS[rewardRole]), wallet.toBuffer()],
+    programId,
+  );
+  return address.toBase58();
+}
+
+export function deriveRewardVaultStateAddress(rewardRole: RewardClaimRole) {
+  const programId = new PublicKey(appConfig.protocolProgramId);
+  const rewardConfig = new PublicKey(deriveProtocolAddresses(SystemProgram.programId.toBase58()).rewardConfig);
+  const [address] = PublicKey.findProgramAddressSync(
+    [textSeed(REWARD_VAULT_STATE_SEED), rewardConfig.toBuffer(), textSeed(REWARD_ROLE_SEEDS[rewardRole])],
+    programId,
+  );
+  return address.toBase58();
+}
+
+export function deriveGovernanceProposalAddress(proposalId: bigint | number | string) {
+  const programId = new PublicKey(appConfig.protocolProgramId);
+  const [address] = PublicKey.findProgramAddressSync(
+    [textSeed(GOVERNANCE_PROPOSAL_SEED), u64LeBytes(toU64(proposalId))],
+    programId,
+  );
+  return address.toBase58();
+}
+
+export function deriveGovernanceVoteRecordAddress({
+  proposalId,
+  walletAddress,
+}: {
+  proposalId: bigint | number | string;
+  walletAddress: string;
+}) {
+  const programId = new PublicKey(appConfig.protocolProgramId);
+  const proposal = new PublicKey(deriveGovernanceProposalAddress(proposalId));
+  const wallet = new PublicKey(walletAddress);
+  const [address] = PublicKey.findProgramAddressSync(
+    [textSeed(GOVERNANCE_VOTE_SEED), proposal.toBuffer(), wallet.toBuffer()],
+    programId,
+  );
+  return address.toBase58();
+}
+
+export function deriveProjectRecordAddress(projectId: bigint | number | string) {
+  const programId = new PublicKey(appConfig.protocolProgramId);
+  const [address] = PublicKey.findProgramAddressSync(
+    [textSeed(PROJECT_RECORD_SEED), u64LeBytes(toU64(projectId))],
+    programId,
+  );
+  return address.toBase58();
+}
+
+export function deriveProjectParticipationAddress({
+  projectId,
+  walletAddress,
+}: {
+  projectId: bigint | number | string;
+  walletAddress: string;
+}) {
+  const programId = new PublicKey(appConfig.protocolProgramId);
+  const project = new PublicKey(deriveProjectRecordAddress(projectId));
+  const wallet = new PublicKey(walletAddress);
+  const [address] = PublicKey.findProgramAddressSync(
+    [textSeed(PROJECT_PARTICIPATION_SEED), project.toBuffer(), wallet.toBuffer()],
+    programId,
+  );
+  return address.toBase58();
+}
+
+export function deriveSeedBotPermissionAddress(ownerAddress: string) {
+  const programId = new PublicKey(appConfig.protocolProgramId);
+  const owner = new PublicKey(ownerAddress);
+  const [address] = PublicKey.findProgramAddressSync(
+    [textSeed(SEEDBOT_PERMISSION_SEED), owner.toBuffer()],
+    programId,
+  );
+  return address.toBase58();
 }
 
 export function parseRypAmountToBaseUnits(amountUi: number | string, decimals: number) {
@@ -201,13 +642,15 @@ function transactionPlan({
   addresses,
   amountBaseUnits,
   amountUi,
+  feePayer,
   instruction,
   warnings,
 }: {
   action: PreparedSolanaTransactionPlan["action"];
-  addresses: ReturnType<typeof deriveProtocolAddresses>;
+  addresses: ProtocolAddressBook;
   amountBaseUnits?: string;
   amountUi?: string;
+  feePayer?: string;
   instruction: PreparedInstructionPlan;
   warnings: string[];
 }): PreparedSolanaTransactionPlan {
@@ -216,7 +659,7 @@ function transactionPlan({
     amountBaseUnits,
     amountUi,
     derivedAccounts: derivedAccountReferences(addresses),
-    feePayer: addresses.owner,
+    feePayer: feePayer ?? addresses.owner,
     instructions: [instruction],
     warnings,
   };
@@ -224,30 +667,27 @@ function transactionPlan({
 
 function instructionPlan({
   accounts,
-  amountBaseUnits,
+  argDataHex = "",
   discriminatorHex,
   instructionName,
   programId,
 }: {
   accounts: PreparedInstructionAccount[];
-  amountBaseUnits?: string;
+  argDataHex?: string;
   discriminatorHex: string;
   instructionName: string;
   programId: string;
 }): PreparedInstructionPlan {
   return {
     accounts,
-    dataHex: `${discriminatorHex}${amountBaseUnits ? u64LeHex(BigInt(amountBaseUnits)) : ""}`,
+    dataHex: `${discriminatorHex}${argDataHex}`,
     discriminatorHex,
     instructionName,
     programId,
   };
 }
 
-function accountsFromSpec(
-  spec: ProtocolInstructionSpec,
-  addresses: ReturnType<typeof deriveProtocolAddresses>,
-): PreparedInstructionAccount[] {
+function accountsFromSpec(spec: ProtocolInstructionSpec, addresses: ProtocolAddressBook): PreparedInstructionAccount[] {
   return orderedAccounts(
     spec.accounts.map((accountSpec) =>
       account(
@@ -262,27 +702,75 @@ function accountsFromSpec(
   );
 }
 
-function derivedAccountReferences(addresses: ReturnType<typeof deriveProtocolAddresses>): TransactionAccountReference[] {
-  return [
+function derivedAccountReferences(addresses: ProtocolAddressBook): TransactionAccountReference[] {
+  const references = [
     account("config", "Protocol config", addresses.config, "Derived from seed: config", false, true),
     account("position", "Stake position", addresses.position, "Derived from stake-position + wallet", false, true),
     account("owner_ryp_account", "Owner RYP account", addresses.ownerRypAccount, "Associated token account for RYP", false, true),
     account("ryp_vault", "RYP vault", addresses.rypVault, "Associated token account owned by config PDA", false, true),
+    account("reward_config", "Reward config", addresses.rewardConfig, "Derived from seed: reward-config", false, false),
   ];
+
+  for (const [anchorName, label] of [
+    ["reward_epoch", "Reward epoch"],
+    ["claim_record", "Reward claim record"],
+    ["proposal", "Governance proposal"],
+    ["vote_record", "Governance vote record"],
+    ["project", "Project record"],
+    ["participation", "Project participation"],
+    ["permission", "SeedBot permission"],
+  ] as const) {
+    const address = addressForProtocolAccountIfPresent(addresses, anchorName);
+    if (address) references.push(account(anchorName, label, address, "Derived PDA", false, true));
+  }
+
+  return references;
 }
 
-function addressForProtocolAccount(addresses: ReturnType<typeof deriveProtocolAddresses>, name: ProtocolAccountName) {
+function addressForProtocolAccount(addresses: ProtocolAddressBook, name: string) {
+  const address = addressForProtocolAccountIfPresent(addresses, name);
+  if (!address) {
+    throw new Error(`Missing protocol account address for ${name}`);
+  }
+  return address;
+}
+
+function addressForProtocolAccountIfPresent(addresses: ProtocolAddressBook, name: string) {
   switch (name) {
     case "associated_token_program":
       return addresses.associatedTokenProgramId;
+    case "authority":
+      return addresses.authority;
+    case "claim_record":
+      return addresses.claimRecord;
     case "config":
       return addresses.config;
     case "owner":
       return addresses.owner;
+    case "owner_reward_account":
+      return addresses.ownerRewardAccount ?? addresses.ownerRypAccount;
     case "owner_ryp_account":
       return addresses.ownerRypAccount;
+    case "participation":
+      return addresses.participation;
+    case "permission":
+      return addresses.permission;
     case "position":
       return addresses.position;
+    case "project":
+      return addresses.project;
+    case "proposal":
+      return addresses.proposal;
+    case "reward_config":
+      return addresses.rewardConfig;
+    case "reward_epoch":
+      return addresses.rewardEpoch;
+    case "reward_mint":
+      return addresses.rewardMint;
+    case "reward_source_vault":
+      return addresses.rewardSourceVault;
+    case "reward_vault_state":
+      return addresses.rewardVaultState;
     case "ryp_mint":
       return addresses.rypMint;
     case "ryp_vault":
@@ -291,7 +779,10 @@ function addressForProtocolAccount(addresses: ReturnType<typeof deriveProtocolAd
       return addresses.systemProgramId;
     case "token_program":
       return addresses.tokenProgramId;
+    case "vote_record":
+      return addresses.voteRecord;
   }
+  return addresses[name];
 }
 
 function orderedAccounts(accounts: TransactionAccountReference[]): PreparedInstructionAccount[] {
@@ -316,11 +807,54 @@ function account(
   };
 }
 
+function instructionSpec(name: string) {
+  const spec = PROTOCOL_INSTRUCTION_SPECS[name];
+  if (!spec) {
+    throw new Error(`Missing protocol instruction spec for ${name}`);
+  }
+  return spec;
+}
+
 function textSeed(seed: string) {
   return new TextEncoder().encode(seed);
 }
 
-function u64LeHex(value: bigint) {
+function fixedHashHex(hash: string | Uint8Array | number[]) {
+  if (typeof hash === "string") {
+    const normalized = hash.replace(/^0x/i, "").trim();
+    if (!/^[0-9a-fA-F]{64}$/.test(normalized)) {
+      throw new Error("Hash must be exactly 32 bytes encoded as 64 hex characters");
+    }
+    if (/^0+$/.test(normalized)) {
+      throw new Error("Hash cannot be all zeros");
+    }
+    return normalized.toLowerCase();
+  }
+
+  const bytes = hash instanceof Uint8Array ? hash : Uint8Array.from(hash);
+  if (bytes.length !== 32) {
+    throw new Error("Hash must be exactly 32 bytes");
+  }
+  if (bytes.every((byte) => byte === 0)) {
+    throw new Error("Hash cannot be all zeros");
+  }
+  return bytesToHex(bytes);
+}
+
+function rewardRoleVariantHex(rewardRole: RewardClaimRole) {
+  const variant = REWARD_ROLE_VARIANTS[rewardRole];
+  if (variant === undefined) {
+    throw new Error(`Unsupported reward claim role: ${rewardRole}`);
+  }
+  return variant.toString(16).padStart(2, "0");
+}
+
+function u16LeHex(value: number) {
+  assertU16(value);
+  return bytesToHex(new Uint8Array([value & 0xff, (value >> 8) & 0xff]));
+}
+
+function u64LeBytes(value: bigint) {
   assertU64(value);
   const bytes = new Uint8Array(8);
   let cursor = value;
@@ -328,15 +862,60 @@ function u64LeHex(value: bigint) {
     bytes[index] = Number(cursor & 0xffn);
     cursor >>= 8n;
   }
-  return bytesToHex(bytes);
+  return bytes;
+}
+
+function u64LeHex(value: bigint) {
+  return bytesToHex(u64LeBytes(value));
+}
+
+function i64LeHex(value: bigint) {
+  assertI64(value);
+  const twosComplement = value < 0 ? 2n ** 64n + value : value;
+  return u64LeHex(twosComplement);
+}
+
+function toU64(value: bigint | number | string) {
+  const parsed = toIntegerBigInt(value, "u64");
+  assertU64(parsed);
+  return parsed;
+}
+
+function toI64(value: bigint | number | string) {
+  const parsed = toIntegerBigInt(value, "i64");
+  assertI64(parsed);
+  return parsed;
+}
+
+function toIntegerBigInt(value: bigint | number | string, label: string) {
+  if (typeof value === "bigint") return value;
+  if (typeof value === "number") {
+    if (!Number.isInteger(value)) throw new Error(`${label} value must be an integer`);
+    return BigInt(value);
+  }
+  const normalized = value.trim();
+  if (!/^-?\d+$/.test(normalized)) throw new Error(`${label} value must be an integer`);
+  return BigInt(normalized);
+}
+
+function assertU16(value: number) {
+  if (!Number.isInteger(value) || value < 0 || BigInt(value) > U16_MAX) {
+    throw new Error("Value exceeds Solana u16 bounds");
+  }
 }
 
 function assertU64(value: bigint) {
   if (value < 0 || value > U64_MAX) {
-    throw new Error("RYP amount exceeds Solana u64 token amount bounds");
+    throw new Error("Value exceeds Solana u64 bounds");
   }
 }
 
-function bytesToHex(bytes: Uint8Array) {
+function assertI64(value: bigint) {
+  if (value < I64_MIN || value > I64_MAX) {
+    throw new Error("Value exceeds Solana i64 bounds");
+  }
+}
+
+function bytesToHex(bytes: Uint8Array | number[]) {
   return [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }

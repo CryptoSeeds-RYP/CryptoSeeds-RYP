@@ -110,6 +110,9 @@ export type RewardEpochAccount = {
   distributedNetAmount: string;
   reservedDeliveryCostAmount: string;
   rolledForwardAmount: string;
+  recordedGrossAllocationAmount: string;
+  recordedNetClaimAmount: string;
+  claimedNetAmount: string;
   exclusionListHash: string;
   status: RewardEpochStatus;
   executionBlocked: boolean;
@@ -387,6 +390,9 @@ export function decodeRewardEpochAccount(data: Uint8Array): RewardEpochAccount {
     distributedNetAmount: readU64(data, offset.distributed_net_amount).toString(),
     reservedDeliveryCostAmount: readU64(data, offset.reserved_delivery_cost_amount).toString(),
     rolledForwardAmount: readU64(data, offset.rolled_forward_amount).toString(),
+    recordedGrossAllocationAmount: readU64(data, offset.recorded_gross_allocation_amount).toString(),
+    recordedNetClaimAmount: readU64(data, offset.recorded_net_claim_amount).toString(),
+    claimedNetAmount: readU64(data, offset.claimed_net_amount).toString(),
     exclusionListHash: bytesToHex(data.subarray(offset.exclusion_list_hash, offset.exclusion_list_hash + 32)),
     status: epochStatusFromVariant(data[offset.status]),
     executionBlocked: readBool(data, offset.execution_blocked),

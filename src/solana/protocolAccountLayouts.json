@@ -277,7 +277,7 @@
   },
   "RewardClaimRecord": {
     "discriminatorHex": "764d2d1024479a70",
-    "minimumLength": 106,
+    "minimumLength": 107,
     "fields": [
       {
         "name": "reward_epoch",
@@ -286,45 +286,51 @@
         "size": 32
       },
       {
+        "name": "reward_role",
+        "type": "defined:RewardVaultRole",
+        "offset": 40,
+        "size": 1
+      },
+      {
         "name": "wallet",
         "type": "pubkey",
-        "offset": 40,
+        "offset": 41,
         "size": 32
       },
       {
         "name": "gross_allocation_amount",
         "type": "u64",
-        "offset": 72,
+        "offset": 73,
         "size": 8
       },
       {
         "name": "delivery_cost_amount",
         "type": "u64",
-        "offset": 80,
+        "offset": 81,
         "size": 8
       },
       {
         "name": "net_claim_amount",
         "type": "u64",
-        "offset": 88,
+        "offset": 89,
         "size": 8
       },
       {
         "name": "rolled_forward_amount",
         "type": "u64",
-        "offset": 96,
+        "offset": 97,
         "size": 8
       },
       {
         "name": "claimed",
         "type": "bool",
-        "offset": 104,
+        "offset": 105,
         "size": 1
       },
       {
         "name": "bump",
         "type": "u8",
-        "offset": 105,
+        "offset": 106,
         "size": 1
       }
     ]
@@ -415,7 +421,7 @@
   },
   "RewardEpoch": {
     "discriminatorHex": "d6676a610e04219c",
-    "minimumLength": 163,
+    "minimumLength": 187,
     "fields": [
       {
         "name": "reward_config",
@@ -472,27 +478,45 @@
         "size": 8
       },
       {
+        "name": "recorded_gross_allocation_amount",
+        "type": "u64",
+        "offset": 128,
+        "size": 8
+      },
+      {
+        "name": "recorded_net_claim_amount",
+        "type": "u64",
+        "offset": 136,
+        "size": 8
+      },
+      {
+        "name": "claimed_net_amount",
+        "type": "u64",
+        "offset": 144,
+        "size": 8
+      },
+      {
         "name": "exclusion_list_hash",
         "type": "array:u8:32",
-        "offset": 128,
+        "offset": 152,
         "size": 32
       },
       {
         "name": "status",
         "type": "defined:RewardEpochStatus",
-        "offset": 160,
+        "offset": 184,
         "size": 1
       },
       {
         "name": "execution_blocked",
         "type": "bool",
-        "offset": 161,
+        "offset": 185,
         "size": 1
       },
       {
         "name": "bump",
         "type": "u8",
-        "offset": 162,
+        "offset": 186,
         "size": 1
       }
     ]

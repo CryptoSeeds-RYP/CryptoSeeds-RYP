@@ -2,7 +2,7 @@
 
 This document defines the next CryptoSeeds reward infrastructure slice.
 
-The goal is to prepare holder and staker reward accounting without enabling live payouts before protocol deployment and review gates.
+The goal is to prepare holder and staker reward accounting with explicit review gates and a narrowly scoped token-claim path for verified program-controlled vaults.
 
 ## Reward Vault Roles
 
@@ -62,8 +62,8 @@ Anchor now includes the first reward-account scaffold:
 | --- | --- |
 | `RewardConfig` | Reward authority, mint, vault roles, epoch cadence, pause flags |
 | `RewardVaultState` | Role, mint, vault address, verification metadata hash |
-| `RewardEpoch` | Snapshot timestamp, pool amount, net payout total, delivery cost reserve, rollover total, review status |
-| `RewardClaimRecord` | Wallet, epoch, claimed amount, delivery cost, rollover, claim state |
+| `RewardEpoch` | Snapshot timestamp, pool amount, net payout total, delivery cost reserve, rollover total, recorded claim totals, paid claim totals, review status |
+| `RewardClaimRecord` | Wallet, epoch, holder/staker role, claimed amount, delivery cost, rollover, claim state |
 | `RewardExclusionList` | Hash or registry pointer for excluded wallets |
 
 Current reward instructions:
@@ -76,12 +76,22 @@ Current reward instructions:
 | `draft_reward_epoch` | Creates a balanced, execution-blocked epoch draft | No funds |
 | `review_reward_epoch` | Marks a drafted epoch as reviewed and claim-record eligible | No funds |
 | `cancel_reward_epoch` | Cancels an epoch and keeps execution blocked | No funds |
-| `create_reward_claim_record` | Creates a wallet-specific claim accounting record after review | No funds |
-| `claim_reward_record` | Lets the wallet mark its reviewed claim record as claimed | No funds |
+| `create_reward_claim_record` | Creates a wallet-specific, role-keyed claim accounting record after review | No funds |
+| `claim_reward_record` | Lets the wallet mark a zero-net rollover claim record as claimed | No funds |
+| `claim_reward_tokens` | Lets the wallet claim a positive net reward from a verified program-controlled reward vault | Moves reviewed reward tokens only |
 
-No vault-moving payout instruction exists yet.
+The token-claim path is intentionally narrow:
 
-Reward logic remains modular from staking until batching, exclusion-list execution, funded vault transfer mechanics, and authority review are complete.
+- only holder and staker reward roles are claimable by wallets,
+- the claim record PDA includes the reward role so holder and staker claims cannot collide,
+- the source vault must match the reviewed `RewardVaultState`,
+- the source vault must be program-controlled,
+- the reward mint must match the reviewed epoch,
+- the wallet destination token account must be owned by the claiming wallet,
+- duplicate claims are rejected,
+- epoch-level recorded gross, recorded net, and claimed net totals prevent over-allocation and over-payment.
+
+Reward logic remains modular from staking until batching, exclusion-list execution, authority review, and public UI exposure are complete.
 
 ## Protocol Rejection Rules
 
@@ -93,6 +103,9 @@ The Anchor validation layer rejects:
 - zero reward pools,
 - unbalanced epoch accounting,
 - claim records before epoch review,
+- claim-record totals that exceed reviewed epoch totals,
+- token claims from non-program-controlled vaults,
+- wallet claims against treasury, delivery-cost, or rollover vault roles,
 - duplicate reward claims,
 - invalid claim accounting,
 - disabled vaults,

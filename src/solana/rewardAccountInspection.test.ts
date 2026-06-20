@@ -112,7 +112,7 @@ describe("reward account inspection", () => {
   it("decodes RewardEpoch account bytes", () => {
     const rewardConfig = Keypair.generate().publicKey;
     const rewardMint = Keypair.generate().publicKey;
-    const data = new Uint8Array(163);
+    const data = new Uint8Array(187);
 
     writeDiscriminator(data, "RewardEpoch");
     writePubkey(data, 8, rewardConfig);
@@ -124,10 +124,13 @@ describe("reward account inspection", () => {
     view(data).setBigUint64(104, 700n, true);
     view(data).setBigUint64(112, 100n, true);
     view(data).setBigUint64(120, 200n, true);
-    data.fill(9, 128, 160);
-    data[160] = 0;
-    data[161] = 1;
-    data[162] = 253;
+    view(data).setBigUint64(128, 900n, true);
+    view(data).setBigUint64(136, 700n, true);
+    view(data).setBigUint64(144, 700n, true);
+    data.fill(9, 152, 184);
+    data[184] = 0;
+    data[185] = 1;
+    data[186] = 253;
 
     expect(decodeRewardEpochAccount(data)).toMatchObject({
       createdAt: "1800000010",
@@ -135,6 +138,9 @@ describe("reward account inspection", () => {
       epochId: "3",
       executionBlocked: true,
       exclusionListHash: "09".repeat(32),
+      claimedNetAmount: "700",
+      recordedGrossAllocationAmount: "900",
+      recordedNetClaimAmount: "700",
       reservedDeliveryCostAmount: "100",
       rewardConfig: rewardConfig.toBase58(),
       rewardMint: rewardMint.toBase58(),
@@ -232,6 +238,9 @@ function buildDecodedInspection(
       distributedNetAmount: "700",
       reservedDeliveryCostAmount: "100",
       rolledForwardAmount: "200",
+      recordedGrossAllocationAmount: "900",
+      recordedNetClaimAmount: "700",
+      claimedNetAmount: "700",
       exclusionListHash: "09".repeat(32),
       status: "DRAFTED",
       executionBlocked: true,

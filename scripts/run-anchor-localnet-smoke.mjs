@@ -19,10 +19,12 @@ import {
 const TOKEN_PROGRAM_ID = new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
 const ASSOCIATED_TOKEN_PROGRAM_ID = new PublicKey("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL");
 const MINT_SIZE = 82;
+const TOKEN_ACCOUNT_SIZE = 165;
 const RYP_DECIMALS = 6;
 const SEED_STAKE_AMOUNT = 5_000_000_000n;
 const ADD_TO_SPROUT_AMOUNT = 15_000_000_000n;
 const SPROUT_STAKE_AMOUNT = 20_000_000_000n;
+const HOLDER_REWARD_CLAIM_AMOUNT = 700n;
 const VOTING_RIGHTS_DELAY_SECONDS = 14n * 24n * 60n * 60n;
 const REWARD_EPOCH_CADENCE_SECONDS = 7n * 24n * 60n * 60n;
 const REWARD_METADATA_HASH = Buffer.alloc(32, 7);
@@ -192,8 +194,9 @@ async function runSmoke(connection) {
       )[0],
     ]),
   );
+  const rewardVaultTokenAccounts = Object.fromEntries(REWARD_ROLES.map((role) => [role.key, Keypair.generate()]));
   const rewardVaultAddresses = Object.fromEntries(
-    REWARD_ROLES.map((role) => [role.key, Keypair.generate().publicKey]),
+    REWARD_ROLES.map((role) => [role.key, rewardVaultTokenAccounts[role.key].publicKey]),
   );
   const [position] = PublicKey.findProgramAddressSync([Buffer.from("stake-position"), owner.publicKey.toBuffer()], programId);
   const ownerRypAccount = deriveAssociatedTokenAddress({ mint: mint.publicKey, owner: owner.publicKey });
@@ -218,6 +221,20 @@ async function runSmoke(connection) {
     amount: SEED_STAKE_AMOUNT,
     authority,
     destination: ownerRypAccount,
+    mint: mint.publicKey,
+  });
+  for (const role of REWARD_ROLES) {
+    await createTokenAccount(connection, {
+      mint: mint.publicKey,
+      owner: rewardConfig,
+      payer: authority,
+      tokenAccount: rewardVaultTokenAccounts[role.key],
+    });
+  }
+  await mintTo(connection, {
+    amount: HOLDER_REWARD_CLAIM_AMOUNT,
+    authority,
+    destination: rewardVaultAddresses.holder,
     mint: mint.publicKey,
   });
 
@@ -268,6 +285,7 @@ async function runSmoke(connection) {
     intruder,
     mint: mint.publicKey,
     owner,
+    ownerRypAccount,
     rewardConfig,
     rewardVaultAddresses,
     rewardVaultStates,
@@ -552,7 +570,7 @@ async function runSmoke(connection) {
   assertEqual("final golden key state", finalPosition.goldenKeyActive, false);
   assertEqual("final voting rights state", finalPosition.votingRightsActive, false);
   assertEqual("final vault balance", finalVaultBalance, 0n);
-  assertEqual("final owner balance", finalOwnerBalance, SPROUT_STAKE_AMOUNT);
+  assertEqual("final owner balance", finalOwnerBalance, SPROUT_STAKE_AMOUNT + HOLDER_REWARD_CLAIM_AMOUNT);
 
   return {
     status: "passed",
@@ -580,7 +598,8 @@ async function runSmoke(connection) {
 	      "reject_claim_before_reward_epoch_review",
 	      "review_reward_epoch",
 	      "create_reward_claim_record",
-	      "claim_reward_record",
+	      "claim_reward_tokens",
+	      "claim_reward_record_rollover",
 	      "reject_duplicate_reward_claim",
 	      "admin_reward_inspection_report",
 	      "reject_below_tier_stake",
@@ -607,7 +626,7 @@ async function runSmoke(connection) {
 
 async function runRewardSmoke(
   connection,
-  { authority, config, intruder, mint, owner, rewardConfig, rewardVaultAddresses, rewardVaultStates },
+  { authority, config, intruder, mint, owner, ownerRypAccount, rewardConfig, rewardVaultAddresses, rewardVaultStates },
 ) {
   log("asserting invalid reward split is rejected");
   await expectFailure(
@@ -757,7 +776,16 @@ async function runRewardSmoke(
   assertEqual("drafted reward epoch status", draftedRewardEpoch.status, 0);
   assertEqual("drafted reward epoch execution blocked", draftedRewardEpoch.executionBlocked, true);
 
-  const rewardClaimRecord = deriveRewardClaimAddress({ rewardEpoch, wallet: owner.publicKey });
+  const holderRewardClaimRecord = deriveRewardClaimAddress({
+    rewardEpoch,
+    role: REWARD_ROLES[0],
+    wallet: owner.publicKey,
+  });
+  const stakerRewardClaimRecord = deriveRewardClaimAddress({
+    rewardEpoch,
+    role: REWARD_ROLES[1],
+    wallet: owner.publicKey,
+  });
   log("asserting reward claim records require reviewed epochs");
   await expectFailure(
     "create_reward_claim_record rejects drafted epoch",
@@ -767,12 +795,13 @@ async function runRewardSmoke(
         config,
         rewardConfig,
         rewardEpoch,
-        rewardClaimRecord,
+        rewardClaimRecord: holderRewardClaimRecord,
+        role: REWARD_ROLES[0],
         wallet: owner.publicKey,
       }),
     "custom program error",
   );
-  await assertMissingAccount(connection, rewardClaimRecord, "claim record after drafted epoch rejection");
+  await assertMissingAccount(connection, holderRewardClaimRecord, "claim record after drafted epoch rejection");
 
   log("calling review_reward_epoch");
   await reviewRewardEpoch(connection, { authority, config, epochId: 3n, rewardConfig, rewardEpoch });
@@ -784,26 +813,94 @@ async function runRewardSmoke(
   await createRewardClaimRecord(connection, {
     authority,
     config,
+    deliveryCostAmount: 0n,
+    grossAllocationAmount: HOLDER_REWARD_CLAIM_AMOUNT,
+    netClaimAmount: HOLDER_REWARD_CLAIM_AMOUNT,
     rewardConfig,
     rewardEpoch,
-    rewardClaimRecord,
+    rewardClaimRecord: holderRewardClaimRecord,
+    role: REWARD_ROLES[0],
+    rolledForwardAmount: 0n,
     wallet: owner.publicKey,
   });
-  const createdClaim = parseRewardClaimRecord(await getAccountData(connection, rewardClaimRecord));
+  const createdClaim = parseRewardClaimRecord(await getAccountData(connection, holderRewardClaimRecord));
+  assertEqual("claim record role", createdClaim.rewardRole, 0);
   assertPublicKey("claim record wallet", createdClaim.wallet, owner.publicKey);
-  assertEqual("claim record net claim", createdClaim.netClaimAmount, 700n);
+  assertEqual("claim record net claim", createdClaim.netClaimAmount, HOLDER_REWARD_CLAIM_AMOUNT);
   assertEqual("claim record initially unclaimed", createdClaim.claimed, false);
 
-  log("calling claim_reward_record");
-  await claimRewardRecord(connection, { owner, rewardEpoch, rewardClaimRecord });
-  const claimedRecord = parseRewardClaimRecord(await getAccountData(connection, rewardClaimRecord));
+  log("calling claim_reward_tokens");
+  const ownerBalanceBeforeRewardClaim = await readTokenBalance(connection, ownerRypAccount);
+  const holderRewardVaultBeforeClaim = await readTokenBalance(connection, rewardVaultAddresses.holder);
+  await claimRewardTokens(connection, {
+    epochId: 3n,
+    mint,
+    owner,
+    ownerRewardAccount: ownerRypAccount,
+    rewardClaimRecord: holderRewardClaimRecord,
+    rewardConfig,
+    rewardEpoch,
+    rewardSourceVault: rewardVaultAddresses.holder,
+    rewardVaultState: rewardVaultStates.holder,
+    role: REWARD_ROLES[0],
+  });
+  const claimedRecord = parseRewardClaimRecord(await getAccountData(connection, holderRewardClaimRecord));
   assertEqual("claim record claimed", claimedRecord.claimed, true);
+  assertEqual(
+    "owner reward balance after token claim",
+    await readTokenBalance(connection, ownerRypAccount),
+    ownerBalanceBeforeRewardClaim + HOLDER_REWARD_CLAIM_AMOUNT,
+  );
+  assertEqual(
+    "holder reward vault after token claim",
+    await readTokenBalance(connection, rewardVaultAddresses.holder),
+    holderRewardVaultBeforeClaim - HOLDER_REWARD_CLAIM_AMOUNT,
+  );
 
   await expectFailure(
-    "claim_reward_record rejects duplicate claim",
-    () => claimRewardRecord(connection, { owner, rewardEpoch, rewardClaimRecord }),
+    "claim_reward_tokens rejects duplicate claim",
+    () =>
+      claimRewardTokens(connection, {
+        epochId: 3n,
+        mint,
+        owner,
+        ownerRewardAccount: ownerRypAccount,
+        rewardClaimRecord: holderRewardClaimRecord,
+        rewardConfig,
+        rewardEpoch,
+        rewardSourceVault: rewardVaultAddresses.holder,
+        rewardVaultState: rewardVaultStates.holder,
+        role: REWARD_ROLES[0],
+      }),
     "custom program error",
   );
+
+  log("calling claim_reward_record for staker rollover");
+  await createRewardClaimRecord(connection, {
+    authority,
+    config,
+    deliveryCostAmount: 0n,
+    grossAllocationAmount: 200n,
+    netClaimAmount: 0n,
+    rewardClaimRecord: stakerRewardClaimRecord,
+    rewardConfig,
+    rewardEpoch,
+    role: REWARD_ROLES[1],
+    rolledForwardAmount: 200n,
+    wallet: owner.publicKey,
+  });
+  await claimRewardRecord(connection, {
+    owner,
+    rewardClaimRecord: stakerRewardClaimRecord,
+    rewardEpoch,
+    role: REWARD_ROLES[1],
+  });
+  const claimedRolloverRecord = parseRewardClaimRecord(await getAccountData(connection, stakerRewardClaimRecord));
+  assertEqual("rollover claim record claimed", claimedRolloverRecord.claimed, true);
+  const rewardEpochAfterClaims = parseRewardEpoch(await getAccountData(connection, rewardEpoch));
+  assertEqual("reward epoch recorded gross claims", rewardEpochAfterClaims.recordedGrossAllocationAmount, 900n);
+  assertEqual("reward epoch recorded net claims", rewardEpochAfterClaims.recordedNetClaimAmount, 700n);
+  assertEqual("reward epoch claimed net", rewardEpochAfterClaims.claimedNetAmount, 700n);
 
   await expectFailure(
     "verify_reward_vault rejects non-authority signer",
@@ -885,6 +982,9 @@ async function buildAdminRewardInspectionReport(connection, { rewardConfig, rewa
         distributedNetAmount: decodedRewardEpoch.distributedNetAmount.toString(),
         epochId: decodedRewardEpoch.epochId.toString(),
         executionBlocked: decodedRewardEpoch.executionBlocked,
+        claimedNetAmount: decodedRewardEpoch.claimedNetAmount.toString(),
+        recordedGrossAllocationAmount: decodedRewardEpoch.recordedGrossAllocationAmount.toString(),
+        recordedNetClaimAmount: decodedRewardEpoch.recordedNetClaimAmount.toString(),
         reservedDeliveryCostAmount: decodedRewardEpoch.reservedDeliveryCostAmount.toString(),
         rewardPoolAmount: decodedRewardEpoch.rewardPoolAmount.toString(),
         rolledForwardAmount: decodedRewardEpoch.rolledForwardAmount.toString(),
@@ -1059,30 +1159,33 @@ async function createRewardClaimRecord(
     authority,
     config,
     deliveryCostAmount = 100n,
+    epochId = 3n,
     grossAllocationAmount = 1_000n,
     netClaimAmount = 700n,
     rewardClaimRecord,
     rewardConfig,
     rewardEpoch,
+    role,
     rolledForwardAmount = 200n,
     wallet,
   },
 ) {
-  const data = Buffer.alloc(8 + 8 + 32 + 8 + 8 + 8 + 8);
+  const data = Buffer.alloc(8 + 8 + 1 + 32 + 8 + 8 + 8 + 8);
   discriminator("create_reward_claim_record").copy(data, 0);
-  data.writeBigUInt64LE(3n, 8);
-  wallet.toBuffer().copy(data, 16);
-  data.writeBigUInt64LE(grossAllocationAmount, 48);
-  data.writeBigUInt64LE(deliveryCostAmount, 56);
-  data.writeBigUInt64LE(netClaimAmount, 64);
-  data.writeBigUInt64LE(rolledForwardAmount, 72);
+  data.writeBigUInt64LE(epochId, 8);
+  data.writeUInt8(role.variant, 16);
+  wallet.toBuffer().copy(data, 17);
+  data.writeBigUInt64LE(grossAllocationAmount, 49);
+  data.writeBigUInt64LE(deliveryCostAmount, 57);
+  data.writeBigUInt64LE(netClaimAmount, 65);
+  data.writeBigUInt64LE(rolledForwardAmount, 73);
   const instruction = new TransactionInstruction({
     programId,
     keys: [
       accountMeta(authority.publicKey, true, true),
       accountMeta(config, false, false),
       accountMeta(rewardConfig, false, false),
-      accountMeta(rewardEpoch, false, false),
+      accountMeta(rewardEpoch, false, true),
       accountMeta(rewardClaimRecord, false, true),
       accountMeta(SystemProgram.programId, false, false),
     ],
@@ -1092,7 +1195,10 @@ async function createRewardClaimRecord(
   await sendAndConfirm(connection, new Transaction().add(instruction), [authority]);
 }
 
-async function claimRewardRecord(connection, { owner, rewardEpoch, rewardClaimRecord }) {
+async function claimRewardRecord(connection, { owner, rewardEpoch, rewardClaimRecord, role }) {
+  const data = Buffer.alloc(9);
+  discriminator("claim_reward_record").copy(data, 0);
+  data.writeUInt8(role.variant, 8);
   const instruction = new TransactionInstruction({
     programId,
     keys: [
@@ -1100,7 +1206,45 @@ async function claimRewardRecord(connection, { owner, rewardEpoch, rewardClaimRe
       accountMeta(rewardEpoch, false, false),
       accountMeta(rewardClaimRecord, false, true),
     ],
-    data: discriminator("claim_reward_record"),
+    data,
+  });
+
+  await sendAndConfirm(connection, new Transaction().add(instruction), [owner]);
+}
+
+async function claimRewardTokens(
+  connection,
+  {
+    epochId,
+    mint,
+    owner,
+    ownerRewardAccount,
+    rewardClaimRecord,
+    rewardConfig,
+    rewardEpoch,
+    rewardSourceVault,
+    rewardVaultState,
+    role,
+  },
+) {
+  const data = Buffer.alloc(17);
+  discriminator("claim_reward_tokens").copy(data, 0);
+  data.writeBigUInt64LE(epochId, 8);
+  data.writeUInt8(role.variant, 16);
+  const instruction = new TransactionInstruction({
+    programId,
+    keys: [
+      accountMeta(owner.publicKey, true, true),
+      accountMeta(rewardConfig, false, false),
+      accountMeta(rewardEpoch, false, true),
+      accountMeta(rewardClaimRecord, false, true),
+      accountMeta(rewardVaultState, false, false),
+      accountMeta(rewardSourceVault, false, true),
+      accountMeta(ownerRewardAccount, false, true),
+      accountMeta(mint, false, false),
+      accountMeta(TOKEN_PROGRAM_ID, false, false),
+    ],
+    data,
   });
 
   await sendAndConfirm(connection, new Transaction().add(instruction), [owner]);
@@ -1280,9 +1424,9 @@ function deriveRewardEpochAddress({ epochId, rewardConfig }) {
   )[0];
 }
 
-function deriveRewardClaimAddress({ rewardEpoch, wallet }) {
+function deriveRewardClaimAddress({ rewardEpoch, role, wallet }) {
   return PublicKey.findProgramAddressSync(
-    [Buffer.from("reward-claim"), rewardEpoch.toBuffer(), wallet.toBuffer()],
+    [Buffer.from("reward-claim"), rewardEpoch.toBuffer(), Buffer.from(role.seed), wallet.toBuffer()],
     programId,
   )[0];
 }
@@ -1471,6 +1615,31 @@ async function createAssociatedTokenAccount(connection, { mint, owner, payer, to
   await sendAndConfirm(connection, new Transaction().add(instruction), [payer]);
 }
 
+async function createTokenAccount(connection, { mint, owner, payer, tokenAccount }) {
+  const lamports = await connection.getMinimumBalanceForRentExemption(TOKEN_ACCOUNT_SIZE);
+  const transaction = new Transaction().add(
+    SystemProgram.createAccount({
+      fromPubkey: payer.publicKey,
+      lamports,
+      newAccountPubkey: tokenAccount.publicKey,
+      programId: TOKEN_PROGRAM_ID,
+      space: TOKEN_ACCOUNT_SIZE,
+    }),
+    new TransactionInstruction({
+      programId: TOKEN_PROGRAM_ID,
+      keys: [
+        accountMeta(tokenAccount.publicKey, false, true),
+        accountMeta(mint, false, false),
+        accountMeta(owner, false, false),
+        accountMeta(SYSVAR_RENT_PUBKEY, false, false),
+      ],
+      data: Buffer.from([1]),
+    }),
+  );
+
+  await sendAndConfirm(connection, transaction, [payer, tokenAccount]);
+}
+
 async function mintTo(connection, { amount, authority, destination, mint }) {
   const data = Buffer.alloc(9);
   data.writeUInt8(7, 0);
@@ -1618,6 +1787,9 @@ function parseRewardEpoch(data) {
     distributedNetAmount: data.readBigUInt64LE(offset.distributed_net_amount),
     reservedDeliveryCostAmount: data.readBigUInt64LE(offset.reserved_delivery_cost_amount),
     rolledForwardAmount: data.readBigUInt64LE(offset.rolled_forward_amount),
+    recordedGrossAllocationAmount: data.readBigUInt64LE(offset.recorded_gross_allocation_amount),
+    recordedNetClaimAmount: data.readBigUInt64LE(offset.recorded_net_claim_amount),
+    claimedNetAmount: data.readBigUInt64LE(offset.claimed_net_amount),
     exclusionListHash: data.subarray(offset.exclusion_list_hash, offset.exclusion_list_hash + 32),
     status: data.readUInt8(offset.status),
     executionBlocked: data.readUInt8(offset.execution_blocked) === 1,
@@ -1631,6 +1803,7 @@ function parseRewardClaimRecord(data) {
 
   return {
     rewardEpoch: new PublicKey(data.subarray(offset.reward_epoch, offset.reward_epoch + 32)),
+    rewardRole: data.readUInt8(offset.reward_role),
     wallet: new PublicKey(data.subarray(offset.wallet, offset.wallet + 32)),
     grossAllocationAmount: data.readBigUInt64LE(offset.gross_allocation_amount),
     deliveryCostAmount: data.readBigUInt64LE(offset.delivery_cost_amount),
