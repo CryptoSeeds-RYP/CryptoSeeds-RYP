@@ -203,6 +203,15 @@ pub mod cryptoseeds_protocol {
             ctx.accounts.position.staked_amount >= amount,
             CryptoSeedsError::InsufficientStake
         );
+        let previous_tier = ctx.accounts.position.tier;
+        let new_amount = ctx
+            .accounts
+            .position
+            .staked_amount
+            .checked_sub(amount)
+            .ok_or(CryptoSeedsError::MathOverflow)?;
+        let new_tier = StakeTier::from_amount(new_amount, &ctx.accounts.config.tier_thresholds);
+        validate_unstake_remainder(new_amount, new_tier)?;
 
         let config_bump = ctx.accounts.config.bump;
         let signer_seeds: &[&[&[u8]]] = &[&[CONFIG_SEED, &[config_bump]]];
@@ -218,10 +227,6 @@ pub mod cryptoseeds_protocol {
             signer_seeds,
         );
         transfer_checked(cpi_context, amount, ctx.accounts.ryp_mint.decimals)?;
-
-        let previous_tier = ctx.accounts.position.tier;
-        let new_amount = ctx.accounts.position.staked_amount - amount;
-        let new_tier = StakeTier::from_amount(new_amount, &ctx.accounts.config.tier_thresholds);
 
         let position = &mut ctx.accounts.position;
         position.staked_amount = new_amount;
@@ -4692,6 +4697,14 @@ fn validate_project_status_transition(current: ProjectStatus, next: ProjectStatu
     Ok(())
 }
 
+fn validate_unstake_remainder(staked_amount: u64, tier: StakeTier) -> Result<()> {
+    require!(
+        staked_amount == 0 || tier != StakeTier::None,
+        CryptoSeedsError::StakeBelowSeedTier
+    );
+    Ok(())
+}
+
 fn validate_project_open_for_mutation(project: &ProjectRecord) -> Result<()> {
     require!(
         !is_terminal_project_status(project.status),
@@ -4945,6 +4958,13 @@ mod tests {
             StakeTier::from_amount(THRESHOLDS[4] + 1, &THRESHOLDS),
             StakeTier::Fruit
         ));
+    }
+
+    #[test]
+    fn validates_unstake_remainder_threshold() {
+        assert!(validate_unstake_remainder(0, StakeTier::None).is_ok());
+        assert!(validate_unstake_remainder(THRESHOLDS[0], StakeTier::Seed).is_ok());
+        assert!(validate_unstake_remainder(THRESHOLDS[0] - 1, StakeTier::None).is_err());
     }
 
     #[test]
