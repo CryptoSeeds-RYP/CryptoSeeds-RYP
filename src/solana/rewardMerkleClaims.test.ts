@@ -6,7 +6,7 @@ import {
   buildRewardClaimMerkleExport,
   buildRewardClaimMerkleWalletPlan,
   rewardClaimLeafHash,
-  rewardMerkleNodeHash,
+  verifyRewardClaimMerkleRecord,
 } from "./rewardMerkleClaims";
 
 const rewardEpochAddress = Keypair.generate().publicKey.toBase58();
@@ -42,7 +42,15 @@ describe("reward Merkle claims", () => {
     });
 
     for (const record of exportPacket.records) {
-      expect(reconstructRoot(record.leafHash, record.leafIndex, record.proof)).toBe(exportPacket.claimMerkleRoot);
+      const verification = verifyRewardClaimMerkleRecord({
+        claimMerkleRoot: exportPacket.claimMerkleRoot,
+        record,
+      });
+      expect(verification).toEqual({
+        valid: true,
+        calculatedRoot: exportPacket.claimMerkleRoot,
+        blockers: [],
+      });
       expect(record.claimRecordAddress).toMatch(/^[1-9A-HJ-NP-Za-km-z]{32,44}$/);
     }
 
@@ -98,6 +106,47 @@ describe("reward Merkle claims", () => {
     const rolloverRecord = walletPlan.records.find((record) => record.walletAddress === seedHolder);
     expect(rolloverRecord?.walletActionStatus).toBe("READY_FOR_ROLLOVER_MARK");
     expect(rolloverRecord?.walletClaimPlan?.instructions[0].instructionName).toBe("claim_reward_record");
+  });
+
+  it("rejects tampered Merkle proof records before wallet execution planning is trusted", () => {
+    const exportPacket = buildRewardClaimMerkleExport({
+      epochId: 3n,
+      holderEpoch: fixtureHolderEpoch(),
+      rewardEpochAddress,
+      rewardRole: "HOLDER_REWARD",
+    });
+    const tamperedRecord = {
+      ...exportPacket.records[0],
+      proof: ["ff".repeat(32), ...exportPacket.records[0].proof.slice(1)],
+    };
+    const verification = verifyRewardClaimMerkleRecord({
+      claimMerkleRoot: exportPacket.claimMerkleRoot,
+      record: tamperedRecord,
+    });
+
+    expect(verification.valid).toBe(false);
+    expect(verification.blockers).toContain(
+      "Merkle proof root mismatch; record proof does not reconstruct the exported claim root.",
+    );
+  });
+
+  it("blocks wallet plans when exported claim roots do not match record proofs", () => {
+    const exportPacket = buildRewardClaimMerkleExport({
+      epochId: 3n,
+      holderEpoch: fixtureHolderEpoch(),
+      rewardEpochAddress,
+      rewardRole: "HOLDER_REWARD",
+    });
+    const walletPlan = buildRewardClaimMerkleWalletPlan({
+      merkleExport: {
+        ...exportPacket,
+        claimMerkleRoot: "ff".repeat(32),
+      },
+      rewardSourceVaultAddress,
+    });
+
+    expect(walletPlan.validation.valid).toBe(false);
+    expect(walletPlan.validation.blockers.join(" ")).toContain("Merkle proof invalid");
   });
 
   it("keeps pay-now wallet claim plans blocked until a source vault is supplied", () => {
@@ -214,22 +263,6 @@ function fixtureHolderEpoch() {
     scheduledCadences: ["WEEKLY"],
     snapshotTakenAt: "2026-06-07T00:00:00.000Z",
   });
-}
-
-function reconstructRoot(leafHash: string, leafIndex: string, proof: string[]) {
-  let node: Uint8Array<ArrayBufferLike> = hexToBytes(leafHash);
-  let index = BigInt(leafIndex);
-  for (const proofNode of proof) {
-    const sibling = hexToBytes(proofNode);
-    node = index % 2n === 0n ? rewardMerkleNodeHash(node, sibling) : rewardMerkleNodeHash(sibling, node);
-    index /= 2n;
-  }
-  return bytesToHex(node);
-}
-
-function hexToBytes(hex: string) {
-  const normalized = hex.replace(/^0x/i, "");
-  return Uint8Array.from(normalized.match(/.{1,2}/g)?.map((byte) => Number.parseInt(byte, 16)) ?? []);
 }
 
 function bytesToHex(bytes: Uint8Array) {

@@ -92,6 +92,12 @@ export type RewardClaimMerkleWalletPlan = {
   warnings: string[];
 };
 
+export type RewardClaimMerkleRecordVerification = {
+  valid: boolean;
+  calculatedRoot: string;
+  blockers: string[];
+};
+
 const REWARD_ROLE_VARIANTS: Record<RewardClaimRole, number> = {
   HOLDER_REWARD: 0,
   STAKER_REWARD: 1,
@@ -201,6 +207,56 @@ export function buildRewardClaimMerkleWalletPlan({
   };
 }
 
+export function verifyRewardClaimMerkleRecord({
+  claimMerkleRoot,
+  record,
+}: {
+  claimMerkleRoot: string;
+  record: RewardClaimMerkleRecord;
+}): RewardClaimMerkleRecordVerification {
+  const blockers: string[] = [];
+  let expectedRoot = "";
+  let node: Uint8Array<ArrayBufferLike>;
+  let index = 0n;
+
+  try {
+    expectedRoot = normalizeBytes32Hex(claimMerkleRoot, "Claim Merkle root");
+    node = hexToBytes32(record.leafHash, "Reward claim leaf hash");
+    index = parseNonNegativeBigInt(record.leafIndex, "Reward claim leaf index");
+  } catch (error) {
+    blockers.push(error instanceof Error ? error.message : "Reward claim proof input is invalid.");
+    return { valid: false, calculatedRoot: "", blockers };
+  }
+
+  if (record.proof.length > MAX_REWARD_MERKLE_PROOF_NODES) {
+    blockers.push(`Merkle proofs cannot exceed ${MAX_REWARD_MERKLE_PROOF_NODES} nodes.`);
+  }
+
+  for (const [proofIndex, proofNode] of record.proof.entries()) {
+    let sibling: Uint8Array;
+    try {
+      sibling = hexToBytes32(proofNode, `Reward claim proof node ${proofIndex}`);
+    } catch (error) {
+      blockers.push(error instanceof Error ? error.message : `Reward claim proof node ${proofIndex} is invalid.`);
+      return { valid: false, calculatedRoot: "", blockers: uniqueMessages(blockers) };
+    }
+
+    node = index % 2n === 0n ? rewardMerkleNodeHash(node, sibling) : rewardMerkleNodeHash(sibling, node);
+    index /= 2n;
+  }
+
+  const calculatedRoot = bytesToHex(node);
+  if (calculatedRoot !== expectedRoot) {
+    blockers.push("Merkle proof root mismatch; record proof does not reconstruct the exported claim root.");
+  }
+
+  return {
+    valid: blockers.length === 0,
+    calculatedRoot,
+    blockers: uniqueMessages(blockers),
+  };
+}
+
 function buildRewardClaimMerkleWalletRecordPlan({
   merkleExport,
   record,
@@ -306,6 +362,15 @@ function validateMerkleWalletPlan({
   }
   if (records.some((record) => record.createRecordFromProofPlan.action !== "CREATE_REWARD_CLAIM_RECORD_FROM_PROOF")) {
     blockers.push("Every wallet record must use the proof-backed claim-record creation path.");
+  }
+  for (const record of records) {
+    const proofVerification = verifyRewardClaimMerkleRecord({
+      claimMerkleRoot: merkleExport.claimMerkleRoot,
+      record,
+    });
+    if (!proofVerification.valid) {
+      blockers.push(`Merkle proof invalid for ${record.walletAddress}: ${proofVerification.blockers.join(" ")}`);
+    }
   }
 
   return {
@@ -455,6 +520,26 @@ function u64LeBytes(value: bigint) {
 
 function textBytes(value: string) {
   return new TextEncoder().encode(value);
+}
+
+function hexToBytes32(hex: string, label: string) {
+  const normalized = normalizeBytes32Hex(hex, label);
+  return Uint8Array.from(normalized.match(/.{2}/g)?.map((byte) => Number.parseInt(byte, 16)) ?? []);
+}
+
+function normalizeBytes32Hex(hex: string, label: string) {
+  const normalized = hex.replace(/^0x/i, "").toLowerCase();
+  if (!/^[0-9a-f]{64}$/.test(normalized)) {
+    throw new Error(`${label} must be a 32-byte hex string.`);
+  }
+  return normalized;
+}
+
+function parseNonNegativeBigInt(value: string, label: string) {
+  if (!/^\d+$/.test(value)) {
+    throw new Error(`${label} must be a non-negative integer string.`);
+  }
+  return BigInt(value);
 }
 
 function bytesToHex(bytes: Uint8Array) {
