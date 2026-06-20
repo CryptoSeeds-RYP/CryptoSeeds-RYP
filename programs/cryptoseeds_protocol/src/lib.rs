@@ -615,10 +615,14 @@ pub mod cryptoseeds_protocol {
         emit!(RewardEpochDrafted {
             reward_config: reward_config_key,
             epoch_id,
+            snapshot_taken_at,
+            reward_mint,
             reward_pool_amount,
             distributed_net_amount,
             reserved_delivery_cost_amount,
             rolled_forward_amount,
+            exclusion_list_hash,
+            claim_merkle_root,
             execution_blocked: true,
         });
 
@@ -754,6 +758,8 @@ pub mod cryptoseeds_protocol {
         emit!(RewardEpochReviewed {
             reward_config: reward_epoch.reward_config,
             epoch_id: reward_epoch.epoch_id,
+            claim_merkle_root: reward_epoch.claim_merkle_root,
+            execution_blocked: reward_epoch.execution_blocked,
         });
 
         Ok(())
@@ -778,6 +784,7 @@ pub mod cryptoseeds_protocol {
         emit!(RewardEpochCancelled {
             reward_config: reward_epoch.reward_config,
             epoch_id: reward_epoch.epoch_id,
+            execution_blocked: reward_epoch.execution_blocked,
         });
 
         Ok(())
@@ -818,6 +825,7 @@ pub mod cryptoseeds_protocol {
             net_claim_amount,
         )?;
 
+        let claim_record_key = ctx.accounts.claim_record.key();
         let claim_record = &mut ctx.accounts.claim_record;
         claim_record.reward_epoch = ctx.accounts.reward_epoch.key();
         claim_record.reward_role = reward_role;
@@ -830,10 +838,12 @@ pub mod cryptoseeds_protocol {
         claim_record.bump = ctx.bumps.claim_record;
 
         emit!(RewardClaimRecordCreated {
+            claim_record: claim_record_key,
             reward_epoch: claim_record.reward_epoch,
             reward_role,
             wallet,
             gross_allocation_amount,
+            delivery_cost_amount,
             net_claim_amount,
             rolled_forward_amount,
         });
@@ -884,6 +894,7 @@ pub mod cryptoseeds_protocol {
             net_claim_amount,
         )?;
 
+        let claim_record_key = ctx.accounts.claim_record.key();
         let claim_record = &mut ctx.accounts.claim_record;
         claim_record.reward_epoch = ctx.accounts.reward_epoch.key();
         claim_record.reward_role = reward_role;
@@ -896,20 +907,24 @@ pub mod cryptoseeds_protocol {
         claim_record.bump = ctx.bumps.claim_record;
 
         emit!(RewardClaimProofVerified {
+            claim_record: claim_record_key,
             reward_epoch: claim_record.reward_epoch,
             reward_role,
             wallet: claim_record.wallet,
             gross_allocation_amount,
+            delivery_cost_amount,
             net_claim_amount,
             rolled_forward_amount,
             leaf_index,
         });
 
         emit!(RewardClaimRecordCreated {
+            claim_record: claim_record_key,
             reward_epoch: claim_record.reward_epoch,
             reward_role,
             wallet: claim_record.wallet,
             gross_allocation_amount,
+            delivery_cost_amount,
             net_claim_amount,
             rolled_forward_amount,
         });
@@ -949,14 +964,18 @@ pub mod cryptoseeds_protocol {
             CryptoSeedsError::InvalidRewardClaim
         );
 
+        let claim_record_key = ctx.accounts.claim_record.key();
         let claim_record = &mut ctx.accounts.claim_record;
         claim_record.claimed = true;
 
         emit!(RewardClaimed {
+            claim_record: claim_record_key,
             reward_epoch: claim_record.reward_epoch,
             reward_role,
             wallet: claim_record.wallet,
+            delivery_cost_amount: claim_record.delivery_cost_amount,
             net_claim_amount: claim_record.net_claim_amount,
+            rolled_forward_amount: claim_record.rolled_forward_amount,
         });
 
         Ok(())
@@ -1008,6 +1027,7 @@ pub mod cryptoseeds_protocol {
             CryptoSeedsError::InvalidRewardClaim
         );
 
+        let claim_record_key = ctx.accounts.claim_record.key();
         let claim_amount = ctx.accounts.claim_record.net_claim_amount;
         let updated_claimed_amount = ctx
             .accounts
@@ -1039,10 +1059,13 @@ pub mod cryptoseeds_protocol {
         ctx.accounts.claim_record.claimed = true;
 
         emit!(RewardClaimed {
+            claim_record: claim_record_key,
             reward_epoch: ctx.accounts.claim_record.reward_epoch,
             reward_role,
             wallet: ctx.accounts.claim_record.wallet,
+            delivery_cost_amount: ctx.accounts.claim_record.delivery_cost_amount,
             net_claim_amount: claim_amount,
+            rolled_forward_amount: ctx.accounts.claim_record.rolled_forward_amount,
         });
 
         Ok(())
@@ -2450,10 +2473,14 @@ pub struct PlatformFeeRouted {
 pub struct RewardEpochDrafted {
     pub reward_config: Pubkey,
     pub epoch_id: u64,
+    pub snapshot_taken_at: i64,
+    pub reward_mint: Pubkey,
     pub reward_pool_amount: u64,
     pub distributed_net_amount: u64,
     pub reserved_delivery_cost_amount: u64,
     pub rolled_forward_amount: u64,
+    pub exclusion_list_hash: [u8; 32],
+    pub claim_merkle_root: [u8; 32],
     pub execution_blocked: bool,
 }
 
@@ -2494,30 +2521,37 @@ pub struct RewardAuthorityTransferred {
 pub struct RewardEpochReviewed {
     pub reward_config: Pubkey,
     pub epoch_id: u64,
+    pub claim_merkle_root: [u8; 32],
+    pub execution_blocked: bool,
 }
 
 #[event]
 pub struct RewardEpochCancelled {
     pub reward_config: Pubkey,
     pub epoch_id: u64,
+    pub execution_blocked: bool,
 }
 
 #[event]
 pub struct RewardClaimRecordCreated {
+    pub claim_record: Pubkey,
     pub reward_epoch: Pubkey,
     pub reward_role: RewardVaultRole,
     pub wallet: Pubkey,
     pub gross_allocation_amount: u64,
+    pub delivery_cost_amount: u64,
     pub net_claim_amount: u64,
     pub rolled_forward_amount: u64,
 }
 
 #[event]
 pub struct RewardClaimProofVerified {
+    pub claim_record: Pubkey,
     pub reward_epoch: Pubkey,
     pub reward_role: RewardVaultRole,
     pub wallet: Pubkey,
     pub gross_allocation_amount: u64,
+    pub delivery_cost_amount: u64,
     pub net_claim_amount: u64,
     pub rolled_forward_amount: u64,
     pub leaf_index: u64,
@@ -2525,10 +2559,13 @@ pub struct RewardClaimProofVerified {
 
 #[event]
 pub struct RewardClaimed {
+    pub claim_record: Pubkey,
     pub reward_epoch: Pubkey,
     pub reward_role: RewardVaultRole,
     pub wallet: Pubkey,
+    pub delivery_cost_amount: u64,
     pub net_claim_amount: u64,
+    pub rolled_forward_amount: u64,
 }
 
 #[event]
@@ -3590,24 +3627,10 @@ mod tests {
     #[test]
     fn validates_seedbot_permission_bounds() {
         let now = 1_000;
-        assert!(validate_seedbot_permission_limits_at(
-            now,
-            now + 60,
-            1_000,
-            5_000,
-            5,
-            100,
-        )
-        .is_ok());
-        assert!(validate_seedbot_permission_limits_at(
-            now,
-            now,
-            1_000,
-            5_000,
-            5,
-            100,
-        )
-        .is_err());
+        assert!(
+            validate_seedbot_permission_limits_at(now, now + 60, 1_000, 5_000, 5, 100,).is_ok()
+        );
+        assert!(validate_seedbot_permission_limits_at(now, now, 1_000, 5_000, 5, 100,).is_err());
         assert!(validate_seedbot_permission_limits_at(
             now,
             now + MAX_SEEDBOT_PERMISSION_SECONDS + 1,
@@ -3617,15 +3640,7 @@ mod tests {
             100,
         )
         .is_err());
-        assert!(validate_seedbot_permission_limits_at(
-            now,
-            now + 60,
-            1_000,
-            999,
-            5,
-            100,
-        )
-        .is_err());
+        assert!(validate_seedbot_permission_limits_at(now, now + 60, 1_000, 999, 5, 100,).is_err());
         assert!(validate_seedbot_permission_limits_at(
             now,
             now + 60,
