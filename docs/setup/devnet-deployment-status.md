@@ -31,6 +31,8 @@ Repo-side devnet prep is partially complete:
 - `npm run devnet:mint:test -- --env .env.devnet.example` is available to create the configured devnet test mint from ignored local keypairs.
 - `npm run devnet:program:check -- --env .env.devnet.example` is available to verify whether the configured program is deployed on devnet.
 - `npm run devnet:deploy:wsl -- -EnvPath .env.devnet.example` is available to build, run strict prep, deploy the program, and inspect the deployed program account.
+- `npm run devnet:init:protocol -- --env .env.devnet.example` is available to plan protocol initialization after devnet deploy.
+- `npm run devnet:init:protocol -- --env .env.devnet.example --execute` initializes config, reward config, and reward vault states only after reviewed execution.
 
 External blocker:
 
@@ -38,6 +40,7 @@ External blocker:
 - Because the authority wallet has `0 SOL`, the devnet test RYP mint has not been created yet.
 - `npm run devnet:prep -- --env .env.devnet.example` is correctly blocked until the devnet test mint account exists.
 - `npm run devnet:deploy:wsl -- -EnvPath .env.devnet.example` will also block until prep is clean.
+- `npm run devnet:init:protocol -- --env .env.devnet.example` will block until the devnet mint and program accounts exist.
 
 ## Next Commands
 
@@ -65,4 +68,16 @@ When prep is ready, deploy through WSL:
 npm run devnet:deploy:wsl -- -EnvPath .env.devnet.example
 ```
 
-Only after deploy inspection passes should protocol initialization steps proceed.
+Review the protocol initialization plan:
+
+```bash
+npm run devnet:init:protocol -- --env .env.devnet.example
+```
+
+After the derived accounts and vault custody are reviewed, initialize the protocol:
+
+```bash
+npm run devnet:init:protocol -- --env .env.devnet.example --execute
+```
+
+Only after protocol initialization and read-only account inspection pass should frontend transaction broadcast be reviewed.
