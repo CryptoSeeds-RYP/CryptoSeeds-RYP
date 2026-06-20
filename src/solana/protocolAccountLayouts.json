@@ -169,7 +169,7 @@
   },
   "ProjectRecord": {
     "discriminatorHex": "5dae70cbe77b5c38",
-    "minimumLength": 261,
+    "minimumLength": 301,
     "fields": [
       {
         "name": "project_id",
@@ -292,9 +292,75 @@
         "size": 1
       },
       {
+        "name": "current_disclosure_revision_id",
+        "type": "u64",
+        "offset": 260,
+        "size": 8
+      },
+      {
+        "name": "current_disclosure_hash",
+        "type": "array:u8:32",
+        "offset": 268,
+        "size": 32
+      },
+      {
         "name": "bump",
         "type": "u8",
-        "offset": 260,
+        "offset": 300,
+        "size": 1
+      }
+    ]
+  },
+  "ProjectDisclosureRevision": {
+    "discriminatorHex": "bb5c8b4d6d9b1112",
+    "minimumLength": 185,
+    "fields": [
+      {
+        "name": "project",
+        "type": "pubkey",
+        "offset": 8,
+        "size": 32
+      },
+      {
+        "name": "authority",
+        "type": "pubkey",
+        "offset": 40,
+        "size": 32
+      },
+      {
+        "name": "revision_id",
+        "type": "u64",
+        "offset": 72,
+        "size": 8
+      },
+      {
+        "name": "metadata_hash",
+        "type": "array:u8:32",
+        "offset": 80,
+        "size": 32
+      },
+      {
+        "name": "risk_disclosure_hash",
+        "type": "array:u8:32",
+        "offset": 112,
+        "size": 32
+      },
+      {
+        "name": "terms_hash",
+        "type": "array:u8:32",
+        "offset": 144,
+        "size": 32
+      },
+      {
+        "name": "created_at",
+        "type": "i64",
+        "offset": 176,
+        "size": 8
+      },
+      {
+        "name": "bump",
+        "type": "u8",
+        "offset": 184,
         "size": 1
       }
     ]

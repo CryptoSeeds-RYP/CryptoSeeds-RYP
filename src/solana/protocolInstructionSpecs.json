@@ -1043,9 +1043,63 @@
         "writable": true
       },
       {
+        "name": "project_disclosure_revision",
+        "label": "project disclosure revision",
+        "role": "project disclosure revision",
+        "signer": false,
+        "writable": false
+      },
+      {
         "name": "participation",
         "label": "participation",
         "role": "participation",
+        "signer": false,
+        "writable": true
+      },
+      {
+        "name": "system_program",
+        "label": "system program",
+        "role": "system program",
+        "signer": false,
+        "writable": false
+      }
+    ]
+  },
+  "create_project_disclosure_revision": {
+    "discriminatorHex": "c6e5153371e7495d",
+    "args": [
+      "_project_id",
+      "revision_id",
+      "metadata_hash",
+      "risk_disclosure_hash",
+      "terms_hash"
+    ],
+    "accounts": [
+      {
+        "name": "authority",
+        "label": "authority",
+        "role": "authority",
+        "signer": true,
+        "writable": true
+      },
+      {
+        "name": "config",
+        "label": "config",
+        "role": "config",
+        "signer": false,
+        "writable": false
+      },
+      {
+        "name": "project",
+        "label": "project",
+        "role": "project",
+        "signer": false,
+        "writable": true
+      },
+      {
+        "name": "disclosure_revision",
+        "label": "disclosure revision",
+        "role": "disclosure revision",
         "signer": false,
         "writable": true
       },

@@ -20,6 +20,7 @@ export const GOVERNANCE_PROPOSAL_SEED = "governance-proposal";
 export const GOVERNANCE_VOTE_SEED = "governance-vote";
 export const PROJECT_RECORD_SEED = "project-record";
 export const PROJECT_PARTICIPATION_SEED = "project-participation";
+export const PROJECT_DISCLOSURE_REVISION_SEED = "project-disclosure-revision";
 export const PROJECT_OPERATOR_SEED = "project-operator";
 export const SEEDBOT_PERMISSION_SEED = "seedbot-permission";
 export const SPL_TOKEN_PROGRAM_ID = new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
@@ -57,6 +58,7 @@ type ProtocolAddressBook = ReturnType<typeof deriveProtocolAddresses> &
     pendingAuthority?: string;
     permission?: string;
     project?: string;
+    projectDisclosureRevision?: string;
     proposal?: string;
     rewardEpoch?: string;
     rewardSourceVault?: string;
@@ -274,6 +276,15 @@ export type GrantProjectOperatorPlanInput = {
   expiresAtUnix: bigint | number | string;
 };
 
+export type CreateProjectDisclosureRevisionPlanInput = {
+  authorityAddress: string;
+  projectId: bigint | number | string;
+  revisionId: bigint | number | string;
+  metadataHash: string | Uint8Array | number[];
+  riskDisclosureHash: string | Uint8Array | number[];
+  termsHash: string | Uint8Array | number[];
+};
+
 export type RevokeProjectOperatorPlanInput = {
   authorityAddress: string;
   projectId: bigint | number | string;
@@ -323,6 +334,7 @@ export type RecordProjectRefundPlanInput = {
 export type ProjectParticipationPlanInput = {
   ownerAddress: string;
   projectId: bigint | number | string;
+  disclosureRevisionId: bigint | number | string;
   participationAmountBaseUnits: bigint | number | string;
   disclosureHash: string | Uint8Array | number[];
 };
@@ -899,6 +911,49 @@ export function buildRegisterProjectTransactionPlan({
   });
 }
 
+export function buildCreateProjectDisclosureRevisionTransactionPlan({
+  authorityAddress,
+  metadataHash,
+  projectId,
+  revisionId,
+  riskDisclosureHash,
+  termsHash,
+}: CreateProjectDisclosureRevisionPlanInput): PreparedSolanaTransactionPlan {
+  const project = toU64(projectId);
+  const revision = toU64(revisionId);
+  const addresses = {
+    ...deriveProtocolAddresses(authorityAddress),
+    authority: new PublicKey(authorityAddress).toBase58(),
+    project: deriveProjectRecordAddress(project),
+    projectDisclosureRevision: deriveProjectDisclosureRevisionAddress({ projectId: project, revisionId: revision }),
+  };
+  const spec = instructionSpec("create_project_disclosure_revision");
+  const instruction = instructionPlan({
+    accounts: accountsFromSpec(spec, addresses),
+    argDataHex: [
+      u64LeHex(project),
+      u64LeHex(revision),
+      fixedHashHex(metadataHash),
+      fixedHashHex(riskDisclosureHash),
+      fixedHashHex(termsHash),
+    ].join(""),
+    discriminatorHex: spec.discriminatorHex,
+    instructionName: "create_project_disclosure_revision",
+    programId: addresses.programId,
+  });
+
+  return transactionPlan({
+    action: "CREATE_PROJECT_DISCLOSURE_REVISION",
+    addresses,
+    feePayer: addresses.authority,
+    instruction,
+    warnings: [
+      "Admin-only project disclosure revision; hashes must match reviewed off-chain project documents.",
+      "Creating a revision makes it the current disclosure packet required by project participation.",
+    ],
+  });
+}
+
 export function buildGrantProjectOperatorTransactionPlan({
   authorityAddress,
   expiresAtUnix,
@@ -1177,16 +1232,19 @@ export function buildRecordProjectRefundTransactionPlan({
 
 export function buildProjectParticipationTransactionPlan({
   disclosureHash,
+  disclosureRevisionId,
   ownerAddress,
   participationAmountBaseUnits,
   projectId,
 }: ProjectParticipationPlanInput): PreparedSolanaTransactionPlan {
   const project = toU64(projectId);
+  const disclosureRevision = toU64(disclosureRevisionId);
   const amount = toU64(participationAmountBaseUnits);
   const addresses = {
     ...deriveProtocolAddresses(ownerAddress),
     participation: deriveProjectParticipationAddress({ projectId: project, walletAddress: ownerAddress }),
     project: deriveProjectRecordAddress(project),
+    projectDisclosureRevision: deriveProjectDisclosureRevisionAddress({ projectId: project, revisionId: disclosureRevision }),
   };
   const spec = instructionSpec("participate_project");
   const instruction = instructionPlan({
@@ -1204,7 +1262,7 @@ export function buildProjectParticipationTransactionPlan({
     instruction,
     warnings: [
       "Project participation requires the wallet to satisfy the project tier gate.",
-      "The disclosure hash must match the reviewed project risk packet.",
+      "The disclosure hash must match the current reviewed project disclosure revision.",
     ],
   });
 }
@@ -1487,6 +1545,22 @@ export function deriveProjectParticipationAddress({
   return address.toBase58();
 }
 
+export function deriveProjectDisclosureRevisionAddress({
+  projectId,
+  revisionId,
+}: {
+  projectId: bigint | number | string;
+  revisionId: bigint | number | string;
+}) {
+  const programId = new PublicKey(appConfig.protocolProgramId);
+  const project = new PublicKey(deriveProjectRecordAddress(projectId));
+  const [address] = PublicKey.findProgramAddressSync(
+    [textSeed(PROJECT_DISCLOSURE_REVISION_SEED), project.toBuffer(), u64LeBytes(toU64(revisionId))],
+    programId,
+  );
+  return address.toBase58();
+}
+
 export function deriveProjectOperatorAddress({
   operatorAddress,
   projectId,
@@ -1634,6 +1708,7 @@ function derivedAccountReferences(addresses: ProtocolAddressBook): TransactionAc
     ["governance_proposal_account", "Project governance proposal"],
     ["vote_record", "Governance vote record"],
     ["project", "Project record"],
+    ["project_disclosure_revision", "Project disclosure revision"],
     ["participation", "Project participation"],
     ["operator_record", "Project operator"],
     ["permission", "SeedBot permission"],
@@ -1663,6 +1738,8 @@ function addressForProtocolAccountIfPresent(addresses: ProtocolAddressBook, name
       return addresses.claimRecord;
     case "config":
       return addresses.config;
+    case "disclosure_revision":
+      return addresses.projectDisclosureRevision;
     case "governance_proposal_account":
       return addresses.governanceProposalAccount ?? addresses.proposal;
     case "holder_reward_vault":
@@ -1697,6 +1774,8 @@ function addressForProtocolAccountIfPresent(addresses: ProtocolAddressBook, name
       return addresses.position;
     case "project":
       return addresses.project;
+    case "project_disclosure_revision":
+      return addresses.projectDisclosureRevision;
     case "proposal":
       return addresses.proposal;
     case "reward_config":

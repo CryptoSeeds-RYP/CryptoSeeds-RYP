@@ -8,6 +8,7 @@ import {
   buildClaimRewardTokensTransactionPlan,
   buildCloseGovernanceProposalTransactionPlan,
   buildCreateGovernanceProposalTransactionPlan,
+  buildCreateProjectDisclosureRevisionTransactionPlan,
   buildCreateRewardClaimRecordFromProofTransactionPlan,
   buildCreateRewardClaimRecordTransactionPlan,
   buildCreateSeedBotPermissionTransactionPlan,
@@ -30,6 +31,7 @@ import {
   buildUpdateProjectStatusTransactionPlan,
   buildUpdateSeedBotPermissionTransactionPlan,
   deriveProtocolAddresses,
+  deriveProjectDisclosureRevisionAddress,
   deriveProjectOperatorAddress,
   deriveRewardClaimRecordAddress,
   parseRypAmountToBaseUnits,
@@ -237,6 +239,7 @@ describe("protocol transaction plan", () => {
     const vote = buildCastGovernanceVoteTransactionPlan({ approve: true, ownerAddress, proposalId: 11n });
     const participation = buildProjectParticipationTransactionPlan({
       disclosureHash: "ab".repeat(32),
+      disclosureRevisionId: 1n,
       ownerAddress,
       participationAmountBaseUnits: 1_000n,
       projectId: 9n,
@@ -307,6 +310,15 @@ describe("protocol transaction plan", () => {
       requiredTier: "SPROUT",
       riskLevel: "MEDIUM",
       status: "OPEN",
+    });
+    const disclosureRevisionAddress = deriveProjectDisclosureRevisionAddress({ projectId: 9n, revisionId: 1n });
+    const createDisclosureRevision = buildCreateProjectDisclosureRevisionTransactionPlan({
+      authorityAddress: ownerAddress,
+      metadataHash: "11".repeat(32),
+      projectId: 9n,
+      revisionId: 1n,
+      riskDisclosureHash: "22".repeat(32),
+      termsHash: "33".repeat(32),
     });
     const updateStatus = buildUpdateProjectStatusTransactionPlan({
       authorityAddress: ownerAddress,
@@ -382,6 +394,17 @@ describe("protocol transaction plan", () => {
       registerProject.instructions[0].accounts.find((account) => account.anchorName === "governance_proposal_account")
         ?.address,
     ).toBe(governanceProposalAddress);
+    expect(createDisclosureRevision.action).toBe("CREATE_PROJECT_DISCLOSURE_REVISION");
+    expect(createDisclosureRevision.instructions[0].dataHex).toBe(
+      `c6e5153371e7495d09000000000000000100000000000000${"11".repeat(32)}${"22".repeat(32)}${"33".repeat(32)}`,
+    );
+    expect(createDisclosureRevision.instructions[0].accounts.map((account) => account.anchorName)).toEqual(
+      PROTOCOL_INSTRUCTION_SPECS.create_project_disclosure_revision.accounts.map((account) => account.name),
+    );
+    expect(
+      createDisclosureRevision.instructions[0].accounts.find((account) => account.anchorName === "disclosure_revision")
+        ?.address,
+    ).toBe(disclosureRevisionAddress);
     expect(updateStatus.action).toBe("UPDATE_PROJECT_STATUS");
     expect(updateStatus.instructions[0].dataHex).toBe("322efca04fdd0544090000000000000007");
     expect(updateStatus.instructions[0].accounts.map((account) => account.anchorName)).toEqual(
@@ -502,6 +525,7 @@ describe("protocol transaction plan", () => {
     expect(() =>
       buildProjectParticipationTransactionPlan({
         disclosureHash: "00".repeat(32),
+        disclosureRevisionId: 1n,
         ownerAddress,
         participationAmountBaseUnits: 1n,
         projectId: 1n,

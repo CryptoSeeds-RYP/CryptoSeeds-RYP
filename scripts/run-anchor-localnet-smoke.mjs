@@ -50,6 +50,8 @@ const GOVERNANCE_VOTING_WINDOW_SECONDS = 1n;
 const GOVERNANCE_MINIMUM_VOTES = 1n;
 const REWARD_EPOCH_CADENCE_SECONDS = 7n * 24n * 60n * 60n;
 const REWARD_METADATA_HASH = Buffer.alloc(32, 7);
+const PROJECT_RISK_DISCLOSURE_HASH = Buffer.alloc(32, 8);
+const PROJECT_TERMS_HASH = Buffer.alloc(32, 9);
 const ZERO_METADATA_HASH = Buffer.alloc(32, 0);
 const TIER_THRESHOLDS = [5_000_000_000n, 20_000_000_000n, 50_000_000_000n, 100_000_000_000n, 150_000_000_000n];
 const TIER_FEE_REDUCTIONS = [0, 35, 70, 105, 140];
@@ -504,6 +506,8 @@ async function runSmoke(connection) {
   const projectId = 21n;
   const project = deriveProjectAddress(projectId);
   const projectParticipation = deriveProjectParticipationAddress({ project, wallet: owner.publicKey });
+  const projectDisclosureRevisionId = 1n;
+  const projectDisclosureRevision = deriveProjectDisclosureRevisionAddress({ project, revisionId: projectDisclosureRevisionId });
   const projectOperatorRecord = deriveProjectOperatorAddress({ operator: projectOperator.publicKey, project });
   const projectOperatorExpiresAt = (await recentRewardSnapshotTime(connection)) + 60n * 60n;
   log("calling register_project for governance-vote draft project");
@@ -539,6 +543,28 @@ async function runSmoke(connection) {
   assertEqual("registered project refund pool", registeredProject.refundPoolAmount, 0n);
   assertEqual("registered project total refunded", registeredProject.totalRefundedAmount, 0n);
   assertEqual("registered project pause flag", registeredProject.participationPaused, false);
+  assertEqual("registered project current disclosure revision", registeredProject.currentDisclosureRevisionId, 0n);
+
+  log("calling create_project_disclosure_revision for draft project");
+  await createProjectDisclosureRevision(connection, {
+    authority: projectAuthority,
+    config,
+    disclosureRevision: projectDisclosureRevision,
+    project,
+    projectId,
+    revisionId: projectDisclosureRevisionId,
+  });
+  const disclosedProject = parseProjectRecord(await getAccountData(connection, project));
+  const disclosureRevision = parseProjectDisclosureRevision(await getAccountData(connection, projectDisclosureRevision));
+  assertEqual("project current disclosure revision", disclosedProject.currentDisclosureRevisionId, projectDisclosureRevisionId);
+  assertBuffer("project current disclosure hash", disclosedProject.currentDisclosureHash, PROJECT_RISK_DISCLOSURE_HASH);
+  assertPublicKey("project disclosure revision project", disclosureRevision.project, project);
+  assertPublicKey("project disclosure revision authority", disclosureRevision.authority, projectAuthority.publicKey);
+  assertEqual("project disclosure revision id", disclosureRevision.revisionId, projectDisclosureRevisionId);
+  assertBuffer("project disclosure revision metadata hash", disclosureRevision.metadataHash, REWARD_METADATA_HASH);
+  assertBuffer("project disclosure revision risk hash", disclosureRevision.riskDisclosureHash, PROJECT_RISK_DISCLOSURE_HASH);
+  assertBuffer("project disclosure revision terms hash", disclosureRevision.termsHash, PROJECT_TERMS_HASH);
+  assertEqual("project disclosure revision created timestamp", disclosureRevision.createdAt > 0n, true);
 
   await expectFailure(
     "set_project_pause rejects non-authority signer",
@@ -670,6 +696,8 @@ async function runSmoke(connection) {
     () =>
       participateProject(connection, {
         config,
+        disclosureHash: PROJECT_RISK_DISCLOSURE_HASH,
+        disclosureRevision: projectDisclosureRevision,
         owner,
         participation: projectParticipation,
         position,
@@ -1056,6 +1084,7 @@ async function runSmoke(connection) {
 	      "reject_invalid_project_participation_bounds",
 	      "reject_invalid_project_participation_window",
 	      "register_governance_vote_project",
+	      "create_project_disclosure_revision",
 	      "project_participation_bounds_accounting",
 	      "reject_non_authority_project_pause",
 	      "project_pause_toggle",
@@ -2149,6 +2178,32 @@ async function registerProject(
   await sendAndConfirm(connection, new Transaction().add(instruction), [authority]);
 }
 
+async function createProjectDisclosureRevision(
+  connection,
+  { authority, config, disclosureRevision, project, projectId, revisionId },
+) {
+  const data = Buffer.alloc(8 + 8 + 8 + 32 + 32 + 32);
+  discriminator("create_project_disclosure_revision").copy(data, 0);
+  data.writeBigUInt64LE(projectId, 8);
+  data.writeBigUInt64LE(revisionId, 16);
+  REWARD_METADATA_HASH.copy(data, 24);
+  PROJECT_RISK_DISCLOSURE_HASH.copy(data, 56);
+  PROJECT_TERMS_HASH.copy(data, 88);
+  const instruction = new TransactionInstruction({
+    programId,
+    keys: [
+      accountMeta(authority.publicKey, true, true),
+      accountMeta(config, false, false),
+      accountMeta(project, false, true),
+      accountMeta(disclosureRevision, false, true),
+      accountMeta(SystemProgram.programId, false, false),
+    ],
+    data,
+  });
+
+  await sendAndConfirm(connection, new Transaction().add(instruction), [authority]);
+}
+
 async function updateProjectStatus(
   connection,
   { authority, config, governanceProposal, project, projectId, statusVariant },
@@ -2316,13 +2371,23 @@ async function recordProjectRefund(connection, { authority, config, project, pro
 
 async function participateProject(
   connection,
-  { amount = PROJECT_MIN_PARTICIPATION_AMOUNT, config, owner, participation, position, project, projectId },
+  {
+    amount = PROJECT_MIN_PARTICIPATION_AMOUNT,
+    config,
+    disclosureHash = PROJECT_RISK_DISCLOSURE_HASH,
+    disclosureRevision,
+    owner,
+    participation,
+    position,
+    project,
+    projectId,
+  },
 ) {
   const data = Buffer.alloc(8 + 8 + 8 + 32);
   discriminator("participate_project").copy(data, 0);
   data.writeBigUInt64LE(projectId, 8);
   data.writeBigUInt64LE(amount, 16);
-  REWARD_METADATA_HASH.copy(data, 24);
+  disclosureHash.copy(data, 24);
   const instruction = new TransactionInstruction({
     programId,
     keys: [
@@ -2330,6 +2395,7 @@ async function participateProject(
       accountMeta(config, false, false),
       accountMeta(position, false, false),
       accountMeta(project, false, true),
+      accountMeta(disclosureRevision, false, false),
       accountMeta(participation, false, true),
       accountMeta(SystemProgram.programId, false, false),
     ],
@@ -2498,6 +2564,15 @@ function deriveProjectAddress(projectId) {
 function deriveProjectParticipationAddress({ project, wallet }) {
   return PublicKey.findProgramAddressSync(
     [Buffer.from("project-participation"), project.toBuffer(), wallet.toBuffer()],
+    programId,
+  )[0];
+}
+
+function deriveProjectDisclosureRevisionAddress({ project, revisionId }) {
+  const revisionSeed = Buffer.alloc(8);
+  revisionSeed.writeBigUInt64LE(revisionId);
+  return PublicKey.findProgramAddressSync(
+    [Buffer.from("project-disclosure-revision"), project.toBuffer(), revisionSeed],
     programId,
   )[0];
 }
@@ -2928,6 +3003,24 @@ function parseProjectRecord(data) {
     refundPoolAmount: data.readBigUInt64LE(offset.refund_pool_amount),
     totalRefundedAmount: data.readBigUInt64LE(offset.total_refunded_amount),
     participationPaused: data.readUInt8(offset.participation_paused) === 1,
+    currentDisclosureRevisionId: data.readBigUInt64LE(offset.current_disclosure_revision_id),
+    currentDisclosureHash: data.subarray(offset.current_disclosure_hash, offset.current_disclosure_hash + 32),
+    bump: data.readUInt8(offset.bump),
+  };
+}
+
+function parseProjectDisclosureRevision(data) {
+  assertRewardAccountLayout(data, "ProjectDisclosureRevision");
+  const offset = rewardAccountOffsets.ProjectDisclosureRevision;
+
+  return {
+    project: new PublicKey(data.subarray(offset.project, offset.project + 32)),
+    authority: new PublicKey(data.subarray(offset.authority, offset.authority + 32)),
+    revisionId: data.readBigUInt64LE(offset.revision_id),
+    metadataHash: data.subarray(offset.metadata_hash, offset.metadata_hash + 32),
+    riskDisclosureHash: data.subarray(offset.risk_disclosure_hash, offset.risk_disclosure_hash + 32),
+    termsHash: data.subarray(offset.terms_hash, offset.terms_hash + 32),
+    createdAt: data.readBigInt64LE(offset.created_at),
     bump: data.readUInt8(offset.bump),
   };
 }
@@ -3057,6 +3150,12 @@ function accountMeta(pubkey, isSigner, isWritable) {
 function assertPublicKey(label, actual, expected) {
   if (!actual.equals(expected)) {
     throw new Error(`${label}: expected ${expected.toBase58()}, received ${actual.toBase58()}`);
+  }
+}
+
+function assertBuffer(label, actual, expected) {
+  if (!Buffer.from(actual).equals(Buffer.from(expected))) {
+    throw new Error(`${label}: expected ${Buffer.from(expected).toString("hex")}, received ${Buffer.from(actual).toString("hex")}`);
   }
 }
 

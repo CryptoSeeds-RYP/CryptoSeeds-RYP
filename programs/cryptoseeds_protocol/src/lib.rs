@@ -17,6 +17,7 @@ pub const GOVERNANCE_PROPOSAL_SEED: &[u8] = b"governance-proposal";
 pub const GOVERNANCE_VOTE_SEED: &[u8] = b"governance-vote";
 pub const PROJECT_RECORD_SEED: &[u8] = b"project-record";
 pub const PROJECT_PARTICIPATION_SEED: &[u8] = b"project-participation";
+pub const PROJECT_DISCLOSURE_REVISION_SEED: &[u8] = b"project-disclosure-revision";
 pub const PROJECT_OPERATOR_SEED: &[u8] = b"project-operator";
 pub const SEEDBOT_PERMISSION_SEED: &[u8] = b"seedbot-permission";
 pub const VOTING_RIGHTS_DELAY_SECONDS: i64 = 14 * 24 * 60 * 60;
@@ -1425,6 +1426,8 @@ pub mod cryptoseeds_protocol {
         project.refund_pool_amount = 0;
         project.total_refunded_amount = 0;
         project.participation_paused = false;
+        project.current_disclosure_revision_id = 0;
+        project.current_disclosure_hash = [0; 32];
         project.bump = ctx.bumps.project;
 
         emit!(ProjectRegistered {
@@ -1438,6 +1441,45 @@ pub mod cryptoseeds_protocol {
             max_total_participation_amount,
             participation_starts_at,
             participation_ends_at,
+        });
+
+        Ok(())
+    }
+
+    pub fn create_project_disclosure_revision(
+        ctx: Context<CreateProjectDisclosureRevision>,
+        _project_id: u64,
+        revision_id: u64,
+        metadata_hash: [u8; 32],
+        risk_disclosure_hash: [u8; 32],
+        terms_hash: [u8; 32],
+    ) -> Result<()> {
+        validate_project_authority(&ctx.accounts.config, &ctx.accounts.authority.key())?;
+        validate_metadata_hash(&metadata_hash)?;
+        validate_metadata_hash(&risk_disclosure_hash)?;
+        validate_metadata_hash(&terms_hash)?;
+        validate_project_disclosure_revision_id(&ctx.accounts.project, revision_id)?;
+
+        let clock = Clock::get()?;
+        let disclosure_revision = &mut ctx.accounts.disclosure_revision;
+        disclosure_revision.project = ctx.accounts.project.key();
+        disclosure_revision.authority = ctx.accounts.authority.key();
+        disclosure_revision.revision_id = revision_id;
+        disclosure_revision.metadata_hash = metadata_hash;
+        disclosure_revision.risk_disclosure_hash = risk_disclosure_hash;
+        disclosure_revision.terms_hash = terms_hash;
+        disclosure_revision.created_at = clock.unix_timestamp;
+        disclosure_revision.bump = ctx.bumps.disclosure_revision;
+
+        ctx.accounts.project.current_disclosure_revision_id = revision_id;
+        ctx.accounts.project.current_disclosure_hash = risk_disclosure_hash;
+
+        emit!(ProjectDisclosureRevisionCreated {
+            project: ctx.accounts.project.key(),
+            revision_id,
+            metadata_hash,
+            risk_disclosure_hash,
+            terms_hash,
         });
 
         Ok(())
@@ -1666,6 +1708,28 @@ pub mod cryptoseeds_protocol {
                 .tier
                 .can_access(ctx.accounts.project.required_tier),
             CryptoSeedsError::InsufficientTier
+        );
+        require!(
+            ctx.accounts.project.current_disclosure_revision_id > 0,
+            CryptoSeedsError::ProjectDisclosureRequired
+        );
+        require_keys_eq!(
+            ctx.accounts.project_disclosure_revision.project,
+            ctx.accounts.project.key(),
+            CryptoSeedsError::InvalidProjectDisclosureRevision
+        );
+        require!(
+            ctx.accounts.project_disclosure_revision.revision_id
+                == ctx.accounts.project.current_disclosure_revision_id,
+            CryptoSeedsError::InvalidProjectDisclosureRevision
+        );
+        require!(
+            ctx.accounts
+                .project_disclosure_revision
+                .risk_disclosure_hash
+                == disclosure_hash
+                && ctx.accounts.project.current_disclosure_hash == disclosure_hash,
+            CryptoSeedsError::ProjectDisclosureMismatch
         );
         require!(
             ctx.accounts.project.status.is_participation_open(),
@@ -2559,6 +2623,34 @@ pub struct RegisterProject<'info> {
 }
 
 #[derive(Accounts)]
+#[instruction(project_id: u64, revision_id: u64)]
+pub struct CreateProjectDisclosureRevision<'info> {
+    #[account(mut)]
+    pub authority: Signer<'info>,
+    #[account(seeds = [CONFIG_SEED], bump = config.bump)]
+    pub config: Account<'info, ProtocolConfig>,
+    #[account(
+        mut,
+        seeds = [PROJECT_RECORD_SEED, project_id.to_le_bytes().as_ref()],
+        bump = project.bump
+    )]
+    pub project: Account<'info, ProjectRecord>,
+    #[account(
+        init,
+        payer = authority,
+        space = 8 + ProjectDisclosureRevision::INIT_SPACE,
+        seeds = [
+            PROJECT_DISCLOSURE_REVISION_SEED,
+            project.key().as_ref(),
+            revision_id.to_le_bytes().as_ref()
+        ],
+        bump
+    )]
+    pub disclosure_revision: Account<'info, ProjectDisclosureRevision>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
 #[instruction(project_id: u64, operator: Pubkey)]
 pub struct GrantProjectOperator<'info> {
     #[account(mut)]
@@ -2710,6 +2802,15 @@ pub struct ParticipateProject<'info> {
         bump = project.bump
     )]
     pub project: Account<'info, ProjectRecord>,
+    #[account(
+        seeds = [
+            PROJECT_DISCLOSURE_REVISION_SEED,
+            project.key().as_ref(),
+            project.current_disclosure_revision_id.to_le_bytes().as_ref()
+        ],
+        bump = project_disclosure_revision.bump
+    )]
+    pub project_disclosure_revision: Account<'info, ProjectDisclosureRevision>,
     #[account(
         init,
         payer = owner,
@@ -2961,6 +3062,21 @@ pub struct ProjectRecord {
     pub refund_pool_amount: u64,
     pub total_refunded_amount: u64,
     pub participation_paused: bool,
+    pub current_disclosure_revision_id: u64,
+    pub current_disclosure_hash: [u8; 32],
+    pub bump: u8,
+}
+
+#[account]
+#[derive(InitSpace)]
+pub struct ProjectDisclosureRevision {
+    pub project: Pubkey,
+    pub authority: Pubkey,
+    pub revision_id: u64,
+    pub metadata_hash: [u8; 32],
+    pub risk_disclosure_hash: [u8; 32],
+    pub terms_hash: [u8; 32],
+    pub created_at: i64,
     pub bump: u8,
 }
 
@@ -3432,6 +3548,15 @@ pub struct ProjectRegistered {
 }
 
 #[event]
+pub struct ProjectDisclosureRevisionCreated {
+    pub project: Pubkey,
+    pub revision_id: u64,
+    pub metadata_hash: [u8; 32],
+    pub risk_disclosure_hash: [u8; 32],
+    pub terms_hash: [u8; 32],
+}
+
+#[event]
 pub struct ProjectOperatorGranted {
     pub project: Pubkey,
     pub operator: Pubkey,
@@ -3624,6 +3749,12 @@ pub enum CryptoSeedsError {
     InvalidProjectGovernanceProposal,
     #[msg("Project governance proposal is not approved for this project status.")]
     ProjectGovernanceNotApproved,
+    #[msg("Project disclosure revision is required.")]
+    ProjectDisclosureRequired,
+    #[msg("Project disclosure revision is invalid.")]
+    InvalidProjectDisclosureRevision,
+    #[msg("Project disclosure hash does not match the current reviewed revision.")]
+    ProjectDisclosureMismatch,
     #[msg("Project participation bounds are invalid.")]
     InvalidProjectParticipationBounds,
     #[msg("Project participation window is invalid.")]
@@ -4341,6 +4472,17 @@ fn validate_reward_vault_for_token_claim(
 
 fn validate_metadata_hash(metadata_hash: &[u8; 32]) -> Result<()> {
     require!(*metadata_hash != [0; 32], CryptoSeedsError::InvalidMetadata);
+    Ok(())
+}
+
+fn validate_project_disclosure_revision_id(
+    project: &ProjectRecord,
+    revision_id: u64,
+) -> Result<()> {
+    require!(
+        revision_id > project.current_disclosure_revision_id,
+        CryptoSeedsError::InvalidProjectDisclosureRevision
+    );
     Ok(())
 }
 
@@ -5191,6 +5333,18 @@ mod tests {
     }
 
     #[test]
+    fn validates_project_disclosure_revision_progression() {
+        let mut project = project_record();
+        project.current_disclosure_revision_id = 0;
+        assert!(validate_project_disclosure_revision_id(&project, 1).is_ok());
+
+        project.current_disclosure_revision_id = 3;
+        assert!(validate_project_disclosure_revision_id(&project, 4).is_ok());
+        assert!(validate_project_disclosure_revision_id(&project, 3).is_err());
+        assert!(validate_project_disclosure_revision_id(&project, 2).is_err());
+    }
+
+    #[test]
     fn validates_new_authority_nominations() {
         let current_authority = Pubkey::new_unique();
         assert!(validate_new_authority(Pubkey::new_unique(), current_authority).is_ok());
@@ -5787,6 +5941,8 @@ mod tests {
             refund_pool_amount: 0,
             total_refunded_amount: 0,
             participation_paused: false,
+            current_disclosure_revision_id: 1,
+            current_disclosure_hash: [8; 32],
             bump: 255,
         }
     }
