@@ -1341,6 +1341,12 @@ pub mod cryptoseeds_protocol {
             receiving_account != Pubkey::default(),
             CryptoSeedsError::InvalidProjectAccount
         );
+        validate_project_governance_binding(
+            &ctx.accounts.governance_proposal_account,
+            ctx.accounts.governance_proposal_account.key(),
+            governance_proposal,
+            status,
+        )?;
 
         let project = &mut ctx.accounts.project;
         project.project_id = project_id;
@@ -1350,7 +1356,7 @@ pub mod cryptoseeds_protocol {
         project.status = status;
         project.metadata_hash = metadata_hash;
         project.receiving_account = receiving_account;
-        project.governance_proposal = governance_proposal;
+        project.governance_proposal = ctx.accounts.governance_proposal_account.key();
         project.total_participants = 0;
         project.bump = ctx.bumps.project;
 
@@ -1371,6 +1377,16 @@ pub mod cryptoseeds_protocol {
         status: ProjectStatus,
     ) -> Result<()> {
         validate_protocol_authority(&ctx.accounts.config, &ctx.accounts.authority.key())?;
+        require_keys_eq!(
+            ctx.accounts.project.governance_proposal,
+            ctx.accounts.governance_proposal_account.key(),
+            CryptoSeedsError::InvalidProjectGovernanceProposal
+        );
+        validate_project_status_against_governance(
+            &ctx.accounts.governance_proposal_account,
+            status,
+        )?;
+
         ctx.accounts.project.status = status;
 
         emit!(ProjectStatusUpdated {
@@ -2270,6 +2286,7 @@ pub struct RegisterProject<'info> {
     pub authority: Signer<'info>,
     #[account(seeds = [CONFIG_SEED], bump = config.bump)]
     pub config: Account<'info, ProtocolConfig>,
+    pub governance_proposal_account: Account<'info, GovernanceProposal>,
     #[account(
         init,
         payer = authority,
@@ -2287,6 +2304,7 @@ pub struct UpdateProjectStatus<'info> {
     pub authority: Signer<'info>,
     #[account(seeds = [CONFIG_SEED], bump = config.bump)]
     pub config: Account<'info, ProtocolConfig>,
+    pub governance_proposal_account: Account<'info, GovernanceProposal>,
     #[account(
         mut,
         seeds = [PROJECT_RECORD_SEED, project_id.to_le_bytes().as_ref()],
@@ -3141,6 +3159,10 @@ pub enum CryptoSeedsError {
     InvalidMetadata,
     #[msg("Project account is invalid.")]
     InvalidProjectAccount,
+    #[msg("Project governance proposal is invalid for this action.")]
+    InvalidProjectGovernanceProposal,
+    #[msg("Project governance proposal is not approved for this project status.")]
+    ProjectGovernanceNotApproved,
     #[msg("Wallet tier is insufficient for this action.")]
     InsufficientTier,
     #[msg("Project is not open for participation.")]
@@ -3804,6 +3826,65 @@ fn validate_governance_proposal_close(proposal: &GovernanceProposal, now: i64) -
         CryptoSeedsError::GovernanceVotingStillOpen
     );
     governance_proposal_passed(proposal)
+}
+
+fn validate_project_governance_binding(
+    proposal: &GovernanceProposal,
+    proposal_key: Pubkey,
+    expected_proposal_key: Pubkey,
+    project_status: ProjectStatus,
+) -> Result<()> {
+    require_keys_eq!(
+        proposal_key,
+        expected_proposal_key,
+        CryptoSeedsError::InvalidProjectGovernanceProposal
+    );
+    validate_project_status_against_governance(proposal, project_status)
+}
+
+fn validate_project_status_against_governance(
+    proposal: &GovernanceProposal,
+    project_status: ProjectStatus,
+) -> Result<()> {
+    require!(
+        proposal.category == GovernanceProposalCategory::ProjectApproval,
+        CryptoSeedsError::InvalidProjectGovernanceProposal
+    );
+
+    match project_status {
+        ProjectStatus::Proposed | ProjectStatus::UnderReview | ProjectStatus::GovernanceVote => {
+            require!(
+                matches!(
+                    proposal.status,
+                    GovernanceProposalStatus::Open | GovernanceProposalStatus::Approved
+                ),
+                CryptoSeedsError::InvalidProjectGovernanceProposal
+            );
+        }
+        ProjectStatus::Rejected => {
+            require!(
+                matches!(
+                    proposal.status,
+                    GovernanceProposalStatus::Rejected | GovernanceProposalStatus::Cancelled
+                ),
+                CryptoSeedsError::InvalidProjectGovernanceProposal
+            );
+        }
+        ProjectStatus::Approved
+        | ProjectStatus::Open
+        | ProjectStatus::Active
+        | ProjectStatus::MilestoneReached
+        | ProjectStatus::HarvestAvailable
+        | ProjectStatus::Completed
+        | ProjectStatus::Paused => {
+            require!(
+                proposal.status == GovernanceProposalStatus::Approved,
+                CryptoSeedsError::ProjectGovernanceNotApproved
+            );
+        }
+    }
+
+    Ok(())
 }
 
 fn validate_seedbot_permission_limits_at(
@@ -4528,6 +4609,77 @@ mod tests {
         proposal.yes_votes = u64::MAX;
         proposal.no_votes = 1;
         assert!(validate_governance_proposal_close(&proposal, 2_000).is_err());
+    }
+
+    #[test]
+    fn validates_project_governance_binding_by_status() {
+        let proposal_key = Pubkey::new_unique();
+        let mut proposal = governance_proposal();
+
+        proposal.status = GovernanceProposalStatus::Open;
+        assert!(validate_project_governance_binding(
+            &proposal,
+            proposal_key,
+            proposal_key,
+            ProjectStatus::GovernanceVote,
+        )
+        .is_ok());
+        assert!(validate_project_governance_binding(
+            &proposal,
+            proposal_key,
+            Pubkey::new_unique(),
+            ProjectStatus::GovernanceVote,
+        )
+        .is_err());
+        assert!(validate_project_governance_binding(
+            &proposal,
+            proposal_key,
+            proposal_key,
+            ProjectStatus::Open,
+        )
+        .is_err());
+
+        proposal.status = GovernanceProposalStatus::Approved;
+        assert!(validate_project_governance_binding(
+            &proposal,
+            proposal_key,
+            proposal_key,
+            ProjectStatus::Open,
+        )
+        .is_ok());
+        assert!(validate_project_governance_binding(
+            &proposal,
+            proposal_key,
+            proposal_key,
+            ProjectStatus::HarvestAvailable,
+        )
+        .is_ok());
+
+        proposal.status = GovernanceProposalStatus::Rejected;
+        assert!(validate_project_governance_binding(
+            &proposal,
+            proposal_key,
+            proposal_key,
+            ProjectStatus::Rejected,
+        )
+        .is_ok());
+        assert!(validate_project_governance_binding(
+            &proposal,
+            proposal_key,
+            proposal_key,
+            ProjectStatus::Open,
+        )
+        .is_err());
+
+        proposal.category = GovernanceProposalCategory::DonationCause;
+        proposal.status = GovernanceProposalStatus::Approved;
+        assert!(validate_project_governance_binding(
+            &proposal,
+            proposal_key,
+            proposal_key,
+            ProjectStatus::Open,
+        )
+        .is_err());
     }
 
     #[test]

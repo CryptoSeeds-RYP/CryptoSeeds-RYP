@@ -42,6 +42,7 @@ type ProtocolAddressBook = ReturnType<typeof deriveProtocolAddresses> &
   Record<string, string | undefined> & {
     authority?: string;
     claimRecord?: string;
+    governanceProposalAccount?: string;
     holderRewardVault?: string;
     holderRewardVaultState?: string;
     independentTreasuryVault?: string;
@@ -245,6 +246,7 @@ export type RegisterProjectPlanInput = {
 export type UpdateProjectStatusPlanInput = {
   authorityAddress: string;
   projectId: bigint | number | string;
+  governanceProposalAddress: string;
   status: ProjectLifecycleStatus;
 };
 
@@ -720,6 +722,7 @@ export function buildRegisterProjectTransactionPlan({
   const addresses = {
     ...deriveProtocolAddresses(authorityAddress),
     authority: new PublicKey(authorityAddress).toBase58(),
+    governanceProposalAccount: governanceProposal.toBase58(),
     project: deriveProjectRecordAddress(project),
   };
   const spec = instructionSpec("register_project");
@@ -746,6 +749,7 @@ export function buildRegisterProjectTransactionPlan({
     instruction,
     warnings: [
       "Admin-only project registration; project metadata and receiving account must be reviewed before signing.",
+      "Public project statuses require an approved ProjectApproval governance proposal on-chain.",
       "The receiving account is recorded only; project fund custody remains outside this instruction.",
     ],
   });
@@ -753,13 +757,16 @@ export function buildRegisterProjectTransactionPlan({
 
 export function buildUpdateProjectStatusTransactionPlan({
   authorityAddress,
+  governanceProposalAddress,
   projectId,
   status,
 }: UpdateProjectStatusPlanInput): PreparedSolanaTransactionPlan {
   const project = toU64(projectId);
+  const governanceProposal = new PublicKey(governanceProposalAddress);
   const addresses = {
     ...deriveProtocolAddresses(authorityAddress),
     authority: new PublicKey(authorityAddress).toBase58(),
+    governanceProposalAccount: governanceProposal.toBase58(),
     project: deriveProjectRecordAddress(project),
   };
   const spec = instructionSpec("update_project_status");
@@ -778,7 +785,7 @@ export function buildUpdateProjectStatusTransactionPlan({
     instruction,
     warnings: [
       "Admin-only project lifecycle update.",
-      "Status changes should match reviewed milestone, disclosure, or governance evidence.",
+      "Public project statuses require the stored ProjectApproval proposal to be approved on-chain.",
     ],
   });
 }
@@ -1221,6 +1228,7 @@ function derivedAccountReferences(addresses: ProtocolAddressBook): TransactionAc
     ["reward_epoch", "Reward epoch"],
     ["claim_record", "Reward claim record"],
     ["proposal", "Governance proposal"],
+    ["governance_proposal_account", "Project governance proposal"],
     ["vote_record", "Governance vote record"],
     ["project", "Project record"],
     ["participation", "Project participation"],
@@ -1251,6 +1259,8 @@ function addressForProtocolAccountIfPresent(addresses: ProtocolAddressBook, name
       return addresses.claimRecord;
     case "config":
       return addresses.config;
+    case "governance_proposal_account":
+      return addresses.governanceProposalAccount ?? addresses.proposal;
     case "holder_reward_vault":
       return addresses.holderRewardVault;
     case "holder_reward_vault_state":

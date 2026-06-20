@@ -390,34 +390,77 @@ async function runSmoke(connection) {
   const closedProposal = parseGovernanceProposal(await getAccountData(connection, proposal));
   assertEqual("closed proposal rejected status", closedProposal.status, 2);
 
+  const rejectedOpenProjectId = 20n;
+  const rejectedOpenProject = deriveProjectAddress(rejectedOpenProjectId);
+  await expectFailure(
+    "register_project rejects open project before approved governance",
+    () =>
+      registerProject(connection, {
+        authority,
+        config,
+        governanceProposal: proposal,
+        project: rejectedOpenProject,
+        projectId: rejectedOpenProjectId,
+        receivingAccount: Keypair.generate().publicKey,
+        statusVariant: 4,
+      }),
+    "custom program error",
+  );
+  await assertMissingAccount(connection, rejectedOpenProject, "open project after unapproved governance rejection");
+
+  const draftProposalId = 12n;
+  const draftProposal = deriveGovernanceProposalAddress(draftProposalId);
+  log("calling create_governance_proposal for draft project");
+  await createGovernanceProposal(connection, { authority, config, proposal: draftProposal, proposalId: draftProposalId });
+  const createdDraftProposal = parseGovernanceProposal(await getAccountData(connection, draftProposal));
+  assertEqual("draft project proposal open status", createdDraftProposal.status, 0);
+
   const projectId = 21n;
   const project = deriveProjectAddress(projectId);
   const projectParticipation = deriveProjectParticipationAddress({ project, wallet: owner.publicKey });
-  log("calling register_project");
+  log("calling register_project for governance-vote draft project");
   await registerProject(connection, {
     authority,
     config,
-    governanceProposal: proposal,
+    governanceProposal: draftProposal,
     project,
     projectId,
     receivingAccount: Keypair.generate().publicKey,
+    statusVariant: 2,
   });
   const registeredProject = parseProjectRecord(await getAccountData(connection, project));
   assertEqual("registered project required tier", registeredProject.requiredTier, 1);
-  assertEqual("registered project status", registeredProject.status, 4);
+  assertEqual("registered project status", registeredProject.status, 2);
+  assertPublicKey("registered project governance proposal", registeredProject.governanceProposal, draftProposal);
 
-  log("calling participate_project");
-  await participateProject(connection, {
-    config,
-    owner,
-    participation: projectParticipation,
-    position,
-    project,
-    projectId,
-  });
-  const participationRecord = parseProjectParticipationRecord(await getAccountData(connection, projectParticipation));
-  assertPublicKey("project participation wallet", participationRecord.wallet, owner.publicKey);
-  assertEqual("project participation amount", participationRecord.participationAmount, 1_000n);
+  await expectFailure(
+    "update_project_status rejects open project before approved governance",
+    () =>
+      updateProjectStatus(connection, {
+        authority,
+        config,
+        governanceProposal: draftProposal,
+        project,
+        projectId,
+        statusVariant: 4,
+      }),
+    "custom program error",
+  );
+
+  await expectFailure(
+    "participate_project rejects project before open status",
+    () =>
+      participateProject(connection, {
+        config,
+        owner,
+        participation: projectParticipation,
+        position,
+        project,
+        projectId,
+      }),
+    "custom program error",
+  );
+  await assertMissingAccount(connection, projectParticipation, "project participation after non-open rejection");
 
   const seedBotPermission = deriveSeedBotPermissionAddress(owner.publicKey);
   const permissionExpiresAt = (await recentRewardSnapshotTime(connection)) + 60n * 60n;
@@ -755,8 +798,10 @@ async function runSmoke(connection) {
 	      "reject_vote_without_active_voting_rights",
 	      "reject_governance_close_before_window_end",
 	      "close_governance_proposal_after_window",
-	      "register_project",
-	      "participate_project",
+	      "reject_open_project_before_approved_governance",
+	      "register_governance_vote_project",
+	      "reject_project_status_open_before_approved_governance",
+	      "reject_participation_before_project_open",
 	      "create_seedbot_permission",
 	      "revoke_seedbot_permission",
 	      "update_seedbot_permission",
@@ -1769,14 +1814,14 @@ async function closeGovernanceProposal(connection, { approved, authority, config
 
 async function registerProject(
   connection,
-  { authority, config, governanceProposal, project, projectId, receivingAccount },
+  { authority, config, governanceProposal, project, projectId, receivingAccount, statusVariant = 2 },
 ) {
   const data = Buffer.alloc(8 + 8 + 1 + 1 + 1 + 32 + 32 + 32);
   discriminator("register_project").copy(data, 0);
   data.writeBigUInt64LE(projectId, 8);
   data.writeUInt8(1, 16);
   data.writeUInt8(1, 17);
-  data.writeUInt8(4, 18);
+  data.writeUInt8(statusVariant, 18);
   REWARD_METADATA_HASH.copy(data, 19);
   receivingAccount.toBuffer().copy(data, 51);
   governanceProposal.toBuffer().copy(data, 83);
@@ -1785,8 +1830,31 @@ async function registerProject(
     keys: [
       accountMeta(authority.publicKey, true, true),
       accountMeta(config, false, false),
+      accountMeta(governanceProposal, false, false),
       accountMeta(project, false, true),
       accountMeta(SystemProgram.programId, false, false),
+    ],
+    data,
+  });
+
+  await sendAndConfirm(connection, new Transaction().add(instruction), [authority]);
+}
+
+async function updateProjectStatus(
+  connection,
+  { authority, config, governanceProposal, project, projectId, statusVariant },
+) {
+  const data = Buffer.alloc(8 + 8 + 1);
+  discriminator("update_project_status").copy(data, 0);
+  data.writeBigUInt64LE(projectId, 8);
+  data.writeUInt8(statusVariant, 16);
+  const instruction = new TransactionInstruction({
+    programId,
+    keys: [
+      accountMeta(authority.publicKey, true, false),
+      accountMeta(config, false, false),
+      accountMeta(governanceProposal, false, false),
+      accountMeta(project, false, true),
     ],
     data,
   });

@@ -284,6 +284,7 @@ describe("protocol transaction plan", () => {
     });
     const updateStatus = buildUpdateProjectStatusTransactionPlan({
       authorityAddress: ownerAddress,
+      governanceProposalAddress,
       projectId: 9n,
       status: "HARVEST_AVAILABLE",
     });
@@ -294,11 +295,19 @@ describe("protocol transaction plan", () => {
     expect(registerProject.instructions[0].accounts.map((account) => account.anchorName)).toEqual(
       PROTOCOL_INSTRUCTION_SPECS.register_project.accounts.map((account) => account.name),
     );
+    expect(
+      registerProject.instructions[0].accounts.find((account) => account.anchorName === "governance_proposal_account")
+        ?.address,
+    ).toBe(governanceProposalAddress);
     expect(updateStatus.action).toBe("UPDATE_PROJECT_STATUS");
     expect(updateStatus.instructions[0].dataHex).toBe("322efca04fdd0544090000000000000007");
     expect(updateStatus.instructions[0].accounts.map((account) => account.anchorName)).toEqual(
       PROTOCOL_INSTRUCTION_SPECS.update_project_status.accounts.map((account) => account.name),
     );
+    expect(
+      updateStatus.instructions[0].accounts.find((account) => account.anchorName === "governance_proposal_account")
+        ?.address,
+    ).toBe(governanceProposalAddress);
   });
 
   it("builds SeedBot permission and fee config plans with bounded args", () => {

@@ -823,6 +823,13 @@
         "writable": false
       },
       {
+        "name": "governance_proposal_account",
+        "label": "governance proposal",
+        "role": "governance proposal",
+        "signer": false,
+        "writable": false
+      },
+      {
         "name": "project",
         "label": "project",
         "role": "project",
@@ -1245,6 +1252,13 @@
         "name": "config",
         "label": "config",
         "role": "config",
+        "signer": false,
+        "writable": false
+      },
+      {
+        "name": "governance_proposal_account",
+        "label": "governance proposal",
+        "role": "governance proposal",
         "signer": false,
         "writable": false
       },

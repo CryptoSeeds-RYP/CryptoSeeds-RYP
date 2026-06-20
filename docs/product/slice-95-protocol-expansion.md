@@ -15,7 +15,7 @@ This slice expands the CryptoSeeds Anchor program from staking plus reward draft
 - Governance proposal records.
 - One-wallet vote records gated by active voting-right state.
 - Governance proposal close flow.
-- Project registry records with required tier, risk level, status, metadata hash, receiving wallet, and governance proposal pointer.
+- Project registry records with required tier, risk level, status, metadata hash, receiving wallet, and governance proposal pointer. Later slices harden this pointer into a real ProjectApproval account binding.
 - Project participation records gated by stake tier and project status.
 - SeedBot permission records with expiry, max trade amount, max daily trades, and revocation.
 
@@ -32,7 +32,7 @@ This slice expands the CryptoSeeds Anchor program from staking plus reward draft
 
 - Rust unit tests cover reward accounting, metadata hashes, tier access, project-open status, reward vault verification, fee reductions, reward cadence, reward split, and staking tier mapping.
 - `protocol:idl:check` now covers 25 instructions and 11 account layouts.
-- Localnet smoke now exercises reward review/claim records, platform fee routing, governance proposal close, blocked voting without active rights, project registration/participation, SeedBot permission creation/revocation, and fee updates.
+- Localnet smoke now exercises reward review/claim records, platform fee routing, governance proposal close, blocked voting without active rights, project governance binding, SeedBot permission creation/revocation, and fee updates.
 - Devnet mint creation is scripted but externally blocked until the devnet authority wallet receives SOL.
 
 ## Remaining Protocol Work
