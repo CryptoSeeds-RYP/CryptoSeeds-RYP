@@ -22,6 +22,7 @@ const requiredScripts = [
   "protocol:smoke:localnet:wsl",
   "rewards:claim-merkle",
   "rewards:epoch:draft",
+  "rewards:holder-claim-packet",
   "ops:check",
 ];
 

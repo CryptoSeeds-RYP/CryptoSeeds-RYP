@@ -45,13 +45,21 @@ Reward vaults should never be presented as user custody accounts.
 10. Pass the exported `claimMerkleRoot` into `draft_reward_epoch`.
 11. Only after review, prepare devnet instructions.
 
+Preferred one-command claim packet export from raw holder snapshot input:
+
+```bash
+npm run rewards:holder-claim-packet -- <epoch-input.json> <epoch-id>
+```
+
+The output includes the holder reward epoch draft, the proof-only claim packet, and the `claimMerkleRoot` that should be reviewed before being passed into `draft_reward_epoch`.
+
 Claim proof export:
 
 ```bash
 npm run rewards:claim-merkle -- <reward-epoch-draft.json> <epoch-id>
 ```
 
-The export contains the epoch `claimMerkleRoot`, each wallet leaf, and each wallet proof. The root must match the value stored in `RewardEpoch.claim_merkle_root`; otherwise proof-backed claim-record creation will fail on-chain.
+The lower-level claim proof export accepts an already generated reward epoch draft. The export contains the epoch `claimMerkleRoot`, each wallet leaf, and each wallet proof. The root must match the value stored in `RewardEpoch.claim_merkle_root`; otherwise proof-backed claim-record creation will fail on-chain.
 
 Preferred wallet claim flow:
 
