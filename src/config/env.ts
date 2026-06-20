@@ -13,6 +13,8 @@ export type AppConfig = {
   adminAuthorityAddress?: string;
   independentTreasuryAddress?: string;
   rewardInspectionEpochId: bigint;
+  governanceInspectionProposalId: bigint;
+  projectInspectionId: bigint;
 };
 
 export const PLACEHOLDER_PROTOCOL_PROGRAM_ID = "FG6PaFpoGXkYsidMpWxTWqVfbGqmtn8z8DK9HdJrMPfL";
@@ -42,6 +44,8 @@ export const appConfig: AppConfig = {
   adminAuthorityAddress: readOptionalString(import.meta.env.VITE_ADMIN_AUTHORITY_ADDRESS),
   independentTreasuryAddress: readOptionalString(import.meta.env.VITE_INDEPENDENT_TREASURY_ADDRESS),
   rewardInspectionEpochId: readRewardInspectionEpochId(import.meta.env.VITE_REWARD_INSPECTION_EPOCH_ID),
+  governanceInspectionProposalId: readInspectionId(import.meta.env.VITE_GOVERNANCE_INSPECTION_PROPOSAL_ID),
+  projectInspectionId: readInspectionId(import.meta.env.VITE_PROJECT_INSPECTION_ID),
 };
 
 export function readCluster(value: string | undefined): AppConfig["cluster"] {
@@ -71,6 +75,10 @@ export function readOptionalString(value: string | undefined) {
 }
 
 export function readRewardInspectionEpochId(value: string | undefined) {
+  return readInspectionId(value);
+}
+
+export function readInspectionId(value: string | undefined) {
   const trimmed = value?.trim();
   if (!trimmed || !/^\d+$/.test(trimmed)) return 0n;
 

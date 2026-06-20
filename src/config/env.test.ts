@@ -3,6 +3,7 @@ import {
   PLACEHOLDER_PROTOCOL_PROGRAM_ID,
   readCluster,
   readHyperliquidNetwork,
+  readInspectionId,
   readOptionalString,
   readProtocolDeployment,
   readRewardInspectionEpochId,
@@ -44,5 +45,13 @@ describe("environment config readers", () => {
     expect(readRewardInspectionEpochId("-1")).toBe(0n);
     expect(readRewardInspectionEpochId("not-a-number")).toBe(0n);
     expect(readRewardInspectionEpochId(undefined)).toBe(0n);
+  });
+
+  it("normalizes generic protocol inspection ids", () => {
+    expect(readInspectionId("9")).toBe(9n);
+    expect(readInspectionId(" 10 ")).toBe(10n);
+    expect(readInspectionId("-1")).toBe(0n);
+    expect(readInspectionId("1.5")).toBe(0n);
+    expect(readInspectionId(undefined)).toBe(0n);
   });
 });

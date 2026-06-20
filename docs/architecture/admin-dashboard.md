@@ -42,6 +42,24 @@ The MVP god-wallet route is acceptable for localnet/devnet testing only. Product
 | Emergency pause | Devnet-ready concept | Testnet/devnet only until authority policy is approved |
 | Program authority | Blocked | No production authority transfer from this dashboard |
 
+## Read-Only Protocol Inspection
+
+The dashboard includes read-only inspectors for deployment and audit checks:
+
+- protocol config PDA, RYP mint, staking vault, base fee, tier thresholds, pause state, and authorities,
+- connected/admin wallet stake position, Golden Key state, voting-rights state, and vote count,
+- configured governance proposal plus the connected wallet's vote record,
+- configured project record plus the connected wallet's project participation record,
+- reward config, reward vault states, and reward epoch preview.
+
+Inspection target IDs are configured by environment:
+
+- `VITE_REWARD_INSPECTION_EPOCH_ID`
+- `VITE_GOVERNANCE_INSPECTION_PROPOSAL_ID`
+- `VITE_PROJECT_INSPECTION_ID`
+
+These inspectors must stay read-only. Missing optional wallet/project/proposal accounts are warnings; decoded unsafe state, mismatched PDA ownership, non-record-only project funding, blank metadata/disclosure hashes, invalid windows, and mismatched vote/participation records are blockers.
+
 ## Production Direction
 
 Later production design should use:

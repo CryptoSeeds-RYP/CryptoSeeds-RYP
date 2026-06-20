@@ -92,4 +92,4 @@ After the derived accounts and vault custody are reviewed, initialize the protoc
 npm run devnet:init:protocol -- --env .env.devnet.example --execute
 ```
 
-Only after protocol initialization and read-only account inspection pass should frontend transaction broadcast be reviewed.
+Only after protocol initialization and read-only account inspection pass should frontend transaction broadcast be reviewed. The Admin Dashboard now exposes protocol config, stake position, governance proposal/vote, project/participation, and reward account inspectors so the deployment state can be checked from decoded on-chain accounts before any signed frontend flow is enabled.

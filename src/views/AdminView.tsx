@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useConnection } from "@solana/wallet-adapter-react";
+import { PublicKey } from "@solana/web3.js";
 import { AlertTriangle, Database, FileCog, Landmark, LockKeyhole, ShieldCheck, WalletCards } from "lucide-react";
 import { appConfig } from "../config/env";
 import { adminActionPreviews, buildAdminAccess, buildAdminProtocolPreviews } from "../domain/admin";
@@ -14,6 +15,17 @@ import {
   readRewardAccountInspection,
   type RewardAccountInspection,
 } from "../solana/rewardAccountInspection";
+import {
+  buildGovernanceStateInspectionPreview,
+  buildProjectStateInspectionPreview,
+  buildStakePositionInspectionPreview,
+  readGovernanceStateInspection,
+  readProjectStateInspection,
+  readStakePositionInspection,
+  type GovernanceStateInspection,
+  type ProjectStateInspection,
+  type StakePositionInspection,
+} from "../solana/protocolStateInspection";
 import { formatLabel } from "../utils/format";
 import { ViewHeader } from "../components/ViewHeader";
 
@@ -32,8 +44,24 @@ export function AdminView({
     rypMintAddress: appConfig.rypMintAddress,
     rypDecimals: appConfig.rypDecimals,
   });
+  const stateInspectionWallet = normalizeOptionalPublicKey(walletAddress ?? access.configuredAdminAddress);
   const [protocolInspection, setProtocolInspection] = useState<ProtocolConfigInspection>(() =>
     buildProtocolConfigInspectionPreview(),
+  );
+  const [stakeInspection, setStakeInspection] = useState<StakePositionInspection | undefined>(() =>
+    stateInspectionWallet ? buildStakePositionInspectionPreview({ ownerAddress: stateInspectionWallet }) : undefined,
+  );
+  const [governanceInspection, setGovernanceInspection] = useState<GovernanceStateInspection>(() =>
+    buildGovernanceStateInspectionPreview({
+      proposalId: appConfig.governanceInspectionProposalId,
+      walletAddress: stateInspectionWallet,
+    }),
+  );
+  const [projectInspection, setProjectInspection] = useState<ProjectStateInspection>(() =>
+    buildProjectStateInspectionPreview({
+      projectId: appConfig.projectInspectionId,
+      walletAddress: stateInspectionWallet,
+    }),
   );
   const [rewardInspection, setRewardInspection] = useState<RewardAccountInspection>(() =>
     buildRewardAccountInspectionPreview({ epochId: appConfig.rewardInspectionEpochId }),
@@ -65,6 +93,106 @@ export function AdminView({
       cancelled = true;
     };
   }, [connection]);
+
+  useEffect(() => {
+    if (!stateInspectionWallet) {
+      setStakeInspection(undefined);
+      return undefined;
+    }
+
+    let cancelled = false;
+    const preview = buildStakePositionInspectionPreview({ ownerAddress: stateInspectionWallet });
+    setStakeInspection(preview);
+
+    if (appConfig.protocolDeployment === "placeholder") return undefined;
+
+    readStakePositionInspection({ connection, ownerAddress: stateInspectionWallet })
+      .then((inspection) => {
+        if (!cancelled) setStakeInspection(inspection);
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        setStakeInspection({
+          ...preview,
+          warnings: [
+            ...preview.warnings,
+            `Stake position RPC read failed: ${error instanceof Error ? error.message : "unknown error"}.`,
+          ],
+        });
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [connection, stateInspectionWallet]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const preview = buildGovernanceStateInspectionPreview({
+      proposalId: appConfig.governanceInspectionProposalId,
+      walletAddress: stateInspectionWallet,
+    });
+    setGovernanceInspection(preview);
+
+    if (appConfig.protocolDeployment === "placeholder") return undefined;
+
+    readGovernanceStateInspection({
+      connection,
+      proposalId: appConfig.governanceInspectionProposalId,
+      walletAddress: stateInspectionWallet,
+    })
+      .then((inspection) => {
+        if (!cancelled) setGovernanceInspection(inspection);
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        setGovernanceInspection({
+          ...preview,
+          warnings: [
+            ...preview.warnings,
+            `Governance state RPC read failed: ${error instanceof Error ? error.message : "unknown error"}.`,
+          ],
+        });
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [connection, stateInspectionWallet]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const preview = buildProjectStateInspectionPreview({
+      projectId: appConfig.projectInspectionId,
+      walletAddress: stateInspectionWallet,
+    });
+    setProjectInspection(preview);
+
+    if (appConfig.protocolDeployment === "placeholder") return undefined;
+
+    readProjectStateInspection({
+      connection,
+      projectId: appConfig.projectInspectionId,
+      walletAddress: stateInspectionWallet,
+    })
+      .then((inspection) => {
+        if (!cancelled) setProjectInspection(inspection);
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        setProjectInspection({
+          ...preview,
+          warnings: [
+            ...preview.warnings,
+            `Project state RPC read failed: ${error instanceof Error ? error.message : "unknown error"}.`,
+          ],
+        });
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [connection, stateInspectionWallet]);
 
   useEffect(() => {
     let cancelled = false;
@@ -216,6 +344,115 @@ export function AdminView({
                 : "Total staked pending"}
             </em>
             <code>{protocolInspection.rypVaultAddress}</code>
+          </article>
+        </div>
+      </section>
+
+      <section className="governance-section protocol-state-inspector">
+        <div className="view-header">
+          <div>
+            <Database size={20} />
+            <strong>Protocol State Inspectors</strong>
+          </div>
+          <span>Read-only account visibility</span>
+        </div>
+        <div className="policy-strip reward-policy-strip">
+          <div>
+            <span>Wallet Target</span>
+            <strong>{stateInspectionWallet ? shortAddress(stateInspectionWallet) : "No wallet"}</strong>
+          </div>
+          <div>
+            <span>Proposal ID</span>
+            <strong>#{governanceInspection.proposalId}</strong>
+          </div>
+          <div>
+            <span>Project ID</span>
+            <strong>#{projectInspection.projectId}</strong>
+          </div>
+          <div>
+            <span>Execution</span>
+            <strong>Read only</strong>
+          </div>
+        </div>
+        {stateInspectionMessages(stakeInspection, governanceInspection, projectInspection).length > 0 && (
+          <div className="policy-note-list">
+            {stateInspectionMessages(stakeInspection, governanceInspection, projectInspection).map((message) => (
+              <span className={message.kind === "blocker" ? "critical" : undefined} key={message.text}>
+                {message.text}
+              </span>
+            ))}
+          </div>
+        )}
+        <div className="authority-grid ops-grid reward-account-grid">
+          <article className={`authority-card reward-account-card ${stakeInspection?.status.toLowerCase() ?? "preview_only"}`}>
+            <div className="authority-card-top">
+              <WalletCards size={17} />
+              <span>{formatLabel(stakeInspection?.status ?? "PREVIEW_ONLY")}</span>
+            </div>
+            <strong>Stake Position</strong>
+            <p>{stakeInspection?.message ?? "Connect a wallet or configure admin authority to derive a stake position PDA."}</p>
+            <em>
+              {stakeInspection?.decoded
+                ? `${formatRypBaseUnits(stakeInspection.decoded.stakedAmount)} / ${formatLabel(stakeInspection.decoded.tier)}`
+                : "Stake amount and tier pending"}
+            </em>
+            <code>{stakeInspection?.positionAddress ?? "Wallet target required"}</code>
+          </article>
+          <article className={`authority-card reward-account-card ${governanceInspection.proposalStatus.toLowerCase()}`}>
+            <div className="authority-card-top">
+              <Landmark size={17} />
+              <span>{formatLabel(governanceInspection.proposalStatus)}</span>
+            </div>
+            <strong>Governance Proposal</strong>
+            <p>{governanceInspection.proposalMessage}</p>
+            <em>
+              {governanceInspection.proposal
+                ? `${formatLabel(governanceInspection.proposal.status)} / ${governanceInspection.proposal.yesVotes}-${governanceInspection.proposal.noVotes}`
+                : "Proposal state pending"}
+            </em>
+            <code>{governanceInspection.proposalAddress}</code>
+          </article>
+          <article className={`authority-card reward-account-card ${governanceInspection.voteRecordStatus.toLowerCase()}`}>
+            <div className="authority-card-top">
+              <ShieldCheck size={17} />
+              <span>{formatLabel(governanceInspection.voteRecordStatus)}</span>
+            </div>
+            <strong>Vote Record</strong>
+            <p>{governanceInspection.voteRecordMessage}</p>
+            <em>
+              {governanceInspection.voteRecord
+                ? `${governanceInspection.voteRecord.approve ? "Approved" : "Rejected"} / ${governanceInspection.voteRecord.votedAt}`
+                : "Wallet vote state pending"}
+            </em>
+            <code>{governanceInspection.voteRecordAddress ?? "Wallet target required"}</code>
+          </article>
+          <article className={`authority-card reward-account-card ${projectInspection.projectStatus.toLowerCase()}`}>
+            <div className="authority-card-top">
+              <FileCog size={17} />
+              <span>{formatLabel(projectInspection.projectStatus)}</span>
+            </div>
+            <strong>Project Record</strong>
+            <p>{projectInspection.projectMessage}</p>
+            <em>
+              {projectInspection.project
+                ? `${formatLabel(projectInspection.project.status)} / ${formatLabel(projectInspection.project.fundingModel)}`
+                : "Project status and funding model pending"}
+            </em>
+            <code>{projectInspection.projectAddress}</code>
+          </article>
+          <article className={`authority-card reward-account-card ${projectInspection.participationStatus.toLowerCase()}`}>
+            <div className="authority-card-top">
+              <WalletCards size={17} />
+              <span>{formatLabel(projectInspection.participationStatus)}</span>
+            </div>
+            <strong>Participation Record</strong>
+            <p>{projectInspection.participationMessage}</p>
+            <em>
+              {projectInspection.participation
+                ? `${formatRypBaseUnits(projectInspection.participation.participationAmount)} / ${formatLabel(projectInspection.participation.status)}`
+                : "Wallet participation state pending"}
+            </em>
+            <code>{projectInspection.participationAddress ?? "Wallet target required"}</code>
           </article>
         </div>
       </section>
@@ -397,6 +634,35 @@ function shortAddress(address: string) {
 
 function shortData(dataHex: string) {
   return `${dataHex.slice(0, 18)}...${dataHex.slice(-10)} (${dataHex.length / 2} bytes)`;
+}
+
+function normalizeOptionalPublicKey(address: string | undefined) {
+  try {
+    return address ? new PublicKey(address).toBase58() : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function stateInspectionMessages(
+  stakeInspection: StakePositionInspection | undefined,
+  governanceInspection: GovernanceStateInspection,
+  projectInspection: ProjectStateInspection,
+) {
+  const messages = [
+    ...(stakeInspection?.blockers ?? []).map((text) => ({ kind: "blocker" as const, text })),
+    ...governanceInspection.blockers.map((text) => ({ kind: "blocker" as const, text })),
+    ...projectInspection.blockers.map((text) => ({ kind: "blocker" as const, text })),
+    ...(stakeInspection?.warnings ?? []).map((text) => ({ kind: "warning" as const, text })),
+    ...governanceInspection.warnings.map((text) => ({ kind: "warning" as const, text })),
+    ...projectInspection.warnings.map((text) => ({ kind: "warning" as const, text })),
+  ];
+  const seen = new Set<string>();
+  return messages.filter((message) => {
+    if (seen.has(message.text)) return false;
+    seen.add(message.text);
+    return true;
+  });
 }
 
 function formatRypBaseUnits(value: string) {
