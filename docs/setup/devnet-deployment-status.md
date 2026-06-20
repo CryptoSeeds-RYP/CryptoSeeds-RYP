@@ -29,12 +29,15 @@ Repo-side devnet prep is partially complete:
 - Anchor build and IDL drift checks pass with the synced program id.
 - Localnet smoke passes with the synced program id.
 - `npm run devnet:mint:test -- --env .env.devnet.example` is available to create the configured devnet test mint from ignored local keypairs.
+- `npm run devnet:program:check -- --env .env.devnet.example` is available to verify whether the configured program is deployed on devnet.
+- `npm run devnet:deploy:wsl -- -EnvPath .env.devnet.example` is available to build, run strict prep, deploy the program, and inspect the deployed program account.
 
 External blocker:
 
 - Devnet faucet rejected airdrop requests for the generated authority wallet.
 - Because the authority wallet has `0 SOL`, the devnet test RYP mint has not been created yet.
 - `npm run devnet:prep -- --env .env.devnet.example` is correctly blocked until the devnet test mint account exists.
+- `npm run devnet:deploy:wsl -- -EnvPath .env.devnet.example` will also block until prep is clean.
 
 ## Next Commands
 
@@ -50,4 +53,16 @@ Then rerun:
 npm run devnet:prep -- --env .env.devnet.example
 ```
 
-Only after that should the devnet program deploy and protocol initialization steps proceed.
+Inspect current program deployment state:
+
+```bash
+npm run devnet:program:check -- --env .env.devnet.example
+```
+
+When prep is ready, deploy through WSL:
+
+```bash
+npm run devnet:deploy:wsl -- -EnvPath .env.devnet.example
+```
+
+Only after deploy inspection passes should protocol initialization steps proceed.
