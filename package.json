@@ -14,6 +14,7 @@
     "devnet:deploy:wsl": "powershell -ExecutionPolicy Bypass -File scripts/deploy-devnet-protocol-wsl.ps1",
     "devnet:init:protocol": "node scripts/initialize-devnet-protocol.mjs",
     "devnet:readiness": "node scripts/check-devnet-readiness.mjs",
+    "devnet:status": "node scripts/check-devnet-status.mjs",
     "protocol:build": "anchor build --ignore-keys",
     "protocol:build:wsl": "powershell -ExecutionPolicy Bypass -File scripts/build-anchor-wsl.ps1",
     "protocol:check:win": "powershell -ExecutionPolicy Bypass -File scripts/check-anchor-windows.ps1",
