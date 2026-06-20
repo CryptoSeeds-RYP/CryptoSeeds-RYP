@@ -739,7 +739,7 @@
   },
   "StakePosition": {
     "discriminatorHex": "4ea51e6fab7d0bdc",
-    "minimumLength": 80,
+    "minimumLength": 105,
     "fields": [
       {
         "name": "owner",
@@ -799,6 +799,30 @@
         "name": "bump",
         "type": "u8",
         "offset": 79,
+        "size": 1
+      },
+      {
+        "name": "golden_key_issued_at",
+        "type": "i64",
+        "offset": 80,
+        "size": 8
+      },
+      {
+        "name": "golden_key_revoked_at",
+        "type": "i64",
+        "offset": 88,
+        "size": 8
+      },
+      {
+        "name": "voting_rights_activated_at",
+        "type": "i64",
+        "offset": 96,
+        "size": 8
+      },
+      {
+        "name": "voting_rights_level",
+        "type": "u8",
+        "offset": 104,
         "size": 1
       }
     ]

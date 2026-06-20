@@ -341,7 +341,11 @@ async function runSmoke(connection) {
   assertEqual("position staked amount", stakedPosition.stakedAmount, SEED_STAKE_AMOUNT);
   assertEqual("position tier", stakedPosition.tier, 1);
   assertEqual("golden key active", stakedPosition.goldenKeyActive, true);
+  assertEqual("golden key issued timestamp recorded", stakedPosition.goldenKeyIssuedAt > 0n, true);
+  assertEqual("golden key revoke timestamp inactive", stakedPosition.goldenKeyRevokedAt, 0n);
   assertEqual("voting rights initially inactive", stakedPosition.votingRightsActive, false);
+  assertEqual("voting rights activation timestamp inactive", stakedPosition.votingRightsActivatedAt, 0n);
+  assertEqual("voting rights level inactive", stakedPosition.votingRightsLevel, 0);
   assertEqual(
     "voting rights delay seconds",
     stakedPosition.votingRightsEligibleTs - stakedPosition.stakingStartTs,
@@ -656,7 +660,11 @@ async function runSmoke(connection) {
   assertEqual("final position amount", finalPosition.stakedAmount, 0n);
   assertEqual("final position tier", finalPosition.tier, 0);
   assertEqual("final golden key state", finalPosition.goldenKeyActive, false);
+  assertEqual("final golden key issued timestamp preserved", finalPosition.goldenKeyIssuedAt, stakedPosition.goldenKeyIssuedAt);
+  assertEqual("final golden key revoked timestamp recorded", finalPosition.goldenKeyRevokedAt > 0n, true);
   assertEqual("final voting rights state", finalPosition.votingRightsActive, false);
+  assertEqual("final voting rights activation timestamp reset", finalPosition.votingRightsActivatedAt, 0n);
+  assertEqual("final voting rights level reset", finalPosition.votingRightsLevel, 0);
   assertEqual("final vault balance", finalVaultBalance, 0n);
   assertEqual("final owner balance", finalOwnerBalance, SPROUT_STAKE_AMOUNT + HOLDER_REWARD_CLAIM_AMOUNT);
 
@@ -724,6 +732,7 @@ async function runSmoke(connection) {
 	      "admin_reward_inspection_report",
 	      "reject_below_tier_stake",
 	      "stake_ryp",
+	      "stake_receipt_lifecycle",
 	      "create_governance_proposal",
 	      "reject_vote_without_active_voting_rights",
 	      "close_governance_proposal",
@@ -2140,6 +2149,10 @@ function parseStakePosition(data) {
     votingRightsActive: data.readUInt8(74) === 1,
     voteCount: data.readUInt32LE(75),
     bump: data.readUInt8(79),
+    goldenKeyIssuedAt: data.readBigInt64LE(80),
+    goldenKeyRevokedAt: data.readBigInt64LE(88),
+    votingRightsActivatedAt: data.readBigInt64LE(96),
+    votingRightsLevel: data.readUInt8(104),
   };
 }
 

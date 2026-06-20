@@ -26,6 +26,7 @@ pub const MAX_SEEDBOT_DAILY_TRADES: u16 = 50;
 pub const MAX_SEEDBOT_SLIPPAGE_BPS: u16 = 500;
 pub const MAX_REWARD_MERKLE_PROOF_NODES: usize = 32;
 pub const BPS_DENOMINATOR: u16 = 10_000;
+pub const VOTING_RIGHTS_LEVEL_TWO_VOTE_COUNT: u32 = 100;
 
 #[program]
 pub mod cryptoseeds_protocol {
@@ -131,6 +132,17 @@ pub mod cryptoseeds_protocol {
                 .ok_or(CryptoSeedsError::MathOverflow)?;
             position.last_reward_claim_ts = clock.unix_timestamp;
             position.voting_rights_active = false;
+            position.golden_key_issued_at = clock.unix_timestamp;
+            position.golden_key_revoked_at = 0;
+            position.voting_rights_activated_at = 0;
+            position.voting_rights_level = 0;
+
+            emit!(GoldenKeyReceiptUpdated {
+                owner: position.owner,
+                active: true,
+                issued_at: position.golden_key_issued_at,
+                revoked_at: position.golden_key_revoked_at,
+            });
         }
 
         position.staked_amount = new_amount;
@@ -206,6 +218,16 @@ pub mod cryptoseeds_protocol {
             position.voting_rights_eligible_ts = 0;
             position.golden_key_active = false;
             position.voting_rights_active = false;
+            position.golden_key_revoked_at = Clock::get()?.unix_timestamp;
+            position.voting_rights_activated_at = 0;
+            position.voting_rights_level = 0;
+
+            emit!(GoldenKeyReceiptUpdated {
+                owner: position.owner,
+                active: false,
+                issued_at: position.golden_key_issued_at,
+                revoked_at: position.golden_key_revoked_at,
+            });
         }
 
         let config = &mut ctx.accounts.config;
@@ -260,10 +282,13 @@ pub mod cryptoseeds_protocol {
 
         let position = &mut ctx.accounts.position;
         position.voting_rights_active = true;
+        position.voting_rights_activated_at = clock.unix_timestamp;
+        position.voting_rights_level = 1;
 
         emit!(VotingRightsActivated {
             owner: position.owner,
             activated_at: clock.unix_timestamp,
+            voting_rights_level: position.voting_rights_level,
         });
 
         Ok(())
@@ -1162,18 +1187,30 @@ pub mod cryptoseeds_protocol {
                 .ok_or(CryptoSeedsError::MathOverflow)?;
         }
 
+        let previous_voting_rights_level = ctx.accounts.position.voting_rights_level;
         ctx.accounts.position.vote_count = ctx
             .accounts
             .position
             .vote_count
             .checked_add(1)
             .ok_or(CryptoSeedsError::MathOverflow)?;
+        ctx.accounts.position.voting_rights_level =
+            voting_rights_level_for_vote_count(ctx.accounts.position.vote_count);
 
         emit!(GovernanceVoteCast {
             proposal: proposal.key(),
             wallet: ctx.accounts.owner.key(),
             approve,
         });
+
+        if ctx.accounts.position.voting_rights_level != previous_voting_rights_level {
+            emit!(VotingRightsLevelUpdated {
+                owner: ctx.accounts.owner.key(),
+                vote_count: ctx.accounts.position.vote_count,
+                previous_level: previous_voting_rights_level,
+                new_level: ctx.accounts.position.voting_rights_level,
+            });
+        }
 
         Ok(())
     }
@@ -2285,6 +2322,10 @@ pub struct StakePosition {
     pub voting_rights_active: bool,
     pub vote_count: u32,
     pub bump: u8,
+    pub golden_key_issued_at: i64,
+    pub golden_key_revoked_at: i64,
+    pub voting_rights_activated_at: i64,
+    pub voting_rights_level: u8,
 }
 
 #[account]
@@ -2640,9 +2681,26 @@ pub struct StakeUpdated {
 }
 
 #[event]
+pub struct GoldenKeyReceiptUpdated {
+    pub owner: Pubkey,
+    pub active: bool,
+    pub issued_at: i64,
+    pub revoked_at: i64,
+}
+
+#[event]
 pub struct VotingRightsActivated {
     pub owner: Pubkey,
     pub activated_at: i64,
+    pub voting_rights_level: u8,
+}
+
+#[event]
+pub struct VotingRightsLevelUpdated {
+    pub owner: Pubkey,
+    pub vote_count: u32,
+    pub previous_level: u8,
+    pub new_level: u8,
 }
 
 #[event]
@@ -3551,6 +3609,14 @@ fn validate_seedbot_permission_limits_at(
     Ok(())
 }
 
+fn voting_rights_level_for_vote_count(vote_count: u32) -> u8 {
+    if vote_count >= VOTING_RIGHTS_LEVEL_TWO_VOTE_COUNT {
+        2
+    } else {
+        1
+    }
+}
+
 fn record_seedbot_usage_at(
     permission: &mut SeedBotPermission,
     now: i64,
@@ -4115,6 +4181,14 @@ mod tests {
             MAX_SEEDBOT_SLIPPAGE_BPS + 1,
         )
         .is_err());
+    }
+
+    #[test]
+    fn maps_voting_rights_level_from_vote_count() {
+        assert_eq!(voting_rights_level_for_vote_count(0), 1);
+        assert_eq!(voting_rights_level_for_vote_count(99), 1);
+        assert_eq!(voting_rights_level_for_vote_count(100), 2);
+        assert_eq!(voting_rights_level_for_vote_count(101), 2);
     }
 
     #[test]

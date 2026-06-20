@@ -81,6 +81,10 @@ Stores per-wallet staking state.
 | `voting_rights_active` | `bool` | 14-day voting eligibility state |
 | `vote_count` | `u32` | Used later for Voting Rights NFT evolution |
 | `bump` | `u8` | PDA bump |
+| `golden_key_issued_at` | `i64` | Timestamp for the current Golden Key receipt cycle |
+| `golden_key_revoked_at` | `i64` | Timestamp when the Golden Key receipt was deactivated by full unstake |
+| `voting_rights_activated_at` | `i64` | Timestamp when voting rights were activated |
+| `voting_rights_level` | `u8` | Receipt level, currently `0` inactive, `1` active, `2` after 100 votes |
 
 Important cycle rule:
 
@@ -115,6 +119,7 @@ State:
 - If previous stake was zero, start a new active staking cycle.
 - Preserve active voting rights when a user increases an already-active stake.
 - Activate Golden Key state while stake remains non-zero.
+- Record Golden Key issue timestamp and clear stale receipt revocation state for new staking cycles.
 - Update tier from total staked amount.
 - Update total staked.
 
@@ -133,7 +138,7 @@ Validation:
 State:
 
 - Update tier from remaining stake.
-- If remaining stake is zero, deactivate Golden Key and Voting Rights state.
+- If remaining stake is zero, deactivate Golden Key and Voting Rights state, record Golden Key revocation timestamp, and reset active Voting Rights receipt fields.
 - Update total staked.
 
 ### `activate_voting_rights`
@@ -146,6 +151,15 @@ Validation:
 - Owner matches stake position.
 - Tier is not `None`.
 - Current timestamp is greater than or equal to `voting_rights_eligible_ts`.
+- Voting Rights receipt starts at level 1.
+
+### Voting Rights Evolution
+
+Voting rights remain one-wallet-one-vote. The receipt level is cosmetic/accounting state, not vote weight.
+
+- Level 0: inactive.
+- Level 1: active after the 14-day staking delay.
+- Level 2: activated automatically once the wallet reaches 100 successful votes.
 
 ## Events
 
@@ -156,7 +170,9 @@ Recommended event set:
 - `StakeDeposited`
 - `StakeWithdrawn`
 - `StakeUpdated`
+- `GoldenKeyReceiptUpdated`
 - `VotingRightsActivated`
+- `VotingRightsLevelUpdated`
 
 Events should include enough data for an indexer to reconstruct:
 
