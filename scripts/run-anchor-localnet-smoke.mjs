@@ -495,6 +495,20 @@ async function runSmoke(connection) {
   assertEqual("registered project cancelled at", registeredProject.cancelledAt, 0n);
   assertEqual("registered project refund pool", registeredProject.refundPoolAmount, 0n);
   assertEqual("registered project total refunded", registeredProject.totalRefundedAmount, 0n);
+  assertEqual("registered project pause flag", registeredProject.participationPaused, false);
+
+  await expectFailure(
+    "set_project_pause rejects non-authority signer",
+    () => setProjectPause(connection, { authority: owner, config, paused: true, project, projectId }),
+    "custom program error",
+  );
+  log("calling set_project_pause for draft project");
+  await setProjectPause(connection, { authority, config, paused: true, project, projectId });
+  const pausedProject = parseProjectRecord(await getAccountData(connection, project));
+  assertEqual("project pause flag set", pausedProject.participationPaused, true);
+  await setProjectPause(connection, { authority, config, paused: false, project, projectId });
+  const unpausedProject = parseProjectRecord(await getAccountData(connection, project));
+  assertEqual("project pause flag cleared", unpausedProject.participationPaused, false);
 
   await expectFailure(
     "update_project_status rejects open project before approved governance",
@@ -898,6 +912,8 @@ async function runSmoke(connection) {
 	      "reject_invalid_project_participation_window",
 	      "register_governance_vote_project",
 	      "project_participation_bounds_accounting",
+	      "reject_non_authority_project_pause",
+	      "project_pause_toggle",
 	      "reject_project_status_open_before_approved_governance",
 	      "reject_participation_before_project_open",
 	      "reject_project_refund_pool_above_participation",
@@ -1981,6 +1997,24 @@ async function updateProjectStatus(
   await sendAndConfirm(connection, new Transaction().add(instruction), [authority]);
 }
 
+async function setProjectPause(connection, { authority, config, paused, project, projectId }) {
+  const data = Buffer.alloc(8 + 8 + 1);
+  discriminator("set_project_pause").copy(data, 0);
+  data.writeBigUInt64LE(projectId, 8);
+  data.writeUInt8(paused ? 1 : 0, 16);
+  const instruction = new TransactionInstruction({
+    programId,
+    keys: [
+      accountMeta(authority.publicKey, true, false),
+      accountMeta(config, false, false),
+      accountMeta(project, false, true),
+    ],
+    data,
+  });
+
+  await sendAndConfirm(connection, new Transaction().add(instruction), [authority]);
+}
+
 async function cancelProject(connection, { authority, config, project, projectId, refundPoolAmount }) {
   const data = Buffer.alloc(8 + 8 + 32 + 8);
   discriminator("cancel_project").copy(data, 0);
@@ -2618,6 +2652,7 @@ function parseProjectRecord(data) {
     cancelledAt: data.readBigInt64LE(offset.cancelled_at),
     refundPoolAmount: data.readBigUInt64LE(offset.refund_pool_amount),
     totalRefundedAmount: data.readBigUInt64LE(offset.total_refunded_amount),
+    participationPaused: data.readUInt8(offset.participation_paused) === 1,
     bump: data.readUInt8(offset.bump),
   };
 }

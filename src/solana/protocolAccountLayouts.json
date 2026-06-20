@@ -169,7 +169,7 @@
   },
   "ProjectRecord": {
     "discriminatorHex": "5dae70cbe77b5c38",
-    "minimumLength": 260,
+    "minimumLength": 261,
     "fields": [
       {
         "name": "project_id",
@@ -286,9 +286,15 @@
         "size": 8
       },
       {
+        "name": "participation_paused",
+        "type": "bool",
+        "offset": 259,
+        "size": 1
+      },
+      {
         "name": "bump",
         "type": "u8",
-        "offset": 259,
+        "offset": 260,
         "size": 1
       }
     ]

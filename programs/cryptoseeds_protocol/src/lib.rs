@@ -1379,6 +1379,7 @@ pub mod cryptoseeds_protocol {
         project.cancelled_at = 0;
         project.refund_pool_amount = 0;
         project.total_refunded_amount = 0;
+        project.participation_paused = false;
         project.bump = ctx.bumps.project;
 
         emit!(ProjectRegistered {
@@ -1418,6 +1419,22 @@ pub mod cryptoseeds_protocol {
         emit!(ProjectStatusUpdated {
             project: ctx.accounts.project.key(),
             status,
+        });
+
+        Ok(())
+    }
+
+    pub fn set_project_pause(
+        ctx: Context<SetProjectPause>,
+        _project_id: u64,
+        paused: bool,
+    ) -> Result<()> {
+        validate_protocol_authority(&ctx.accounts.config, &ctx.accounts.authority.key())?;
+        ctx.accounts.project.participation_paused = paused;
+
+        emit!(ProjectPauseUpdated {
+            project: ctx.accounts.project.key(),
+            paused,
         });
 
         Ok(())
@@ -1495,6 +1512,7 @@ pub mod cryptoseeds_protocol {
             ctx.accounts.project.status.is_participation_open(),
             CryptoSeedsError::ProjectNotOpen
         );
+        validate_project_participation_not_paused(&ctx.accounts.project)?;
 
         let clock = Clock::get()?;
         validate_project_participation_window_open(&ctx.accounts.project, clock.unix_timestamp)?;
@@ -2384,6 +2402,20 @@ pub struct UpdateProjectStatus<'info> {
 
 #[derive(Accounts)]
 #[instruction(project_id: u64)]
+pub struct SetProjectPause<'info> {
+    pub authority: Signer<'info>,
+    #[account(seeds = [CONFIG_SEED], bump = config.bump)]
+    pub config: Account<'info, ProtocolConfig>,
+    #[account(
+        mut,
+        seeds = [PROJECT_RECORD_SEED, project_id.to_le_bytes().as_ref()],
+        bump = project.bump
+    )]
+    pub project: Account<'info, ProjectRecord>,
+}
+
+#[derive(Accounts)]
+#[instruction(project_id: u64)]
 pub struct CancelProject<'info> {
     pub authority: Signer<'info>,
     #[account(seeds = [CONFIG_SEED], bump = config.bump)]
@@ -2676,6 +2708,7 @@ pub struct ProjectRecord {
     pub cancelled_at: i64,
     pub refund_pool_amount: u64,
     pub total_refunded_amount: u64,
+    pub participation_paused: bool,
     pub bump: u8,
 }
 
@@ -3127,6 +3160,12 @@ pub struct ProjectStatusUpdated {
 }
 
 #[event]
+pub struct ProjectPauseUpdated {
+    pub project: Pubkey,
+    pub paused: bool,
+}
+
+#[event]
 pub struct ProjectCancelled {
     pub project: Pubkey,
     pub cancelled_at: i64,
@@ -3315,6 +3354,8 @@ pub enum CryptoSeedsError {
     InsufficientTier,
     #[msg("Project is not open for participation.")]
     ProjectNotOpen,
+    #[msg("Project participation is paused.")]
+    ProjectParticipationPaused,
     #[msg("SeedBot permission limits are invalid.")]
     InvalidSeedBotPermission,
     #[msg("SeedBot permission is already revoked.")]
@@ -4065,6 +4106,14 @@ fn validate_project_participation_window_open(project: &ProjectRecord, now: i64)
     require!(
         now >= project.participation_starts_at && now <= project.participation_ends_at,
         CryptoSeedsError::ProjectParticipationWindowClosed
+    );
+    Ok(())
+}
+
+fn validate_project_participation_not_paused(project: &ProjectRecord) -> Result<()> {
+    require!(
+        !project.participation_paused,
+        CryptoSeedsError::ProjectParticipationPaused
     );
     Ok(())
 }
@@ -5068,6 +5117,15 @@ mod tests {
     }
 
     #[test]
+    fn blocks_project_participation_when_paused() {
+        let mut project = project_record();
+        assert!(validate_project_participation_not_paused(&project).is_ok());
+
+        project.participation_paused = true;
+        assert!(validate_project_participation_not_paused(&project).is_err());
+    }
+
+    #[test]
     fn records_project_cancellation_and_refund_accounting() {
         let mut project = project_record();
         project.total_participation_amount = 1_000;
@@ -5208,6 +5266,7 @@ mod tests {
             cancelled_at: 0,
             refund_pool_amount: 0,
             total_refunded_amount: 0,
+            participation_paused: false,
             bump: 255,
         }
     }

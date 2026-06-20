@@ -257,6 +257,12 @@ export type UpdateProjectStatusPlanInput = {
   status: ProjectLifecycleStatus;
 };
 
+export type SetProjectPausePlanInput = {
+  authorityAddress: string;
+  projectId: bigint | number | string;
+  paused: boolean;
+};
+
 export type CancelProjectPlanInput = {
   authorityAddress: string;
   projectId: bigint | number | string;
@@ -823,6 +829,38 @@ export function buildUpdateProjectStatusTransactionPlan({
     warnings: [
       "Admin-only project lifecycle update.",
       "Public project statuses require the stored ProjectApproval proposal to be approved on-chain.",
+    ],
+  });
+}
+
+export function buildSetProjectPauseTransactionPlan({
+  authorityAddress,
+  paused,
+  projectId,
+}: SetProjectPausePlanInput): PreparedSolanaTransactionPlan {
+  const project = toU64(projectId);
+  const addresses = {
+    ...deriveProtocolAddresses(authorityAddress),
+    authority: new PublicKey(authorityAddress).toBase58(),
+    project: deriveProjectRecordAddress(project),
+  };
+  const spec = instructionSpec("set_project_pause");
+  const instruction = instructionPlan({
+    accounts: accountsFromSpec(spec, addresses),
+    argDataHex: `${u64LeHex(project)}${paused ? "01" : "00"}`,
+    discriminatorHex: spec.discriminatorHex,
+    instructionName: "set_project_pause",
+    programId: addresses.programId,
+  });
+
+  return transactionPlan({
+    action: "SET_PROJECT_PAUSE",
+    addresses,
+    feePayer: addresses.authority,
+    instruction,
+    warnings: [
+      "Admin-only project participation pause control.",
+      "This blocks new project participation without changing lifecycle status or moving funds.",
     ],
   });
 }

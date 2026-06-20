@@ -17,6 +17,7 @@ import {
   buildRecordSeedBotUsageTransactionPlan,
   buildRevokeSeedBotPermissionTransactionPlan,
   buildRoutePlatformFeeTransactionPlan,
+  buildSetProjectPauseTransactionPlan,
   buildStakeRypTransactionPlan,
   buildUnstakeRypTransactionPlan,
   buildUpdateFeeConfigTransactionPlan,
@@ -295,6 +296,11 @@ describe("protocol transaction plan", () => {
       projectId: 9n,
       status: "HARVEST_AVAILABLE",
     });
+    const pauseProject = buildSetProjectPauseTransactionPlan({
+      authorityAddress: ownerAddress,
+      paused: true,
+      projectId: 9n,
+    });
     const cancelProject = buildCancelProjectTransactionPlan({
       authorityAddress: ownerAddress,
       cancellationHash: "aa".repeat(32),
@@ -330,6 +336,11 @@ describe("protocol transaction plan", () => {
       updateStatus.instructions[0].accounts.find((account) => account.anchorName === "governance_proposal_account")
         ?.address,
     ).toBe(governanceProposalAddress);
+    expect(pauseProject.action).toBe("SET_PROJECT_PAUSE");
+    expect(pauseProject.instructions[0].dataHex).toBe("d385f9aa156f8307090000000000000001");
+    expect(pauseProject.instructions[0].accounts.map((account) => account.anchorName)).toEqual(
+      PROTOCOL_INSTRUCTION_SPECS.set_project_pause.accounts.map((account) => account.name),
+    );
     expect(cancelProject.action).toBe("CANCEL_PROJECT");
     expect(cancelProject.instructions[0].dataHex).toBe(
       `68950388a0030d840900000000000000${"aa".repeat(32)}2003000000000000`,

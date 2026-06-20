@@ -75,6 +75,7 @@ export type PreparedSolanaTransactionPlan = {
     | "REGISTER_PROJECT"
     | "REVOKE_PERMISSION"
     | "ROUTE_PLATFORM_FEE"
+    | "SET_PROJECT_PAUSE"
     | "STAKE_RYP"
     | "UNSTAKE_RYP"
     | "UPDATE_FEE_CONFIG"

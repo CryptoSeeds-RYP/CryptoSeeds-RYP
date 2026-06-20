@@ -615,6 +615,36 @@
       }
     ]
   },
+  "set_project_pause": {
+    "discriminatorHex": "d385f9aa156f8307",
+    "args": [
+      "_project_id",
+      "paused"
+    ],
+    "accounts": [
+      {
+        "name": "authority",
+        "label": "authority",
+        "role": "authority",
+        "signer": true,
+        "writable": false
+      },
+      {
+        "name": "config",
+        "label": "config",
+        "role": "config",
+        "signer": false,
+        "writable": false
+      },
+      {
+        "name": "project",
+        "label": "project",
+        "role": "project",
+        "signer": false,
+        "writable": true
+      }
+    ]
+  },
   "draft_reward_epoch": {
     "discriminatorHex": "2b97706f55302d50",
     "args": [
