@@ -11,6 +11,7 @@ export type AppConfig = {
   seedBotHyperliquidNetwork: "MAINNET" | "TESTNET";
   seedBotSignedExecutionEnabled: boolean;
   adminAuthorityAddress?: string;
+  independentTreasuryAddress?: string;
   rewardInspectionEpochId: bigint;
 };
 
@@ -39,6 +40,7 @@ export const appConfig: AppConfig = {
   seedBotHyperliquidNetwork: readHyperliquidNetwork(import.meta.env.VITE_SEEDBOT_HYPERLIQUID_NETWORK),
   seedBotSignedExecutionEnabled: import.meta.env.VITE_SEEDBOT_SIGNED_EXECUTION === "true",
   adminAuthorityAddress: readOptionalString(import.meta.env.VITE_ADMIN_AUTHORITY_ADDRESS),
+  independentTreasuryAddress: readOptionalString(import.meta.env.VITE_INDEPENDENT_TREASURY_ADDRESS),
   rewardInspectionEpochId: readRewardInspectionEpochId(import.meta.env.VITE_REWARD_INSPECTION_EPOCH_ID),
 };
 

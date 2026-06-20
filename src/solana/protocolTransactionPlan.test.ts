@@ -20,6 +20,7 @@ import {
   buildOperatorUpdateProjectStatusTransactionPlan,
   buildProjectParticipationTransactionPlan,
   buildRegisterProjectTransactionPlan,
+  buildRegisterRewardVaultTransactionPlan,
   buildRecordProjectRefundTransactionPlan,
   buildRevokeProjectOperatorTransactionPlan,
   buildRecordSeedBotUsageTransactionPlan,
@@ -32,6 +33,7 @@ import {
   buildUpdateFeeConfigTransactionPlan,
   buildUpdateProjectStatusTransactionPlan,
   buildUpdateSeedBotPermissionTransactionPlan,
+  buildVerifyRewardVaultTransactionPlan,
   deriveProtocolAddresses,
   deriveProjectDisclosureRevisionAddress,
   deriveProjectOperatorAddress,
@@ -193,6 +195,38 @@ describe("protocol transaction plan", () => {
     expect(expireEpoch.instructions[0].dataHex).toBe("b450565ce6f8ad7e0300000000000000");
     expect(expireEpoch.instructions[0].accounts.map((account) => account.anchorName)).toEqual(
       PROTOCOL_INSTRUCTION_SPECS.expire_reward_epoch_claims.accounts.map((account) => account.name),
+    );
+  });
+
+  it("builds reward vault registration and verification plans", () => {
+    const vaultAddress = "So11111111111111111111111111111111111111112";
+    const metadataHash = "44".repeat(32);
+    const registerVault = buildRegisterRewardVaultTransactionPlan({
+      authorityAddress: ownerAddress,
+      custodyModel: "TREASURY_CONTROLLED",
+      metadataHash,
+      rewardRole: "INDEPENDENT_TREASURY",
+      vaultAddress,
+    });
+    const verifyVault = buildVerifyRewardVaultTransactionPlan({
+      authorityAddress: ownerAddress,
+      expectedMetadataHash: metadataHash,
+      rewardRole: "INDEPENDENT_TREASURY",
+    });
+
+    expect(registerVault.action).toBe("REGISTER_REWARD_VAULT");
+    expect(registerVault.instructions[0].dataHex).toMatch(/^cb37299cfc7fb9ef02/);
+    expect(registerVault.instructions[0].dataHex.endsWith(`01${metadataHash}`)).toBe(true);
+    expect(registerVault.instructions[0].accounts.map((account) => account.anchorName)).toEqual(
+      PROTOCOL_INSTRUCTION_SPECS.register_reward_vault.accounts.map((account) => account.name),
+    );
+    expect(registerVault.derivedAccounts.find((account) => account.anchorName === "reward_vault_state")?.address).toMatch(
+      /^[1-9A-HJ-NP-Za-km-z]{32,44}$/,
+    );
+    expect(verifyVault.action).toBe("VERIFY_REWARD_VAULT");
+    expect(verifyVault.instructions[0].dataHex).toBe(`66d3afeefc0e7bf502${metadataHash}`);
+    expect(verifyVault.instructions[0].accounts.map((account) => account.anchorName)).toEqual(
+      PROTOCOL_INSTRUCTION_SPECS.verify_reward_vault.accounts.map((account) => account.name),
     );
   });
 

@@ -62,6 +62,7 @@ type ProtocolAddressBook = ReturnType<typeof deriveProtocolAddresses> &
     proposal?: string;
     rewardEpoch?: string;
     rewardSourceVault?: string;
+    rewardVault?: string;
     rewardVaultState?: string;
     stakerRewardVault?: string;
     stakerRewardVaultState?: string;
@@ -75,6 +76,10 @@ export type RewardVaultRouteRole =
   | "INDEPENDENT_TREASURY"
   | "DELIVERY_COST_RESERVE"
   | "ROLLOVER";
+export type RewardVaultCustodyModel =
+  | "PROGRAM_CONTROLLED"
+  | "TREASURY_CONTROLLED"
+  | "DISCLOSURE_PENDING";
 export type GovernanceProposalCategory =
   | "PROJECT_APPROVAL"
   | "TREASURY_ALLOCATION"
@@ -112,6 +117,20 @@ export const PROJECT_OPERATOR_PERMISSION_MASK = PROJECT_OPERATOR_PERMISSION_STAT
 const REWARD_ROLE_VARIANTS: Record<RewardClaimRole, number> = {
   HOLDER_REWARD: 0,
   STAKER_REWARD: 1,
+};
+
+const REWARD_VAULT_ROLE_VARIANTS: Record<RewardVaultRouteRole, number> = {
+  HOLDER_REWARD: 0,
+  STAKER_REWARD: 1,
+  INDEPENDENT_TREASURY: 2,
+  DELIVERY_COST_RESERVE: 3,
+  ROLLOVER: 4,
+};
+
+const REWARD_VAULT_CUSTODY_MODEL_VARIANTS: Record<RewardVaultCustodyModel, number> = {
+  PROGRAM_CONTROLLED: 0,
+  TREASURY_CONTROLLED: 1,
+  DISCLOSURE_PENDING: 2,
 };
 
 const REWARD_VAULT_ROLE_SEEDS: Record<RewardVaultRouteRole, string> = {
@@ -187,6 +206,20 @@ export type InitializeRewardConfigPlanInput = {
   holderSplitBps: number;
   stakerSplitBps: number;
   treasurySplitBps: number;
+};
+
+export type RegisterRewardVaultPlanInput = {
+  authorityAddress: string;
+  rewardRole: RewardVaultRouteRole;
+  vaultAddress: string;
+  custodyModel: RewardVaultCustodyModel;
+  metadataHash: string | Uint8Array | number[];
+};
+
+export type VerifyRewardVaultPlanInput = {
+  authorityAddress: string;
+  rewardRole: RewardVaultRouteRole;
+  expectedMetadataHash: string | Uint8Array | number[];
 };
 
 export type UnstakePlanInput = {
@@ -483,6 +516,77 @@ export function buildInitializeRewardConfigTransactionPlan({
     warnings: [
       "Initializes draft-only reward routing config for holder, staker, and independent treasury buckets.",
       "Reward execution remains review-gated; this does not create a payout epoch by itself.",
+    ],
+  });
+}
+
+export function buildRegisterRewardVaultTransactionPlan({
+  authorityAddress,
+  custodyModel,
+  metadataHash,
+  rewardRole,
+  vaultAddress,
+}: RegisterRewardVaultPlanInput): PreparedSolanaTransactionPlan {
+  const vault = new PublicKey(vaultAddress);
+  const addresses = {
+    ...deriveProtocolAddresses(authorityAddress),
+    authority: new PublicKey(authorityAddress).toBase58(),
+    rewardVault: vault.toBase58(),
+    rewardVaultState: deriveRewardVaultStateAddress(rewardRole),
+  };
+  const spec = instructionSpec("register_reward_vault");
+  const instruction = instructionPlan({
+    accounts: accountsFromSpec(spec, addresses),
+    argDataHex: [
+      rewardVaultRoleVariantHex(rewardRole),
+      pubkeyHex(vault),
+      rewardVaultCustodyModelVariantHex(custodyModel),
+      fixedHashHex(metadataHash),
+    ].join(""),
+    discriminatorHex: spec.discriminatorHex,
+    instructionName: "register_reward_vault",
+    programId: addresses.programId,
+  });
+
+  return transactionPlan({
+    action: "REGISTER_REWARD_VAULT",
+    addresses,
+    feePayer: addresses.authority,
+    instruction,
+    warnings: [
+      "Registers reward vault metadata for review; token account custody and metadata hash must match the reviewed packet.",
+      "This does not distribute rewards or expose payout execution by itself.",
+    ],
+  });
+}
+
+export function buildVerifyRewardVaultTransactionPlan({
+  authorityAddress,
+  expectedMetadataHash,
+  rewardRole,
+}: VerifyRewardVaultPlanInput): PreparedSolanaTransactionPlan {
+  const addresses = {
+    ...deriveProtocolAddresses(authorityAddress),
+    authority: new PublicKey(authorityAddress).toBase58(),
+    rewardVaultState: deriveRewardVaultStateAddress(rewardRole),
+  };
+  const spec = instructionSpec("verify_reward_vault");
+  const instruction = instructionPlan({
+    accounts: accountsFromSpec(spec, addresses),
+    argDataHex: [rewardVaultRoleVariantHex(rewardRole), fixedHashHex(expectedMetadataHash)].join(""),
+    discriminatorHex: spec.discriminatorHex,
+    instructionName: "verify_reward_vault",
+    programId: addresses.programId,
+  });
+
+  return transactionPlan({
+    action: "VERIFY_REWARD_VAULT",
+    addresses,
+    feePayer: addresses.authority,
+    instruction,
+    warnings: [
+      "Verifies the registered reward vault metadata hash before reward routing can use the vault.",
+      "Verification should only follow an external custody and disclosure review.",
     ],
   });
 }
@@ -1592,6 +1696,12 @@ export function deriveRewardVaultStateAddress(rewardRole: RewardVaultRouteRole) 
   return address.toBase58();
 }
 
+export function deriveRypAssociatedTokenAddress(ownerAddress: string) {
+  const owner = new PublicKey(ownerAddress);
+  const mint = new PublicKey(appConfig.rypMintAddress);
+  return deriveAssociatedTokenAddress({ mint, owner }).toBase58();
+}
+
 export function deriveGovernanceProposalAddress(proposalId: bigint | number | string) {
   const programId = new PublicKey(appConfig.protocolProgramId);
   const [address] = PublicKey.findProgramAddressSync(
@@ -1802,6 +1912,8 @@ function derivedAccountReferences(addresses: ProtocolAddressBook): TransactionAc
     ["payer_fee_account", "Payer fee account"],
     ["pending_authority", "Pending authority"],
     ["reward_epoch", "Reward epoch"],
+    ["reward_vault_state", "Reward vault state"],
+    ["reward_vault", "Reward vault"],
     ["claim_record", "Reward claim record"],
     ["proposal", "Governance proposal"],
     ["governance_proposal_account", "Project governance proposal"],
@@ -1885,6 +1997,8 @@ function addressForProtocolAccountIfPresent(addresses: ProtocolAddressBook, name
       return addresses.rewardMint;
     case "reward_source_vault":
       return addresses.rewardSourceVault;
+    case "reward_vault":
+      return addresses.rewardVault;
     case "reward_vault_state":
       return addresses.rewardVaultState;
     case "ryp_mint":
@@ -1992,6 +2106,14 @@ function rewardRoleVariantHex(rewardRole: RewardClaimRole) {
     throw new Error(`Unsupported reward claim role: ${rewardRole}`);
   }
   return u8Hex(variant);
+}
+
+function rewardVaultRoleVariantHex(rewardRole: RewardVaultRouteRole) {
+  return enumVariantHex(rewardRole, REWARD_VAULT_ROLE_VARIANTS);
+}
+
+function rewardVaultCustodyModelVariantHex(custodyModel: RewardVaultCustodyModel) {
+  return enumVariantHex(custodyModel, REWARD_VAULT_CUSTODY_MODEL_VARIANTS);
 }
 
 function enumVariantHex<T extends string>(value: T, variants: Record<T, number>) {

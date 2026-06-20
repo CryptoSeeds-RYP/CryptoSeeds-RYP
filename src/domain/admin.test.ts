@@ -92,24 +92,39 @@ describe("admin access", () => {
   it("builds preview-only protocol transactions for a valid admin authority", () => {
     const previews = buildAdminProtocolPreviews({
       authorityAddress: validAdminAddress,
+      rypMintAddress: "So11111111111111111111111111111111111111112",
       rypDecimals: 6,
     });
     const readyActions = previews.flatMap((preview) => preview.plan?.action ?? []);
 
-    expect(readyActions).toEqual(["INITIALIZE_CONFIG", "INITIALIZE_REWARD_CONFIG", "UPDATE_FEE_CONFIG"]);
+    expect(readyActions).toEqual([
+      "INITIALIZE_CONFIG",
+      "INITIALIZE_REWARD_CONFIG",
+      "REGISTER_REWARD_VAULT",
+      "VERIFY_REWARD_VAULT",
+      "UPDATE_FEE_CONFIG",
+    ]);
     expect(previews.find((preview) => preview.id === "ryp-transfer-fee-route")?.status).toBe("BLOCKED");
 
     const initializeConfig = previews.find((preview) => preview.plan?.action === "INITIALIZE_CONFIG")?.plan;
     const initializeRewardConfig = previews.find((preview) => preview.plan?.action === "INITIALIZE_REWARD_CONFIG")?.plan;
+    const registerVault = previews.find((preview) => preview.plan?.action === "REGISTER_REWARD_VAULT")?.plan;
+    const verifyVault = previews.find((preview) => preview.plan?.action === "VERIFY_REWARD_VAULT")?.plan;
     const updateFeeConfig = previews.find((preview) => preview.plan?.action === "UPDATE_FEE_CONFIG")?.plan;
 
     expect(initializeConfig?.instructions[0].dataHex).toContain("00f2052a01000000");
     expect(initializeRewardConfig?.instructions[0].dataHex).toBe("542d0dc2ebb539ab803a090000000000060d050d050d");
+    expect(registerVault?.instructions[0].dataHex).toMatch(/^cb37299cfc7fb9ef02/);
+    expect(registerVault?.instructions[0].dataHex).toContain("01");
+    expect(verifyVault?.instructions[0].dataHex).toMatch(/^66d3afeefc0e7bf502/);
     expect(updateFeeConfig?.instructions[0].dataHex).toBe("68b867f258976b145e0100002300460069008c00");
   });
 
   it("blocks protocol transaction previews without a configured authority", () => {
-    const previews = buildAdminProtocolPreviews({ rypDecimals: 6 });
+    const previews = buildAdminProtocolPreviews({
+      rypMintAddress: "So11111111111111111111111111111111111111112",
+      rypDecimals: 6,
+    });
 
     expect(previews.filter((preview) => preview.status === "READY")).toHaveLength(0);
     expect(previews.every((preview) => preview.blockers.length > 0)).toBe(true);

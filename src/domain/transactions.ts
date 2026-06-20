@@ -80,6 +80,7 @@ export type PreparedSolanaTransactionPlan = {
     | "RECORD_PROJECT_REFUND"
     | "RECORD_SEEDBOT_USAGE"
     | "REGISTER_PROJECT"
+    | "REGISTER_REWARD_VAULT"
     | "REVOKE_PROJECT_OPERATOR"
     | "REVOKE_PERMISSION"
     | "ROUTE_PLATFORM_FEE"
@@ -90,6 +91,7 @@ export type PreparedSolanaTransactionPlan = {
     | "UPDATE_FEE_CONFIG"
     | "UPDATE_PROJECT_STATUS"
     | "UPDATE_SEEDBOT_PERMISSION"
+    | "VERIFY_REWARD_VAULT"
     | "VOTE_PROPOSAL";
   feePayer: string;
   amountBaseUnits?: string;

@@ -23,6 +23,8 @@ export function AdminView({
   const access = buildAdminAccess({ config: appConfig, walletAddress, demoMode });
   const protocolPreviews = buildAdminProtocolPreviews({
     authorityAddress: access.configuredAdminAddress,
+    independentTreasuryAddress: appConfig.independentTreasuryAddress,
+    rypMintAddress: appConfig.rypMintAddress,
     rypDecimals: appConfig.rypDecimals,
   });
   const [rewardInspection, setRewardInspection] = useState<RewardAccountInspection>(() =>

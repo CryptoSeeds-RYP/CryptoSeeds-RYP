@@ -1,3 +1,4 @@
+import { sha256 } from "@noble/hashes/sha2";
 import type { AppConfig } from "../config/env";
 import type { PreparedSolanaTransactionPlan } from "./transactions";
 import {
@@ -10,7 +11,10 @@ import { selectableTiers, tierFeeReduction, tierRequirements } from "./tiering";
 import {
   buildInitializeConfigTransactionPlan,
   buildInitializeRewardConfigTransactionPlan,
+  buildRegisterRewardVaultTransactionPlan,
   buildUpdateFeeConfigTransactionPlan,
+  buildVerifyRewardVaultTransactionPlan,
+  deriveRypAssociatedTokenAddress,
   parseRypAmountToBaseUnits,
 } from "../solana/protocolTransactionPlan";
 
@@ -195,9 +199,13 @@ export function adminActionsExecutableInMvp() {
 
 export function buildAdminProtocolPreviews({
   authorityAddress,
+  independentTreasuryAddress,
+  rypMintAddress,
   rypDecimals,
 }: {
   authorityAddress?: string;
+  independentTreasuryAddress?: string;
+  rypMintAddress: string;
   rypDecimals: number;
 }): AdminProtocolPreview[] {
   const tierThresholdsBaseUnits = selectableTiers.map((tier) =>
@@ -209,6 +217,16 @@ export function buildAdminProtocolPreviews({
   const holderSplitBps = splitBps("HOLDERS");
   const stakerSplitBps = splitBps("STAKERS");
   const treasurySplitBps = splitBps("INDEPENDENT_TREASURY");
+  const treasuryOwnerAddress = independentTreasuryAddress ?? authorityAddress;
+  const treasuryVaultAddress = treasuryOwnerAddress ? deriveRypAssociatedTokenAddress(treasuryOwnerAddress) : undefined;
+  const treasuryMetadataHash = treasuryVaultAddress
+    ? rewardVaultMetadataHashHex({
+        custodyModelVariant: 1,
+        rewardVaultAddress: treasuryVaultAddress,
+        roleSeed: "independent-treasury",
+        rypMintAddress,
+      })
+    : undefined;
 
   return [
     safeProtocolPreview({
@@ -239,6 +257,42 @@ export function buildAdminProtocolPreviews({
       executionRule: "Creates routing config only; reward epochs and payouts remain separately reviewed.",
       id: "initialize-reward-config",
       label: "Initialize Reward Config",
+    }),
+    safeProtocolPreview({
+      authorityAddress,
+      build: (address) => {
+        if (!treasuryVaultAddress || !treasuryMetadataHash) {
+          throw new Error("Independent treasury vault address could not be derived.");
+        }
+        return buildRegisterRewardVaultTransactionPlan({
+          authorityAddress: address,
+          custodyModel: "TREASURY_CONTROLLED",
+          metadataHash: treasuryMetadataHash,
+          rewardRole: "INDEPENDENT_TREASURY",
+          vaultAddress: treasuryVaultAddress,
+        });
+      },
+      description: "Register the independent treasury reward vault state and reviewed metadata hash.",
+      executionRule: "Preview-only; sign only after treasury owner, ATA, and custody disclosure are reviewed.",
+      id: "register-independent-treasury-vault",
+      label: "Register Treasury Reward Vault",
+    }),
+    safeProtocolPreview({
+      authorityAddress,
+      build: (address) => {
+        if (!treasuryMetadataHash) {
+          throw new Error("Independent treasury metadata hash could not be derived.");
+        }
+        return buildVerifyRewardVaultTransactionPlan({
+          authorityAddress: address,
+          expectedMetadataHash: treasuryMetadataHash,
+          rewardRole: "INDEPENDENT_TREASURY",
+        });
+      },
+      description: "Verify the independent treasury reward vault metadata before fee routing can use it.",
+      executionRule: "Requires the matching register_reward_vault transaction and external custody review first.",
+      id: "verify-independent-treasury-vault",
+      label: "Verify Treasury Reward Vault",
     }),
     safeProtocolPreview({
       authorityAddress,
@@ -323,4 +377,43 @@ function splitBps(bucket: "HOLDERS" | "STAKERS" | "INDEPENDENT_TREASURY") {
   const entry = draftCoreFeeSplit.find((candidate) => candidate.bucket === bucket);
   if (!entry) throw new Error(`Missing fee split bucket: ${bucket}`);
   return entry.shareBps;
+}
+
+function rewardVaultMetadataHashHex({
+  custodyModelVariant,
+  rewardVaultAddress,
+  roleSeed,
+  rypMintAddress,
+}: {
+  custodyModelVariant: number;
+  rewardVaultAddress: string;
+  roleSeed: string;
+  rypMintAddress: string;
+}) {
+  const encoder = new TextEncoder();
+  const digest = sha256(
+    concatBytes(
+      encoder.encode("cryptoseeds-devnet-reward-vault-v1"),
+      encoder.encode(roleSeed),
+      encoder.encode(rewardVaultAddress),
+      encoder.encode(rypMintAddress),
+      encoder.encode(String(custodyModelVariant)),
+    ),
+  );
+  return bytesToHex(digest);
+}
+
+function concatBytes(...chunks: Uint8Array[]) {
+  const totalLength = chunks.reduce((total, chunk) => total + chunk.length, 0);
+  const output = new Uint8Array(totalLength);
+  let offset = 0;
+  for (const chunk of chunks) {
+    output.set(chunk, offset);
+    offset += chunk.length;
+  }
+  return output;
+}
+
+function bytesToHex(bytes: Uint8Array) {
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
