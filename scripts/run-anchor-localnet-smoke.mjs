@@ -25,6 +25,7 @@ const RYP_DECIMALS = 6;
 const SEED_STAKE_AMOUNT = 5_000_000_000n;
 const ADD_TO_SPROUT_AMOUNT = 15_000_000_000n;
 const SPROUT_STAKE_AMOUNT = 20_000_000_000n;
+const BELOW_SEED_REMAINDER_UNSTAKE_AMOUNT = 16_000_000_000n;
 const HOLDER_REWARD_CLAIM_AMOUNT = 700n;
 const PLATFORM_FEE_ROUTE_AMOUNT = 30_000n;
 const PROJECT_MIN_PARTICIPATION_AMOUNT = 100n;
@@ -909,6 +910,32 @@ async function runSmoke(connection) {
   assertEqual("voting eligibility preserved on top-up", upgradedPosition.votingRightsEligibleTs, stakedPosition.votingRightsEligibleTs);
   assertEqual("vault balance after tier upgrade", await readTokenBalance(connection, rypVault), SPROUT_STAKE_AMOUNT);
 
+  log("asserting partial unstake cannot leave below-Seed remainder");
+  await expectFailure(
+    "unstake_ryp rejects below-Seed remainder",
+    () =>
+      unstakeRyp(connection, {
+        amount: BELOW_SEED_REMAINDER_UNSTAKE_AMOUNT,
+        config,
+        mint: mint.publicKey,
+        owner,
+        ownerRypAccount,
+        position,
+        rypVault,
+      }),
+    "custom program error: 0x1776",
+  );
+  assertEqual(
+    "vault balance after rejected below-Seed unstake",
+    await readTokenBalance(connection, rypVault),
+    SPROUT_STAKE_AMOUNT,
+  );
+  assertEqual(
+    "position amount after rejected below-Seed unstake",
+    parseStakePosition(await getAccountData(connection, position)).stakedAmount,
+    SPROUT_STAKE_AMOUNT,
+  );
+
   log("calling partial unstake to test tier downgrade state");
   await unstakeRyp(connection, {
     amount: ADD_TO_SPROUT_AMOUNT,
@@ -1109,6 +1136,7 @@ async function runSmoke(connection) {
       "reject_unauthorized_unstake",
       "reject_insufficient_unstake",
       "stake_top_up_to_sprout",
+      "reject_below_seed_unstake_remainder",
       "partial_unstake_back_to_seed",
       "reject_unauthorized_pause",
       "pause_blocks_stake_and_unstake",

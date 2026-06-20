@@ -100,6 +100,7 @@ Current protocol unit-test result:
 - rejected mismatched-owner unstake
 - rejected oversized unstake
 - top-up from Seed to Sprout without resetting voting eligibility
+- rejected partial unstake that would leave below-Seed stake dust
 - partial unstake from Sprout to Seed without losing Golden Key state
 - rejected non-authority pause
 - pause enforcement for stake, unstake, and voting activation
