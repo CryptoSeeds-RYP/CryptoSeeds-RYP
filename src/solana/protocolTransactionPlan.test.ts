@@ -17,6 +17,7 @@ import {
   buildUnstakeRypTransactionPlan,
   buildUpdateFeeConfigTransactionPlan,
   buildUpdateProjectStatusTransactionPlan,
+  buildUpdateSeedBotPermissionTransactionPlan,
   deriveProtocolAddresses,
   deriveRewardClaimRecordAddress,
   parseRypAmountToBaseUnits,
@@ -296,6 +297,15 @@ describe("protocol transaction plan", () => {
       permissionHash: new Uint8Array(32).fill(7),
     });
     const revoke = buildRevokeSeedBotPermissionTransactionPlan({ ownerAddress });
+    const updateSeedBot = buildUpdateSeedBotPermissionTransactionPlan({
+      expiresAtUnix: 1_800_000_060n,
+      maxDailyVolumeAmountBaseUnits: 2_500n,
+      maxDailyTrades: 4,
+      maxSlippageBps: 125,
+      maxTradeAmountBaseUnits: 600n,
+      ownerAddress,
+      permissionHash: new Uint8Array(32).fill(8),
+    });
     const feeConfig = buildUpdateFeeConfigTransactionPlan({
       authorityAddress: ownerAddress,
       baseFeeBps: 300,
@@ -308,6 +318,13 @@ describe("protocol transaction plan", () => {
     );
     expect(revoke.action).toBe("REVOKE_PERMISSION");
     expect(revoke.instructions[0].dataHex).toBe("82d44235b9eb1617");
+    expect(updateSeedBot.action).toBe("UPDATE_SEEDBOT_PERMISSION");
+    expect(updateSeedBot.instructions[0].dataHex).toBe(
+      `3a3e043c5fb0e827${"08".repeat(32)}3cd2496b000000005802000000000000c40900000000000004007d00`,
+    );
+    expect(updateSeedBot.instructions[0].accounts.map((account) => account.anchorName)).toEqual(
+      PROTOCOL_INSTRUCTION_SPECS.update_seedbot_permission.accounts.map((account) => account.name),
+    );
     expect(feeConfig.action).toBe("UPDATE_FEE_CONFIG");
     expect(feeConfig.instructions[0].dataHex).toBe("68b867f258976b142c0100001e003c005a007800");
     expect(() =>

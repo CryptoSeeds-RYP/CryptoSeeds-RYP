@@ -803,6 +803,46 @@ export function buildCreateSeedBotPermissionTransactionPlan({
   });
 }
 
+export function buildUpdateSeedBotPermissionTransactionPlan({
+  expiresAtUnix,
+  maxDailyVolumeAmountBaseUnits,
+  maxDailyTrades,
+  maxSlippageBps,
+  maxTradeAmountBaseUnits,
+  ownerAddress,
+  permissionHash,
+}: SeedBotPermissionPlanInput): PreparedSolanaTransactionPlan {
+  const addresses = {
+    ...deriveProtocolAddresses(ownerAddress),
+    permission: deriveSeedBotPermissionAddress(ownerAddress),
+  };
+  const spec = instructionSpec("update_seedbot_permission");
+  const instruction = instructionPlan({
+    accounts: accountsFromSpec(spec, addresses),
+    argDataHex: [
+      fixedHashHex(permissionHash),
+      i64LeHex(toI64(expiresAtUnix)),
+      u64LeHex(toU64(maxTradeAmountBaseUnits)),
+      u64LeHex(toU64(maxDailyVolumeAmountBaseUnits)),
+      u16LeHex(maxDailyTrades),
+      u16LeHex(maxSlippageBps),
+    ].join(""),
+    discriminatorHex: spec.discriminatorHex,
+    instructionName: "update_seedbot_permission",
+    programId: addresses.programId,
+  });
+
+  return transactionPlan({
+    action: "UPDATE_SEEDBOT_PERMISSION",
+    addresses,
+    instruction,
+    warnings: [
+      "SeedBot permission updates must be signed by the wallet owner and remain capped by expiry, trade size, daily volume, trade count, and slippage.",
+      "Updating a permission can reactivate a revoked permission but does not grant custody of the wallet or seed phrase.",
+    ],
+  });
+}
+
 export function buildRevokeSeedBotPermissionTransactionPlan({
   ownerAddress,
 }: VotingRightsPlanInput): PreparedSolanaTransactionPlan {

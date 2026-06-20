@@ -429,6 +429,20 @@ async function runSmoke(connection) {
   const revokedPermission = parseSeedBotPermission(await getAccountData(connection, seedBotPermission));
   assertEqual("SeedBot permission revoked state", revokedPermission.revoked, true);
 
+  log("calling update_seedbot_permission to renew revoked permission");
+  await updateSeedBotPermission(connection, {
+    config,
+    expiresAt: permissionExpiresAt + 60n,
+    owner,
+    permission: seedBotPermission,
+    position,
+  });
+  const renewedPermission = parseSeedBotPermission(await getAccountData(connection, seedBotPermission));
+  assertEqual("SeedBot permission renewed revoked state", renewedPermission.revoked, false);
+  assertEqual("SeedBot permission renewed tier snapshot", renewedPermission.tierAtCreation, 1);
+  assertEqual("SeedBot permission renewed stake snapshot", renewedPermission.stakedAmountAtCreation, SEED_STAKE_AMOUNT);
+  assertEqual("SeedBot permission renewed expiry", renewedPermission.expiresAt, permissionExpiresAt + 60n);
+
   log("asserting voting rights are locked before the 14-day delay");
   await expectFailure(
     "activate_voting_rights rejects early activation",
@@ -667,6 +681,7 @@ async function runSmoke(connection) {
 	      "participate_project",
 	      "create_seedbot_permission",
 	      "revoke_seedbot_permission",
+	      "update_seedbot_permission",
 	      "reject_early_voting_activation",
       "reject_unauthorized_unstake",
       "reject_insufficient_unstake",
@@ -1663,6 +1678,29 @@ async function revokeSeedBotPermission(connection, { owner, permission }) {
     programId,
     keys: [accountMeta(owner.publicKey, true, false), accountMeta(permission, false, true)],
     data: discriminator("revoke_seedbot_permission"),
+  });
+
+  await sendAndConfirm(connection, new Transaction().add(instruction), [owner]);
+}
+
+async function updateSeedBotPermission(connection, { config, expiresAt, owner, permission, position }) {
+  const data = Buffer.alloc(8 + 32 + 8 + 8 + 8 + 2 + 2);
+  discriminator("update_seedbot_permission").copy(data, 0);
+  REWARD_METADATA_HASH.copy(data, 8);
+  data.writeBigInt64LE(expiresAt, 40);
+  data.writeBigUInt64LE(SEEDBOT_MAX_TRADE_AMOUNT, 48);
+  data.writeBigUInt64LE(SEEDBOT_MAX_DAILY_VOLUME_AMOUNT, 56);
+  data.writeUInt16LE(SEEDBOT_MAX_DAILY_TRADES, 64);
+  data.writeUInt16LE(SEEDBOT_MAX_SLIPPAGE_BPS, 66);
+  const instruction = new TransactionInstruction({
+    programId,
+    keys: [
+      accountMeta(owner.publicKey, true, false),
+      accountMeta(config, false, false),
+      accountMeta(position, false, false),
+      accountMeta(permission, false, true),
+    ],
+    data,
   });
 
   await sendAndConfirm(connection, new Transaction().add(instruction), [owner]);

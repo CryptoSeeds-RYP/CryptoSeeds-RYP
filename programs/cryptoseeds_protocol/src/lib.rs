@@ -1403,6 +1403,79 @@ pub mod cryptoseeds_protocol {
 
         Ok(())
     }
+
+    pub fn update_seedbot_permission(
+        ctx: Context<UpdateSeedBotPermission>,
+        permission_hash: [u8; 32],
+        expires_at: i64,
+        max_trade_amount: u64,
+        max_daily_volume_amount: u64,
+        max_daily_trades: u16,
+        max_slippage_bps: u16,
+    ) -> Result<()> {
+        require!(
+            !ctx.accounts.config.paused,
+            CryptoSeedsError::ProtocolPaused
+        );
+        validate_metadata_hash(&permission_hash)?;
+        require_keys_eq!(
+            ctx.accounts.position.owner,
+            ctx.accounts.owner.key(),
+            CryptoSeedsError::Unauthorized
+        );
+        require_keys_eq!(
+            ctx.accounts.permission.owner,
+            ctx.accounts.owner.key(),
+            CryptoSeedsError::Unauthorized
+        );
+        require_keys_eq!(
+            ctx.accounts.permission.position,
+            ctx.accounts.position.key(),
+            CryptoSeedsError::Unauthorized
+        );
+        require!(
+            ctx.accounts.position.tier != StakeTier::None,
+            CryptoSeedsError::StakeBelowSeedTier
+        );
+
+        let updated_at = Clock::get()?.unix_timestamp;
+        validate_seedbot_permission_limits_at(
+            updated_at,
+            expires_at,
+            max_trade_amount,
+            max_daily_volume_amount,
+            max_daily_trades,
+            max_slippage_bps,
+        )?;
+
+        let permission = &mut ctx.accounts.permission;
+        permission.permission_hash = permission_hash;
+        permission.created_at = updated_at;
+        permission.expires_at = expires_at;
+        permission.max_trade_amount = max_trade_amount;
+        permission.max_daily_volume_amount = max_daily_volume_amount;
+        permission.max_daily_trades = max_daily_trades;
+        permission.max_slippage_bps = max_slippage_bps;
+        permission.tier_at_creation = ctx.accounts.position.tier;
+        permission.staked_amount_at_creation = ctx.accounts.position.staked_amount;
+        permission.staking_start_ts_at_creation = ctx.accounts.position.staking_start_ts;
+        permission.revoked = false;
+
+        emit!(SeedBotPermissionUpdated {
+            owner: permission.owner,
+            position: permission.position,
+            updated_at,
+            expires_at,
+            max_trade_amount,
+            max_daily_volume_amount,
+            max_daily_trades,
+            max_slippage_bps,
+            tier_at_creation: permission.tier_at_creation,
+            staked_amount_at_creation: permission.staked_amount_at_creation,
+        });
+
+        Ok(())
+    }
 }
 
 #[derive(Accounts)]
@@ -2080,6 +2153,24 @@ pub struct RevokeSeedBotPermission<'info> {
     pub permission: Account<'info, SeedBotPermission>,
 }
 
+#[derive(Accounts)]
+pub struct UpdateSeedBotPermission<'info> {
+    pub owner: Signer<'info>,
+    #[account(seeds = [CONFIG_SEED], bump = config.bump)]
+    pub config: Account<'info, ProtocolConfig>,
+    #[account(
+        seeds = [STAKE_POSITION_SEED, owner.key().as_ref()],
+        bump = position.bump
+    )]
+    pub position: Account<'info, StakePosition>,
+    #[account(
+        mut,
+        seeds = [SEEDBOT_PERMISSION_SEED, owner.key().as_ref()],
+        bump = permission.bump
+    )]
+    pub permission: Account<'info, SeedBotPermission>,
+}
+
 #[account]
 #[derive(InitSpace)]
 pub struct ProtocolConfig {
@@ -2655,6 +2746,20 @@ pub struct SeedBotPermissionCreated {
 #[event]
 pub struct SeedBotPermissionRevoked {
     pub owner: Pubkey,
+}
+
+#[event]
+pub struct SeedBotPermissionUpdated {
+    pub owner: Pubkey,
+    pub position: Pubkey,
+    pub updated_at: i64,
+    pub expires_at: i64,
+    pub max_trade_amount: u64,
+    pub max_daily_volume_amount: u64,
+    pub max_daily_trades: u16,
+    pub max_slippage_bps: u16,
+    pub tier_at_creation: StakeTier,
+    pub staked_amount_at_creation: u64,
 }
 
 #[error_code]

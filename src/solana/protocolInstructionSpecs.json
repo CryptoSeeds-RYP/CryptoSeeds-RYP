@@ -436,6 +436,47 @@
       }
     ]
   },
+  "update_seedbot_permission": {
+    "discriminatorHex": "3a3e043c5fb0e827",
+    "args": [
+      "permission_hash",
+      "expires_at",
+      "max_trade_amount",
+      "max_daily_volume_amount",
+      "max_daily_trades",
+      "max_slippage_bps"
+    ],
+    "accounts": [
+      {
+        "name": "owner",
+        "label": "owner",
+        "role": "owner",
+        "signer": true,
+        "writable": false
+      },
+      {
+        "name": "config",
+        "label": "config",
+        "role": "config",
+        "signer": false,
+        "writable": false
+      },
+      {
+        "name": "position",
+        "label": "position",
+        "role": "position",
+        "signer": false,
+        "writable": false
+      },
+      {
+        "name": "permission",
+        "label": "permission",
+        "role": "permission",
+        "signer": false,
+        "writable": true
+      }
+    ]
+  },
   "draft_reward_epoch": {
     "discriminatorHex": "2b97706f55302d50",
     "args": [

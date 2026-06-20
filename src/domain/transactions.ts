@@ -75,6 +75,7 @@ export type PreparedSolanaTransactionPlan = {
     | "UNSTAKE_RYP"
     | "UPDATE_FEE_CONFIG"
     | "UPDATE_PROJECT_STATUS"
+    | "UPDATE_SEEDBOT_PERMISSION"
     | "VOTE_PROPOSAL";
   feePayer: string;
   amountBaseUnits?: string;
