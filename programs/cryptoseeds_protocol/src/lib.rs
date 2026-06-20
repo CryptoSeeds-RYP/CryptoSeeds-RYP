@@ -1460,6 +1460,7 @@ pub mod cryptoseeds_protocol {
         terms_hash: [u8; 32],
     ) -> Result<()> {
         validate_project_authority(&ctx.accounts.config, &ctx.accounts.authority.key())?;
+        validate_project_open_for_mutation(&ctx.accounts.project)?;
         validate_metadata_hash(&metadata_hash)?;
         validate_metadata_hash(&risk_disclosure_hash)?;
         validate_metadata_hash(&terms_hash)?;
@@ -1498,6 +1499,7 @@ pub mod cryptoseeds_protocol {
         expires_at: i64,
     ) -> Result<()> {
         validate_project_authority(&ctx.accounts.config, &ctx.accounts.authority.key())?;
+        validate_project_open_for_mutation(&ctx.accounts.project)?;
         let clock = Clock::get()?;
         validate_project_operator_permissions(permissions)?;
         validate_project_operator_expiry(clock.unix_timestamp, expires_at)?;
@@ -1616,6 +1618,7 @@ pub mod cryptoseeds_protocol {
         paused: bool,
     ) -> Result<()> {
         validate_project_authority(&ctx.accounts.config, &ctx.accounts.authority.key())?;
+        validate_project_open_for_mutation(&ctx.accounts.project)?;
         ctx.accounts.project.participation_paused = paused;
 
         emit!(ProjectPauseUpdated {
@@ -1638,6 +1641,7 @@ pub mod cryptoseeds_protocol {
             PROJECT_OPERATOR_PERMISSION_PAUSE,
             Clock::get()?.unix_timestamp,
         )?;
+        validate_project_open_for_mutation(&ctx.accounts.project)?;
         ctx.accounts.project.participation_paused = paused;
 
         emit!(ProjectPauseUpdated {
@@ -4682,10 +4686,25 @@ fn validate_project_status_transition(current: ProjectStatus, next: ProjectStatu
         CryptoSeedsError::InvalidProjectStatusTransition
     );
     require!(
-        !matches!(current, ProjectStatus::Completed | ProjectStatus::Cancelled) || current == next,
+        !is_terminal_project_status(current) || current == next,
         CryptoSeedsError::InvalidProjectStatusTransition
     );
     Ok(())
+}
+
+fn validate_project_open_for_mutation(project: &ProjectRecord) -> Result<()> {
+    require!(
+        !is_terminal_project_status(project.status),
+        CryptoSeedsError::InvalidProjectStatusTransition
+    );
+    Ok(())
+}
+
+fn is_terminal_project_status(status: ProjectStatus) -> bool {
+    matches!(
+        status,
+        ProjectStatus::Rejected | ProjectStatus::Completed | ProjectStatus::Cancelled
+    )
 }
 
 fn validate_project_participation_amount(
@@ -5791,6 +5810,16 @@ mod tests {
         )
         .is_err());
         assert!(validate_project_status_transition(
+            ProjectStatus::Rejected,
+            ProjectStatus::Open
+        )
+        .is_err());
+        assert!(validate_project_status_transition(
+            ProjectStatus::Rejected,
+            ProjectStatus::Rejected
+        )
+        .is_ok());
+        assert!(validate_project_status_transition(
             ProjectStatus::Completed,
             ProjectStatus::Completed
         )
@@ -5800,6 +5829,21 @@ mod tests {
             ProjectStatus::Cancelled
         )
         .is_err());
+    }
+
+    #[test]
+    fn blocks_terminal_project_mutations() {
+        let mut project = project_record();
+        assert!(validate_project_open_for_mutation(&project).is_ok());
+
+        project.status = ProjectStatus::Rejected;
+        assert!(validate_project_open_for_mutation(&project).is_err());
+
+        project.status = ProjectStatus::Completed;
+        assert!(validate_project_open_for_mutation(&project).is_err());
+
+        project.status = ProjectStatus::Cancelled;
+        assert!(validate_project_open_for_mutation(&project).is_err());
     }
 
     #[test]
