@@ -43,6 +43,7 @@ Current scope:
 - Initialize reward config for draft holder/staker/treasury epoch accounting
 - Register and verify reward vault state by role
 - Route wallet-approved platform fees into verified holder/staker/treasury vaults
+- Transfer RYP through a wallet-approved CryptoSeeds route that sends the net amount to a recipient token account and routes the 1% platform fee into verified holder/staker/treasury vaults
 - Draft balanced, execution-blocked reward epochs
 - Review/cancel reward epochs
 - Expire reward epoch claims and record unclaimed net rewards
@@ -75,7 +76,7 @@ Client preparation now has a TypeScript planning layer at `src/solana/protocolTr
 - Derives the per-wallet stake position PDA from `stake-position + wallet`
 - Derives the owner RYP associated token account
 - Derives the protocol RYP vault associated token account owned by the config PDA
-- Builds Anchor instruction data for staking, reward claims, platform fee routing, governance voting/proposals with explicit voting windows and minimum votes, project authority rotation, project disclosure revisions, project operator grants/revocations, project registry/status updates with ProjectApproval account binding, project pause controls, project cancellation/refund accounting, project participation with current disclosure revision binding, wallet caps, allocation caps, and participation windows, SeedBot permissions, and fee config updates
+- Builds Anchor instruction data for staking, reward claims, platform fee routing, CryptoSeeds-routed RYP transfers with the 1% fee target, governance voting/proposals with explicit voting windows and minimum votes, project authority rotation, project disclosure revisions, project operator grants/revocations, project registry/status updates with ProjectApproval account binding, project pause controls, project cancellation/refund accounting, project participation with current disclosure revision binding, wallet caps, allocation caps, and participation windows, SeedBot permissions, and fee config updates
 - Builds owner-signed SeedBot usage-record instruction previews for later guarded execution composition
 - Exposes account order, signer/writable flags, instruction discriminator, and raw data hex for wallet-preview surfaces
 - Rejects prepared token amounts outside Solana's u64 SPL token amount bounds before instruction data is encoded

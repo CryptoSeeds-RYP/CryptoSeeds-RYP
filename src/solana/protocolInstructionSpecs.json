@@ -1507,6 +1507,105 @@
       }
     ]
   },
+  "transfer_ryp_with_platform_fee": {
+    "discriminatorHex": "5c04c6dbaeb6609e",
+    "args": [
+      "gross_amount"
+    ],
+    "accounts": [
+      {
+        "name": "owner",
+        "label": "owner",
+        "role": "owner",
+        "signer": true,
+        "writable": true
+      },
+      {
+        "name": "config",
+        "label": "config",
+        "role": "config",
+        "signer": false,
+        "writable": false
+      },
+      {
+        "name": "reward_config",
+        "label": "reward config",
+        "role": "reward config",
+        "signer": false,
+        "writable": true
+      },
+      {
+        "name": "holder_reward_vault_state",
+        "label": "holder reward vault state",
+        "role": "holder reward vault state",
+        "signer": false,
+        "writable": true
+      },
+      {
+        "name": "staker_reward_vault_state",
+        "label": "staker reward vault state",
+        "role": "staker reward vault state",
+        "signer": false,
+        "writable": true
+      },
+      {
+        "name": "independent_treasury_vault_state",
+        "label": "independent treasury vault state",
+        "role": "independent treasury vault state",
+        "signer": false,
+        "writable": true
+      },
+      {
+        "name": "owner_ryp_account",
+        "label": "owner ryp account",
+        "role": "owner ryp account",
+        "signer": false,
+        "writable": true
+      },
+      {
+        "name": "recipient_ryp_account",
+        "label": "recipient ryp account",
+        "role": "recipient ryp account",
+        "signer": false,
+        "writable": true
+      },
+      {
+        "name": "holder_reward_vault",
+        "label": "holder reward vault",
+        "role": "holder reward vault",
+        "signer": false,
+        "writable": true
+      },
+      {
+        "name": "staker_reward_vault",
+        "label": "staker reward vault",
+        "role": "staker reward vault",
+        "signer": false,
+        "writable": true
+      },
+      {
+        "name": "independent_treasury_vault",
+        "label": "independent treasury vault",
+        "role": "independent treasury vault",
+        "signer": false,
+        "writable": true
+      },
+      {
+        "name": "ryp_mint",
+        "label": "ryp mint",
+        "role": "ryp mint",
+        "signer": false,
+        "writable": false
+      },
+      {
+        "name": "token_program",
+        "label": "token program",
+        "role": "token program",
+        "signer": false,
+        "writable": false
+      }
+    ]
+  },
   "set_pause": {
     "discriminatorHex": "3f209a0238674f2d",
     "args": [

@@ -28,6 +28,9 @@ const SPROUT_STAKE_AMOUNT = 20_000_000_000n;
 const BELOW_SEED_REMAINDER_UNSTAKE_AMOUNT = 16_000_000_000n;
 const HOLDER_REWARD_CLAIM_AMOUNT = 700n;
 const PLATFORM_FEE_ROUTE_AMOUNT = 30_000n;
+const PLATFORM_RYP_TRANSFER_GROSS_AMOUNT = 1_000_000n;
+const PLATFORM_RYP_TRANSFER_FEE_AMOUNT = 10_000n;
+const PLATFORM_RYP_TRANSFER_NET_AMOUNT = 990_000n;
 const PROJECT_MIN_PARTICIPATION_AMOUNT = 100n;
 const PROJECT_MAX_WALLET_PARTICIPATION_AMOUNT = 600n;
 const PROJECT_MAX_TOTAL_PARTICIPATION_AMOUNT = 1_000n;
@@ -45,6 +48,11 @@ const PLATFORM_FEE_ROUTE_SPLIT = {
   holder: 10_002n,
   staker: 9_999n,
   treasury: 9_999n,
+};
+const PLATFORM_RYP_TRANSFER_SPLIT = {
+  holder: 3_334n,
+  staker: 3_333n,
+  treasury: 3_333n,
 };
 const VOTING_RIGHTS_DELAY_SECONDS = 14n * 24n * 60n * 60n;
 const GOVERNANCE_VOTING_WINDOW_SECONDS = 1n;
@@ -259,7 +267,7 @@ async function runSmoke(connection) {
     tokenAccount: directSettlementReceivingAccount,
   });
   await mintTo(connection, {
-    amount: SEED_STAKE_AMOUNT + PLATFORM_FEE_ROUTE_AMOUNT,
+    amount: SEED_STAKE_AMOUNT + PLATFORM_FEE_ROUTE_AMOUNT + PLATFORM_RYP_TRANSFER_GROSS_AMOUNT,
     authority,
     destination: ownerRypAccount,
     mint: mint.publicKey,
@@ -326,6 +334,7 @@ async function runSmoke(connection) {
     authority,
     config,
     intruder,
+    recipientRypAccount: intruderRypAccount,
     mint: mint.publicKey,
     owner,
     ownerRypAccount,
@@ -1160,6 +1169,7 @@ async function runSmoke(connection) {
       "reject_reward_vault_metadata_mismatch",
 	      "verify_reward_vaults",
 	      "route_platform_fee",
+	      "transfer_ryp_with_platform_fee",
       "reject_non_authority_reward_verify",
 	      "reject_unbalanced_reward_epoch",
 	      "draft_reward_epoch",
@@ -1230,7 +1240,7 @@ async function runSmoke(connection) {
 
 async function runRewardSmoke(
   connection,
-  { authority, config, intruder, mint, owner, ownerRypAccount, rewardConfig, rewardVaultAddresses, rewardVaultStates },
+  { authority, config, intruder, mint, owner, ownerRypAccount, recipientRypAccount, rewardConfig, rewardVaultAddresses, rewardVaultStates },
 ) {
   log("asserting invalid reward split is rejected");
   await expectFailure(
@@ -1367,6 +1377,38 @@ async function runRewardSmoke(
   assertEqual("holder reward vault after fee route", await readTokenBalance(connection, rewardVaultAddresses.holder), HOLDER_REWARD_CLAIM_AMOUNT + PLATFORM_FEE_ROUTE_SPLIT.holder);
   assertEqual("staker reward vault after fee route", await readTokenBalance(connection, rewardVaultAddresses.staker), PLATFORM_FEE_ROUTE_SPLIT.staker);
   assertEqual("treasury vault after fee route", await readTokenBalance(connection, rewardVaultAddresses.treasury), PLATFORM_FEE_ROUTE_SPLIT.treasury);
+
+  log("calling transfer_ryp_with_platform_fee");
+  const ownerBalanceBeforePlatformTransfer = await readTokenBalance(connection, ownerRypAccount);
+  const recipientBalanceBeforePlatformTransfer = await readTokenBalance(connection, recipientRypAccount);
+  await transferRypWithPlatformFee(connection, {
+    config,
+    grossAmount: PLATFORM_RYP_TRANSFER_GROSS_AMOUNT,
+    holderRewardVault: rewardVaultAddresses.holder,
+    holderRewardVaultState: rewardVaultStates.holder,
+    mint,
+    owner,
+    ownerRypAccount,
+    recipientRypAccount,
+    rewardConfig,
+    stakerRewardVault: rewardVaultAddresses.staker,
+    stakerRewardVaultState: rewardVaultStates.staker,
+    treasuryVault: rewardVaultAddresses.treasury,
+    treasuryVaultState: rewardVaultStates.treasury,
+  });
+  const transferRewardConfig = parseRewardConfig(await getAccountData(connection, rewardConfig));
+  const transferHolderVaultState = parseRewardVaultState(await getAccountData(connection, rewardVaultStates.holder));
+  const transferStakerVaultState = parseRewardVaultState(await getAccountData(connection, rewardVaultStates.staker));
+  const transferTreasuryVaultState = parseRewardVaultState(await getAccountData(connection, rewardVaultStates.treasury));
+  assertEqual("owner balance after platform transfer", await readTokenBalance(connection, ownerRypAccount), ownerBalanceBeforePlatformTransfer - PLATFORM_RYP_TRANSFER_GROSS_AMOUNT);
+  assertEqual("recipient balance after platform transfer", await readTokenBalance(connection, recipientRypAccount), recipientBalanceBeforePlatformTransfer + PLATFORM_RYP_TRANSFER_NET_AMOUNT);
+  assertEqual("reward config routed fee total after platform transfer", transferRewardConfig.totalRoutedFeeAmount, PLATFORM_FEE_ROUTE_AMOUNT + PLATFORM_RYP_TRANSFER_FEE_AMOUNT);
+  assertEqual("holder reward funded total after platform transfer", transferHolderVaultState.totalFundedAmount, PLATFORM_FEE_ROUTE_SPLIT.holder + PLATFORM_RYP_TRANSFER_SPLIT.holder);
+  assertEqual("staker reward funded total after platform transfer", transferStakerVaultState.totalFundedAmount, PLATFORM_FEE_ROUTE_SPLIT.staker + PLATFORM_RYP_TRANSFER_SPLIT.staker);
+  assertEqual("treasury funded total after platform transfer", transferTreasuryVaultState.totalFundedAmount, PLATFORM_FEE_ROUTE_SPLIT.treasury + PLATFORM_RYP_TRANSFER_SPLIT.treasury);
+  assertEqual("holder reward vault after platform transfer", await readTokenBalance(connection, rewardVaultAddresses.holder), HOLDER_REWARD_CLAIM_AMOUNT + PLATFORM_FEE_ROUTE_SPLIT.holder + PLATFORM_RYP_TRANSFER_SPLIT.holder);
+  assertEqual("staker reward vault after platform transfer", await readTokenBalance(connection, rewardVaultAddresses.staker), PLATFORM_FEE_ROUTE_SPLIT.staker + PLATFORM_RYP_TRANSFER_SPLIT.staker);
+  assertEqual("treasury vault after platform transfer", await readTokenBalance(connection, rewardVaultAddresses.treasury), PLATFORM_FEE_ROUTE_SPLIT.treasury + PLATFORM_RYP_TRANSFER_SPLIT.treasury);
 
   const unbalancedEpoch = deriveRewardEpochAddress({ epochId: 2n, rewardConfig });
   log("asserting unbalanced reward epochs are rejected");
@@ -1807,6 +1849,51 @@ async function routePlatformFee(
   });
 
   await sendAndConfirm(connection, new Transaction().add(instruction), [payer]);
+}
+
+async function transferRypWithPlatformFee(
+  connection,
+  {
+    config,
+    grossAmount,
+    holderRewardVault,
+    holderRewardVaultState,
+    mint,
+    owner,
+    ownerRypAccount,
+    recipientRypAccount,
+    rewardConfig,
+    stakerRewardVault,
+    stakerRewardVaultState,
+    treasuryVault,
+    treasuryVaultState,
+  },
+) {
+  const data = Buffer.alloc(16);
+  discriminator("transfer_ryp_with_platform_fee").copy(data, 0);
+  data.writeBigUInt64LE(grossAmount, 8);
+
+  const instruction = new TransactionInstruction({
+    programId,
+    keys: [
+      accountMeta(owner.publicKey, true, true),
+      accountMeta(config, false, false),
+      accountMeta(rewardConfig, false, true),
+      accountMeta(holderRewardVaultState, false, true),
+      accountMeta(stakerRewardVaultState, false, true),
+      accountMeta(treasuryVaultState, false, true),
+      accountMeta(ownerRypAccount, false, true),
+      accountMeta(recipientRypAccount, false, true),
+      accountMeta(holderRewardVault, false, true),
+      accountMeta(stakerRewardVault, false, true),
+      accountMeta(treasuryVault, false, true),
+      accountMeta(mint, false, false),
+      accountMeta(TOKEN_PROGRAM_ID, false, false),
+    ],
+    data,
+  });
+
+  await sendAndConfirm(connection, new Transaction().add(instruction), [owner]);
 }
 
 async function draftRewardEpoch(

@@ -62,6 +62,7 @@ type ProtocolAddressBook = ReturnType<typeof deriveProtocolAddresses> &
     project?: string;
     projectDisclosureRevision?: string;
     projectReceivingAccount?: string;
+    recipientRypAccount?: string;
     refundRecord?: string;
     proposal?: string;
     rewardEpoch?: string;
@@ -113,6 +114,8 @@ const U32_MAX = 2n ** 32n - 1n;
 const U64_MAX = 2n ** 64n - 1n;
 const I64_MIN = -(2n ** 63n);
 const I64_MAX = 2n ** 63n - 1n;
+const BPS_DENOMINATOR = 10_000n;
+export const RYP_TOKEN_TRANSFER_FEE_BPS = 100n;
 export const MAX_REWARD_MERKLE_PROOF_NODES = 32;
 export const PROJECT_OPERATOR_PERMISSION_STATUS = 1;
 export const PROJECT_OPERATOR_PERMISSION_PAUSE = 2;
@@ -278,6 +281,15 @@ export type RoutePlatformFeePlanInput = {
   payerAddress: string;
   feeAmountBaseUnits: bigint | number | string;
   holderRewardVaultAddress: string;
+  stakerRewardVaultAddress: string;
+  treasuryVaultAddress: string;
+};
+
+export type TransferRypWithPlatformFeePlanInput = {
+  grossAmountBaseUnits: bigint | number | string;
+  holderRewardVaultAddress: string;
+  ownerAddress: string;
+  recipientTokenAccountAddress: string;
   stakerRewardVaultAddress: string;
   treasuryVaultAddress: string;
 };
@@ -896,6 +908,59 @@ export function buildRoutePlatformFeeTransactionPlan({
       "Routes a wallet-approved RYP platform fee into verified holder, staker, and treasury vaults.",
       "Vault token accounts must match reviewed RewardVaultState records before signing.",
       "This does not enforce a global wallet-to-wallet transfer tax on the existing SPL token.",
+    ],
+  });
+}
+
+export function buildTransferRypWithPlatformFeeTransactionPlan({
+  grossAmountBaseUnits,
+  holderRewardVaultAddress,
+  ownerAddress,
+  recipientTokenAccountAddress,
+  stakerRewardVaultAddress,
+  treasuryVaultAddress,
+}: TransferRypWithPlatformFeePlanInput): PreparedSolanaTransactionPlan {
+  const grossAmount = toU64(grossAmountBaseUnits);
+  const feeAmount = calculateRypTokenTransferFeeAmount(grossAmount);
+  if (feeAmount === 0n) {
+    throw new Error("RYP platform transfer amount is too small to route the 1% fee");
+  }
+  const netAmount = grossAmount - feeAmount;
+  if (netAmount <= 0n) {
+    throw new Error("RYP platform transfer net amount must be greater than zero");
+  }
+
+  const owner = new PublicKey(ownerAddress);
+  const addresses = {
+    ...deriveProtocolAddresses(ownerAddress),
+    holderRewardVault: new PublicKey(holderRewardVaultAddress).toBase58(),
+    holderRewardVaultState: deriveRewardVaultStateAddress("HOLDER_REWARD"),
+    independentTreasuryVault: new PublicKey(treasuryVaultAddress).toBase58(),
+    independentTreasuryVaultState: deriveRewardVaultStateAddress("INDEPENDENT_TREASURY"),
+    owner: owner.toBase58(),
+    recipientRypAccount: new PublicKey(recipientTokenAccountAddress).toBase58(),
+    stakerRewardVault: new PublicKey(stakerRewardVaultAddress).toBase58(),
+    stakerRewardVaultState: deriveRewardVaultStateAddress("STAKER_REWARD"),
+  };
+  const spec = instructionSpec("transfer_ryp_with_platform_fee");
+  const instruction = instructionPlan({
+    accounts: accountsFromSpec(spec, addresses),
+    argDataHex: u64LeHex(grossAmount),
+    discriminatorHex: spec.discriminatorHex,
+    instructionName: "transfer_ryp_with_platform_fee",
+    programId: addresses.programId,
+  });
+
+  return transactionPlan({
+    action: "TRANSFER_RYP_WITH_PLATFORM_FEE",
+    addresses,
+    amountBaseUnits: grossAmount.toString(),
+    feePayer: addresses.owner,
+    instruction,
+    warnings: [
+      `Gross transfer: ${grossAmount.toString()} base units; recipient receives ${netAmount.toString()} after the 1% CryptoSeeds platform fee.`,
+      `Fee routed to verified holder, staker, and treasury vaults: ${feeAmount.toString()} base units total.`,
+      "This is a wallet-approved CryptoSeeds-routed transfer path; it does not enforce a global tax on normal SPL wallet transfers.",
     ],
   });
 }
@@ -2035,6 +2100,7 @@ function derivedAccountReferences(addresses: ProtocolAddressBook): TransactionAc
     ["project", "Project record"],
     ["project_disclosure_revision", "Project disclosure revision"],
     ["project_receiving_account", "Project receiving token account"],
+    ["recipient_ryp_account", "Recipient RYP token account"],
     ["participation", "Project participation"],
     ["refund_record", "Project refund record"],
     ["operator_record", "Project operator"],
@@ -2105,6 +2171,8 @@ function addressForProtocolAccountIfPresent(addresses: ProtocolAddressBook, name
       return addresses.projectDisclosureRevision;
     case "project_receiving_account":
       return addresses.projectReceivingAccount;
+    case "recipient_ryp_account":
+      return addresses.recipientRypAccount;
     case "refund_record":
       return addresses.refundRecord;
     case "proposal":
@@ -2295,6 +2363,11 @@ function toU64(value: bigint | number | string) {
   const parsed = toIntegerBigInt(value, "u64");
   assertU64(parsed);
   return parsed;
+}
+
+export function calculateRypTokenTransferFeeAmount(grossAmountBaseUnits: bigint | number | string) {
+  const grossAmount = toU64(grossAmountBaseUnits);
+  return (grossAmount * RYP_TOKEN_TRANSFER_FEE_BPS) / BPS_DENOMINATOR;
 }
 
 function toI64(value: bigint | number | string) {

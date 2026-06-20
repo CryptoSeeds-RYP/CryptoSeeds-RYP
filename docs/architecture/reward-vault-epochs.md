@@ -93,6 +93,7 @@ Current reward instructions:
 | `register_reward_vault` | Registers one role-specific vault state as pending verification | No funds |
 | `verify_reward_vault` | Marks a reviewed vault state as verified when metadata hash matches | No funds |
 | `route_platform_fee` | Routes a wallet-approved RYP platform fee into verified holder/staker/treasury vaults | Moves signer-approved fee tokens only |
+| `transfer_ryp_with_platform_fee` | Transfers RYP through the CryptoSeeds protocol, sends the net amount to the recipient, and routes the 1% fee into verified holder/staker/treasury vaults | Moves signer-approved gross transfer tokens only |
 | `draft_reward_epoch` | Creates a balanced, execution-blocked epoch draft | No funds |
 | `review_reward_epoch` | Marks a drafted epoch as reviewed and claim-record eligible | No funds |
 | `cancel_reward_epoch` | Cancels an epoch and keeps execution blocked | No funds |
@@ -127,6 +128,8 @@ The platform-fee route is also intentionally narrow:
 - holder and staker amounts are rounded down and any remainder stays in the treasury bucket,
 - `RewardConfig.total_routed_fee_amount` and each destination `RewardVaultState.total_funded_amount` are updated on-chain,
 - this does not create or enforce a global wallet-to-wallet transfer tax for the existing SPL token.
+
+The CryptoSeeds-routed RYP transfer path uses the same verified vault rules, but it derives the fee from `RYP_TOKEN_TRANSFER_FEE_BPS = 100` against the signer-approved gross transfer amount. The recipient token account receives the net amount, and the fee is split into holder, staker, and treasury buckets. Amounts too small to create a nonzero fee are rejected by the public transaction planner and by the on-chain instruction.
 
 Reward logic remains modular from staking until batching, exclusion-list execution, authority review, and public UI exposure are complete.
 

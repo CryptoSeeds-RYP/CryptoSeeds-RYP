@@ -561,6 +561,135 @@ pub mod cryptoseeds_protocol {
         Ok(())
     }
 
+    pub fn transfer_ryp_with_platform_fee(
+        ctx: Context<TransferRypWithPlatformFee>,
+        gross_amount: u64,
+    ) -> Result<()> {
+        require!(gross_amount > 0, CryptoSeedsError::InvalidAmount);
+        require!(
+            !ctx.accounts.config.paused,
+            CryptoSeedsError::ProtocolPaused
+        );
+        require!(
+            !ctx.accounts.reward_config.paused,
+            CryptoSeedsError::RewardConfigPaused
+        );
+        validate_reward_config_for_fee_route(
+            &ctx.accounts.config,
+            &ctx.accounts.reward_config,
+            ctx.accounts.config.key(),
+        )?;
+
+        let (fee_amount, net_amount) = calculate_ryp_platform_transfer_amounts(gross_amount)?;
+        require!(fee_amount > 0, CryptoSeedsError::InvalidAmount);
+        require!(net_amount > 0, CryptoSeedsError::InvalidAmount);
+
+        let reward_config_key = ctx.accounts.reward_config.key();
+        let reward_mint = ctx.accounts.ryp_mint.key();
+        validate_reward_vault_for_fee_route(
+            &ctx.accounts.holder_reward_vault_state,
+            reward_config_key,
+            reward_mint,
+            RewardVaultRole::HolderReward,
+        )?;
+        validate_reward_vault_for_fee_route(
+            &ctx.accounts.staker_reward_vault_state,
+            reward_config_key,
+            reward_mint,
+            RewardVaultRole::StakerReward,
+        )?;
+        validate_reward_vault_for_fee_route(
+            &ctx.accounts.independent_treasury_vault_state,
+            reward_config_key,
+            reward_mint,
+            RewardVaultRole::IndependentTreasury,
+        )?;
+
+        let cpi_accounts = TransferChecked {
+            from: ctx.accounts.owner_ryp_account.to_account_info(),
+            mint: ctx.accounts.ryp_mint.to_account_info(),
+            to: ctx.accounts.recipient_ryp_account.to_account_info(),
+            authority: ctx.accounts.owner.to_account_info(),
+        };
+        let cpi_context = CpiContext::new(ctx.accounts.token_program.key(), cpi_accounts);
+        transfer_checked(cpi_context, net_amount, ctx.accounts.ryp_mint.decimals)?;
+
+        let (holder_amount, staker_amount, treasury_amount) = calculate_fee_route_amounts(
+            fee_amount,
+            ctx.accounts.reward_config.holder_split_bps,
+            ctx.accounts.reward_config.staker_split_bps,
+        )?;
+
+        transfer_platform_fee_bucket(
+            ctx.accounts.owner_ryp_account.to_account_info(),
+            ctx.accounts.ryp_mint.to_account_info(),
+            ctx.accounts.holder_reward_vault.to_account_info(),
+            ctx.accounts.owner.to_account_info(),
+            ctx.accounts.token_program.key(),
+            holder_amount,
+            ctx.accounts.ryp_mint.decimals,
+        )?;
+        transfer_platform_fee_bucket(
+            ctx.accounts.owner_ryp_account.to_account_info(),
+            ctx.accounts.ryp_mint.to_account_info(),
+            ctx.accounts.staker_reward_vault.to_account_info(),
+            ctx.accounts.owner.to_account_info(),
+            ctx.accounts.token_program.key(),
+            staker_amount,
+            ctx.accounts.ryp_mint.decimals,
+        )?;
+        transfer_platform_fee_bucket(
+            ctx.accounts.owner_ryp_account.to_account_info(),
+            ctx.accounts.ryp_mint.to_account_info(),
+            ctx.accounts.independent_treasury_vault.to_account_info(),
+            ctx.accounts.owner.to_account_info(),
+            ctx.accounts.token_program.key(),
+            treasury_amount,
+            ctx.accounts.ryp_mint.decimals,
+        )?;
+
+        ctx.accounts.reward_config.total_routed_fee_amount = ctx
+            .accounts
+            .reward_config
+            .total_routed_fee_amount
+            .checked_add(fee_amount)
+            .ok_or(CryptoSeedsError::MathOverflow)?;
+        ctx.accounts.holder_reward_vault_state.total_funded_amount = ctx
+            .accounts
+            .holder_reward_vault_state
+            .total_funded_amount
+            .checked_add(holder_amount)
+            .ok_or(CryptoSeedsError::MathOverflow)?;
+        ctx.accounts.staker_reward_vault_state.total_funded_amount = ctx
+            .accounts
+            .staker_reward_vault_state
+            .total_funded_amount
+            .checked_add(staker_amount)
+            .ok_or(CryptoSeedsError::MathOverflow)?;
+        ctx.accounts
+            .independent_treasury_vault_state
+            .total_funded_amount = ctx
+            .accounts
+            .independent_treasury_vault_state
+            .total_funded_amount
+            .checked_add(treasury_amount)
+            .ok_or(CryptoSeedsError::MathOverflow)?;
+
+        emit!(RypTransferWithPlatformFee {
+            owner: ctx.accounts.owner.key(),
+            recipient_token_account: ctx.accounts.recipient_ryp_account.key(),
+            reward_config: reward_config_key,
+            gross_amount,
+            net_amount,
+            fee_amount,
+            holder_amount,
+            staker_amount,
+            treasury_amount,
+        });
+
+        Ok(())
+    }
+
     pub fn draft_reward_epoch(
         ctx: Context<DraftRewardEpoch>,
         epoch_id: u64,
@@ -2294,6 +2423,77 @@ pub struct RoutePlatformFee<'info> {
 }
 
 #[derive(Accounts)]
+pub struct TransferRypWithPlatformFee<'info> {
+    #[account(mut)]
+    pub owner: Signer<'info>,
+    #[account(seeds = [CONFIG_SEED], bump = config.bump, has_one = ryp_mint)]
+    pub config: Account<'info, ProtocolConfig>,
+    #[account(mut, seeds = [REWARD_CONFIG_SEED], bump = reward_config.bump)]
+    pub reward_config: Box<Account<'info, RewardConfig>>,
+    #[account(
+        mut,
+        seeds = [
+            REWARD_VAULT_STATE_SEED,
+            reward_config.key().as_ref(),
+            RewardVaultRole::HolderReward.seed()
+        ],
+        bump = holder_reward_vault_state.bump
+    )]
+    pub holder_reward_vault_state: Box<Account<'info, RewardVaultState>>,
+    #[account(
+        mut,
+        seeds = [
+            REWARD_VAULT_STATE_SEED,
+            reward_config.key().as_ref(),
+            RewardVaultRole::StakerReward.seed()
+        ],
+        bump = staker_reward_vault_state.bump
+    )]
+    pub staker_reward_vault_state: Box<Account<'info, RewardVaultState>>,
+    #[account(
+        mut,
+        seeds = [
+            REWARD_VAULT_STATE_SEED,
+            reward_config.key().as_ref(),
+            RewardVaultRole::IndependentTreasury.seed()
+        ],
+        bump = independent_treasury_vault_state.bump
+    )]
+    pub independent_treasury_vault_state: Box<Account<'info, RewardVaultState>>,
+    #[account(
+        mut,
+        constraint = owner_ryp_account.mint == ryp_mint.key() @ CryptoSeedsError::InvalidRewardVault,
+        constraint = owner_ryp_account.owner == owner.key() @ CryptoSeedsError::Unauthorized
+    )]
+    pub owner_ryp_account: Box<InterfaceAccount<'info, TokenAccount>>,
+    #[account(
+        mut,
+        constraint = recipient_ryp_account.mint == ryp_mint.key() @ CryptoSeedsError::InvalidRewardVault
+    )]
+    pub recipient_ryp_account: Box<InterfaceAccount<'info, TokenAccount>>,
+    #[account(
+        mut,
+        constraint = holder_reward_vault.key() == holder_reward_vault_state.vault_address @ CryptoSeedsError::InvalidRewardVault,
+        constraint = holder_reward_vault.mint == ryp_mint.key() @ CryptoSeedsError::InvalidRewardVault
+    )]
+    pub holder_reward_vault: Box<InterfaceAccount<'info, TokenAccount>>,
+    #[account(
+        mut,
+        constraint = staker_reward_vault.key() == staker_reward_vault_state.vault_address @ CryptoSeedsError::InvalidRewardVault,
+        constraint = staker_reward_vault.mint == ryp_mint.key() @ CryptoSeedsError::InvalidRewardVault
+    )]
+    pub staker_reward_vault: Box<InterfaceAccount<'info, TokenAccount>>,
+    #[account(
+        mut,
+        constraint = independent_treasury_vault.key() == independent_treasury_vault_state.vault_address @ CryptoSeedsError::InvalidRewardVault,
+        constraint = independent_treasury_vault.mint == ryp_mint.key() @ CryptoSeedsError::InvalidRewardVault
+    )]
+    pub independent_treasury_vault: Box<InterfaceAccount<'info, TokenAccount>>,
+    pub ryp_mint: Box<InterfaceAccount<'info, Mint>>,
+    pub token_program: Interface<'info, TokenInterface>,
+}
+
+#[derive(Accounts)]
 #[instruction(epoch_id: u64)]
 pub struct DraftRewardEpoch<'info> {
     #[account(mut)]
@@ -3564,6 +3764,19 @@ pub struct PlatformFeeRouted {
 }
 
 #[event]
+pub struct RypTransferWithPlatformFee {
+    pub owner: Pubkey,
+    pub recipient_token_account: Pubkey,
+    pub reward_config: Pubkey,
+    pub gross_amount: u64,
+    pub net_amount: u64,
+    pub fee_amount: u64,
+    pub holder_amount: u64,
+    pub staker_amount: u64,
+    pub treasury_amount: u64,
+}
+
+#[event]
 pub struct RewardEpochDrafted {
     pub reward_config: Pubkey,
     pub epoch_id: u64,
@@ -4620,6 +4833,15 @@ pub fn calculate_ryp_token_transfer_fee_amount(gross_amount: u64) -> Result<u64>
     calculate_bps_amount(gross_amount, RYP_TOKEN_TRANSFER_FEE_BPS)
 }
 
+pub fn calculate_ryp_platform_transfer_amounts(gross_amount: u64) -> Result<(u64, u64)> {
+    require!(gross_amount > 0, CryptoSeedsError::InvalidAmount);
+    let fee_amount = calculate_ryp_token_transfer_fee_amount(gross_amount)?;
+    let net_amount = gross_amount
+        .checked_sub(fee_amount)
+        .ok_or(CryptoSeedsError::MathOverflow)?;
+    Ok((fee_amount, net_amount))
+}
+
 fn calculate_bps_amount(amount: u64, bps: u16) -> Result<u64> {
     let calculated = (amount as u128)
         .checked_mul(bps as u128)
@@ -5314,11 +5536,15 @@ mod tests {
         let transfer_amount = 1_000_000_000;
         let fee_amount =
             calculate_ryp_token_transfer_fee_amount(transfer_amount).expect("fee quote");
+        let (quoted_fee_amount, net_amount) =
+            calculate_ryp_platform_transfer_amounts(transfer_amount).expect("platform quote");
         let (holder, staker, treasury) =
             calculate_fee_route_amounts(fee_amount, 3_334, 3_333).expect("valid split");
 
         assert_eq!(RYP_TOKEN_TRANSFER_FEE_BPS, 100);
         assert_eq!(fee_amount, 10_000_000);
+        assert_eq!(quoted_fee_amount, fee_amount);
+        assert_eq!(net_amount, 990_000_000);
         assert_eq!(holder, 3_334_000);
         assert_eq!(staker, 3_333_000);
         assert_eq!(treasury, 3_333_000);
@@ -5328,9 +5554,14 @@ mod tests {
     #[test]
     fn floors_tiny_transfer_fee_quotes_without_overflowing() {
         assert_eq!(calculate_ryp_token_transfer_fee_amount(99).unwrap(), 0);
+        assert_eq!(calculate_ryp_platform_transfer_amounts(99).unwrap(), (0, 99));
         assert_eq!(
             calculate_ryp_token_transfer_fee_amount(u64::MAX).unwrap(),
             184_467_440_737_095_516
+        );
+        assert_eq!(
+            calculate_ryp_platform_transfer_amounts(u64::MAX).unwrap(),
+            (184_467_440_737_095_516, 18_262_276_632_972_456_099)
         );
     }
 
