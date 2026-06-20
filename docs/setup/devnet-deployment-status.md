@@ -30,12 +30,13 @@ Repo-side devnet prep is partially complete:
 - Localnet smoke passes with the synced program id.
 - `npm run devnet:mint:test -- --env .env.devnet.example` is available to create the configured devnet test mint from ignored local keypairs.
 - `npm run devnet:status -- --env .env.devnet.example` is available to inspect local keypair presence, reward-vault keypair readiness, deterministic protocol targets, authority SOL, mint status, program status, and next actions in one read-only report.
+- `npm run devnet:vaults:prep -- --env .env.devnet.example` is available to create missing ignored reward-vault keypairs before funding/deployment, without RPC calls, signing, or broadcasting.
 - `npm run devnet:program:check -- --env .env.devnet.example` is available to verify whether the configured program is deployed on devnet.
 - `npm run devnet:deploy:wsl -- -EnvPath .env.devnet.example` is available to build, run strict prep, deploy the program, and inspect the deployed program account.
 - `npm run devnet:init:protocol -- --env .env.devnet.example` is available to plan protocol initialization after devnet deploy.
 - `npm run devnet:init:protocol -- --env .env.devnet.example --execute` initializes config, reward config, and reward vault states only after reviewed execution.
 
-The status report now includes a `protocolTargets` block before funding/deployment. This lets the team review the deterministic config PDA, reward config PDA, staking vault ATA, treasury reward ATA, and reward-vault state PDAs before any transaction is sent. Program-controlled reward vault token accounts use ignored local keypairs under `target/devnet/reward-vaults`; `devnet:status` reports these as missing until the initialization planning step creates them.
+The status report now includes a `protocolTargets` block before funding/deployment. This lets the team review the deterministic config PDA, reward config PDA, staking vault ATA, treasury reward ATA, and reward-vault state PDAs before any transaction is sent. Program-controlled reward vault token accounts use ignored local keypairs under `target/devnet/reward-vaults`; `devnet:vaults:prep` creates those local keypairs early so their public addresses and metadata hashes can be reviewed before protocol initialization.
 
 External blocker:
 
@@ -60,6 +61,12 @@ Inspect all devnet blockers in one report:
 
 ```bash
 npm run devnet:status -- --env .env.devnet.example
+```
+
+Prepare local reward-vault keypairs for the holder, staker, delivery-cost, and rollover vaults:
+
+```bash
+npm run devnet:vaults:prep -- --env .env.devnet.example
 ```
 
 Then rerun the deployment prep gate:

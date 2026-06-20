@@ -16,6 +16,7 @@ const requiredScripts = [
   "devnet:program:check",
   "devnet:readiness",
   "devnet:status",
+  "devnet:vaults:prep",
   "protocol:idl:check",
   "protocol:admin:fixture:check",
   "protocol:smoke:localnet:wsl",

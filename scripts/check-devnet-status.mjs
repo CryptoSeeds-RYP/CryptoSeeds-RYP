@@ -265,8 +265,13 @@ function validateChainStatus(chain) {
 }
 
 function nextActions() {
+  const vaultPrepAction = missingRewardVaultKeypairs()
+    ? ["Run npm run devnet:vaults:prep -- --env .env.devnet.example to create local reward-vault keypairs before protocol initialization."]
+    : [];
+
   if (!chain.authority?.fundedForMint) {
     return [
+      ...vaultPrepAction,
       `Fund devnet authority ${config.adminAuthorityAddress} with at least ${MIN_MINT_SOL} SOL for mint creation; ${MIN_DEPLOY_SOL} SOL is recommended before deployment.`,
       "Re-run npm run devnet:status -- --env .env.devnet.example.",
       "Then run npm run devnet:mint:test -- --env .env.devnet.example.",
@@ -274,22 +279,29 @@ function nextActions() {
   }
   if (!chain.mint?.exists) {
     return [
+      ...vaultPrepAction,
       "Run npm run devnet:mint:test -- --env .env.devnet.example.",
       "Run npm run devnet:prep -- --env .env.devnet.example.",
     ];
   }
   if (!chain.program?.exists) {
     return [
+      ...vaultPrepAction,
       "Run npm run devnet:prep -- --env .env.devnet.example.",
       "Run npm run devnet:deploy:wsl -- -EnvPath .env.devnet.example.",
       "Re-run npm run devnet:status -- --env .env.devnet.example.",
     ];
   }
   return [
+    ...vaultPrepAction,
     "Run npm run devnet:init:protocol -- --env .env.devnet.example.",
     "Review the plan, then run with --execute when approved.",
     "Run read-only reward inspection after initialization.",
   ];
+}
+
+function missingRewardVaultKeypairs() {
+  return Object.values(local.rewardVaultKeypairs).some((status) => !status.address);
 }
 
 function parseArgs(args) {
