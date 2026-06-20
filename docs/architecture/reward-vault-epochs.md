@@ -53,6 +53,15 @@ npm run rewards:claim-merkle -- <reward-epoch-draft.json> <epoch-id>
 
 The export contains the epoch `claimMerkleRoot`, each wallet leaf, and each wallet proof. The root must match the value stored in `RewardEpoch.claim_merkle_root`; otherwise proof-backed claim-record creation will fail on-chain.
 
+Preferred wallet claim flow:
+
+1. Wallet receives or looks up its Merkle record.
+2. Wallet signs `create_reward_claim_record_from_proof`.
+3. If net reward is positive, wallet signs `claim_reward_tokens`.
+4. If net reward is zero and rolled forward, wallet signs `claim_reward_record`.
+
+The older authority-created `create_reward_claim_record` path remains available as an operational fallback, but the public/self-custodial path should use proofs so users create their own claim records.
+
 ## MVP Safety Rules
 
 - Admin UI is draft/export only.
@@ -178,6 +187,7 @@ Frontend read-only model:
 The Admin Dashboard can derive and decode reward config, vault state, and epoch accounts for inspection. It does not expose reward setup, claim, payout, or vault-movement transaction builders.
 Reward account decoders verify Anchor account discriminators before reading account fields.
 The Merkle claim exporter builds deterministic proof packets from reviewed holder epochs. It is proof-only and does not sign, broadcast, create records, or transfer tokens.
+The Merkle wallet planner converts a valid proof packet into preview-only wallet transaction plans for proof-backed record creation plus token claim or rollover marking.
 The localnet Anchor smoke script uses the same layout manifest when parsing live reward accounts.
 The smoke result includes an `adminRewardInspection` report that mirrors the Admin Dashboard's read-only inspection posture against live localnet accounts.
 The reward claim batch planner converts a reviewed holder epoch into preview-only claim-record and wallet-claim transaction plans. It does not sign, broadcast, create claim records, or expose payout execution in the Admin Dashboard.

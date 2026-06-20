@@ -4,11 +4,13 @@ import { buildHolderRewardEpoch, type HolderRewardEpoch } from "../domain/holder
 import { buildCreateRewardClaimRecordFromProofTransactionPlan } from "./protocolTransactionPlan";
 import {
   buildRewardClaimMerkleExport,
+  buildRewardClaimMerkleWalletPlan,
   rewardClaimLeafHash,
   rewardMerkleNodeHash,
 } from "./rewardMerkleClaims";
 
 const rewardEpochAddress = Keypair.generate().publicKey.toBase58();
+const rewardSourceVaultAddress = Keypair.generate().publicKey.toBase58();
 const canopyHolder = Keypair.generate().publicKey.toBase58();
 const sproutHolder = Keypair.generate().publicKey.toBase58();
 const seedHolder = Keypair.generate().publicKey.toBase58();
@@ -60,6 +62,59 @@ describe("reward Merkle claims", () => {
     });
     expect(plan.action).toBe("CREATE_REWARD_CLAIM_RECORD_FROM_PROOF");
     expect(plan.instructions[0].instructionName).toBe("create_reward_claim_record_from_proof");
+  });
+
+  it("builds wallet-first claim plans from a valid Merkle export", () => {
+    const exportPacket = buildRewardClaimMerkleExport({
+      epochId: 3n,
+      holderEpoch: fixtureHolderEpoch(),
+      rewardEpochAddress,
+      rewardRole: "HOLDER_REWARD",
+    });
+    const walletPlan = buildRewardClaimMerkleWalletPlan({
+      merkleExport: exportPacket,
+      rewardSourceVaultAddress,
+    });
+
+    expect(walletPlan.exportVersion).toBe("reward-claim-merkle-wallet-plan/v1");
+    expect(walletPlan.executionMode).toBe("PREVIEW_ONLY");
+    expect(walletPlan.validation).toEqual({ valid: true, blockers: [], warnings: [] });
+    expect(walletPlan.records).toHaveLength(3);
+    expect(
+      walletPlan.records.every(
+        (record) => record.createRecordFromProofPlan.instructions[0].instructionName === "create_reward_claim_record_from_proof",
+      ),
+    ).toBe(true);
+
+    const payNowRecord = walletPlan.records.find((record) => record.walletAddress === canopyHolder);
+    expect(payNowRecord?.walletActionStatus).toBe("READY_FOR_TOKEN_CLAIM");
+    expect(payNowRecord?.walletClaimPlan?.instructions[0].instructionName).toBe("claim_reward_tokens");
+    expect(
+      payNowRecord?.walletClaimPlan?.instructions[0].accounts.find(
+        (account) => account.anchorName === "reward_source_vault",
+      )?.address,
+    ).toBe(rewardSourceVaultAddress);
+
+    const rolloverRecord = walletPlan.records.find((record) => record.walletAddress === seedHolder);
+    expect(rolloverRecord?.walletActionStatus).toBe("READY_FOR_ROLLOVER_MARK");
+    expect(rolloverRecord?.walletClaimPlan?.instructions[0].instructionName).toBe("claim_reward_record");
+  });
+
+  it("keeps pay-now wallet claim plans blocked until a source vault is supplied", () => {
+    const exportPacket = buildRewardClaimMerkleExport({
+      epochId: 3n,
+      holderEpoch: fixtureHolderEpoch(),
+      rewardEpochAddress,
+    });
+    const walletPlan = buildRewardClaimMerkleWalletPlan({ merkleExport: exportPacket });
+
+    expect(walletPlan.validation.valid).toBe(true);
+    expect(walletPlan.validation.warnings).toContain(
+      "Pay-now wallet claim plans require a verified reward source vault address.",
+    );
+    expect(walletPlan.records.find((record) => record.walletAddress === canopyHolder)?.walletActionStatus).toBe(
+      "SOURCE_VAULT_REQUIRED",
+    );
   });
 
   it("uses the same single-leaf hash as the on-chain proof path", () => {

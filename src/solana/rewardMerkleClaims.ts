@@ -3,11 +3,15 @@ import { keccak_256 } from "@noble/hashes/sha3";
 import type { HolderRewardEpoch, HolderRewardPayout } from "../domain/holderRewards";
 import { epochAccountingIsBalanced } from "../domain/holderRewards";
 import {
+  buildClaimRewardRecordTransactionPlan,
+  buildClaimRewardTokensTransactionPlan,
+  buildCreateRewardClaimRecordFromProofTransactionPlan,
   deriveRewardClaimRecordAddress,
   deriveRewardEpochAddress,
   MAX_REWARD_MERKLE_PROOF_NODES,
   type RewardClaimRole,
 } from "./protocolTransactionPlan";
+import type { PreparedSolanaTransactionPlan } from "../domain/transactions";
 
 export type RewardClaimMerkleExportInput = {
   epochId: bigint | number | string;
@@ -50,6 +54,36 @@ export type RewardClaimMerkleExport = {
     rolledForwardBaseUnits: string;
     maxProofNodes: number;
   };
+  validation: {
+    valid: boolean;
+    blockers: string[];
+    warnings: string[];
+  };
+  warnings: string[];
+};
+
+export type RewardClaimMerkleWalletActionStatus =
+  | "READY_FOR_TOKEN_CLAIM"
+  | "READY_FOR_ROLLOVER_MARK"
+  | "SOURCE_VAULT_REQUIRED";
+
+export type RewardClaimMerkleWalletRecordPlan = RewardClaimMerkleRecord & {
+  createRecordFromProofPlan: PreparedSolanaTransactionPlan;
+  walletActionStatus: RewardClaimMerkleWalletActionStatus;
+  walletClaimPlan?: PreparedSolanaTransactionPlan;
+};
+
+export type RewardClaimMerkleWalletPlan = {
+  exportVersion: "reward-claim-merkle-wallet-plan/v1";
+  executionMode: "PREVIEW_ONLY";
+  epochId: string;
+  rewardEpochAddress: string;
+  rewardMint: string;
+  rewardRole: RewardClaimRole;
+  claimMerkleRoot: string;
+  sourceVaultAddress?: string;
+  records: RewardClaimMerkleWalletRecordPlan[];
+  summary: RewardClaimMerkleExport["summary"];
   validation: {
     valid: boolean;
     blockers: string[];
@@ -132,6 +166,90 @@ export function buildRewardClaimMerkleExport({
   };
 }
 
+export function buildRewardClaimMerkleWalletPlan({
+  merkleExport,
+  rewardSourceVaultAddress,
+}: {
+  merkleExport: RewardClaimMerkleExport;
+  rewardSourceVaultAddress?: string;
+}): RewardClaimMerkleWalletPlan {
+  const records = merkleExport.records.map((record) =>
+    buildRewardClaimMerkleWalletRecordPlan({
+      merkleExport,
+      record,
+      rewardSourceVaultAddress,
+    }),
+  );
+  const validation = validateMerkleWalletPlan({ merkleExport, records, rewardSourceVaultAddress });
+
+  return {
+    exportVersion: "reward-claim-merkle-wallet-plan/v1",
+    executionMode: "PREVIEW_ONLY",
+    epochId: merkleExport.epochId,
+    rewardEpochAddress: merkleExport.rewardEpochAddress,
+    rewardMint: merkleExport.rewardMint,
+    rewardRole: merkleExport.rewardRole,
+    claimMerkleRoot: merkleExport.claimMerkleRoot,
+    sourceVaultAddress: rewardSourceVaultAddress,
+    records,
+    summary: merkleExport.summary,
+    validation,
+    warnings: [
+      "Wallet plans prepare transaction previews only; no proof, record, claim, or payout is broadcast here.",
+      "Each wallet signs its own proof-backed claim-record creation before claiming tokens or marking rollover.",
+    ],
+  };
+}
+
+function buildRewardClaimMerkleWalletRecordPlan({
+  merkleExport,
+  record,
+  rewardSourceVaultAddress,
+}: {
+  merkleExport: RewardClaimMerkleExport;
+  record: RewardClaimMerkleRecord;
+  rewardSourceVaultAddress?: string;
+}): RewardClaimMerkleWalletRecordPlan {
+  const createRecordFromProofPlan = buildCreateRewardClaimRecordFromProofTransactionPlan({
+    deliveryCostAmountBaseUnits: record.deliveryCostBaseUnits,
+    epochId: merkleExport.epochId,
+    grossAllocationAmountBaseUnits: record.grossAllocationBaseUnits,
+    leafIndex: record.leafIndex,
+    netClaimAmountBaseUnits: record.netClaimBaseUnits,
+    ownerAddress: record.walletAddress,
+    proof: record.proof,
+    rewardRole: merkleExport.rewardRole,
+    rolledForwardAmountBaseUnits: record.rolledForwardBaseUnits,
+  });
+
+  if (BigInt(record.netClaimBaseUnits) > 0n) {
+    return {
+      ...record,
+      createRecordFromProofPlan,
+      walletActionStatus: rewardSourceVaultAddress ? "READY_FOR_TOKEN_CLAIM" : "SOURCE_VAULT_REQUIRED",
+      walletClaimPlan: rewardSourceVaultAddress
+        ? buildClaimRewardTokensTransactionPlan({
+            epochId: merkleExport.epochId,
+            ownerAddress: record.walletAddress,
+            rewardRole: merkleExport.rewardRole,
+            rewardSourceVaultAddress,
+          })
+        : undefined,
+    };
+  }
+
+  return {
+    ...record,
+    createRecordFromProofPlan,
+    walletActionStatus: "READY_FOR_ROLLOVER_MARK",
+    walletClaimPlan: buildClaimRewardRecordTransactionPlan({
+      epochId: merkleExport.epochId,
+      ownerAddress: record.walletAddress,
+      rewardRole: merkleExport.rewardRole,
+    }),
+  };
+}
+
 export function rewardClaimLeafHash({
   deliveryCostAmountBaseUnits,
   grossAllocationAmountBaseUnits,
@@ -162,6 +280,39 @@ export function rewardClaimLeafHash({
     u64LeBytes(rolledForwardAmountBaseUnits),
     u64LeBytes(leafIndex),
   ]);
+}
+
+function validateMerkleWalletPlan({
+  merkleExport,
+  records,
+  rewardSourceVaultAddress,
+}: {
+  merkleExport: RewardClaimMerkleExport;
+  records: RewardClaimMerkleWalletRecordPlan[];
+  rewardSourceVaultAddress?: string;
+}): RewardClaimMerkleWalletPlan["validation"] {
+  const blockers = [...merkleExport.validation.blockers];
+  const warnings = [...merkleExport.validation.warnings];
+
+  if (!merkleExport.validation.valid) {
+    blockers.push("Merkle export must be valid before wallet claim plans are prepared.");
+  }
+  if (records.length !== merkleExport.records.length) {
+    blockers.push("Wallet plan record count must match the Merkle export record count.");
+  }
+  const payableRecords = records.filter((record) => BigInt(record.netClaimBaseUnits) > 0n);
+  if (payableRecords.length > 0 && !rewardSourceVaultAddress) {
+    warnings.push("Pay-now wallet claim plans require a verified reward source vault address.");
+  }
+  if (records.some((record) => record.createRecordFromProofPlan.action !== "CREATE_REWARD_CLAIM_RECORD_FROM_PROOF")) {
+    blockers.push("Every wallet record must use the proof-backed claim-record creation path.");
+  }
+
+  return {
+    valid: blockers.length === 0,
+    blockers: uniqueMessages(blockers),
+    warnings: uniqueMessages(warnings),
+  };
 }
 
 export function rewardMerkleNodeHash(left: Uint8Array, right: Uint8Array) {
@@ -308,4 +459,8 @@ function textBytes(value: string) {
 
 function bytesToHex(bytes: Uint8Array) {
   return [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+function uniqueMessages(messages: string[]) {
+  return [...new Set(messages)];
 }
