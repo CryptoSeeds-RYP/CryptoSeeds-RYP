@@ -48,11 +48,13 @@ const config = {
 
 const blockers = [];
 const warnings = [];
+const programSoPath = resolveProgramSoPath();
 const local = {
   anchorProgramId: findAnchorProgramId(anchorToml),
   rustProgramId: findRustProgramId(rustProgram),
   idlExists: existsSync(path.join(repoRoot, "target", "idl", "cryptoseeds_protocol.json")),
-  programSoExists: Boolean(resolveProgramSoPath()),
+  programSoExists: Boolean(programSoPath),
+  programArtifact: readProgramArtifactStatus(programSoPath),
   keypairs: {
     authority: readKeypairStatus(keypairPaths.authority, config.adminAuthorityAddress),
     mint: readKeypairStatus(keypairPaths.mint, config.rypMintAddress),
@@ -516,6 +518,25 @@ function rewardVaultMetadataHashHex({ role, rewardVaultAddress }) {
     .update(config.rypMintAddress)
     .update(String(role.custodyModel))
     .digest("hex");
+}
+
+function readProgramArtifactStatus(artifactPath) {
+  if (!artifactPath) {
+    return {
+      exists: false,
+      path: null,
+      sha256: null,
+      sizeBytes: 0,
+    };
+  }
+
+  const artifactBytes = readFileSync(artifactPath);
+  return {
+    exists: true,
+    path: path.relative(repoRoot, artifactPath),
+    sha256: createHash("sha256").update(artifactBytes).digest("hex"),
+    sizeBytes: artifactBytes.length,
+  };
 }
 
 function findAnchorProgramId(contents) {
