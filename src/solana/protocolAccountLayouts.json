@@ -1,55 +1,686 @@
 {
+  "GovernanceProposal": {
+    "discriminatorHex": "356bf0be2b49418f",
+    "minimumLength": 115,
+    "fields": [
+      {
+        "name": "proposal_id",
+        "type": "u64",
+        "offset": 8,
+        "size": 8
+      },
+      {
+        "name": "authority",
+        "type": "pubkey",
+        "offset": 16,
+        "size": 32
+      },
+      {
+        "name": "category",
+        "type": "defined:GovernanceProposalCategory",
+        "offset": 48,
+        "size": 1
+      },
+      {
+        "name": "status",
+        "type": "defined:GovernanceProposalStatus",
+        "offset": 49,
+        "size": 1
+      },
+      {
+        "name": "metadata_hash",
+        "type": "array:u8:32",
+        "offset": 50,
+        "size": 32
+      },
+      {
+        "name": "yes_votes",
+        "type": "u64",
+        "offset": 82,
+        "size": 8
+      },
+      {
+        "name": "no_votes",
+        "type": "u64",
+        "offset": 90,
+        "size": 8
+      },
+      {
+        "name": "created_at",
+        "type": "i64",
+        "offset": 98,
+        "size": 8
+      },
+      {
+        "name": "closed_at",
+        "type": "i64",
+        "offset": 106,
+        "size": 8
+      },
+      {
+        "name": "bump",
+        "type": "u8",
+        "offset": 114,
+        "size": 1
+      }
+    ]
+  },
+  "GovernanceVoteRecord": {
+    "discriminatorHex": "bbe2c2c1faf49f3c",
+    "minimumLength": 82,
+    "fields": [
+      {
+        "name": "proposal",
+        "type": "pubkey",
+        "offset": 8,
+        "size": 32
+      },
+      {
+        "name": "wallet",
+        "type": "pubkey",
+        "offset": 40,
+        "size": 32
+      },
+      {
+        "name": "approve",
+        "type": "bool",
+        "offset": 72,
+        "size": 1
+      },
+      {
+        "name": "voted_at",
+        "type": "i64",
+        "offset": 73,
+        "size": 8
+      },
+      {
+        "name": "bump",
+        "type": "u8",
+        "offset": 81,
+        "size": 1
+      }
+    ]
+  },
+  "ProjectParticipationRecord": {
+    "discriminatorHex": "273cfb7e91e603c6",
+    "minimumLength": 122,
+    "fields": [
+      {
+        "name": "project",
+        "type": "pubkey",
+        "offset": 8,
+        "size": 32
+      },
+      {
+        "name": "wallet",
+        "type": "pubkey",
+        "offset": 40,
+        "size": 32
+      },
+      {
+        "name": "participation_amount",
+        "type": "u64",
+        "offset": 72,
+        "size": 8
+      },
+      {
+        "name": "disclosure_hash",
+        "type": "array:u8:32",
+        "offset": 80,
+        "size": 32
+      },
+      {
+        "name": "joined_at",
+        "type": "i64",
+        "offset": 112,
+        "size": 8
+      },
+      {
+        "name": "status",
+        "type": "defined:ProjectParticipationStatus",
+        "offset": 120,
+        "size": 1
+      },
+      {
+        "name": "bump",
+        "type": "u8",
+        "offset": 121,
+        "size": 1
+      }
+    ]
+  },
+  "ProjectRecord": {
+    "discriminatorHex": "5dae70cbe77b5c38",
+    "minimumLength": 156,
+    "fields": [
+      {
+        "name": "project_id",
+        "type": "u64",
+        "offset": 8,
+        "size": 8
+      },
+      {
+        "name": "authority",
+        "type": "pubkey",
+        "offset": 16,
+        "size": 32
+      },
+      {
+        "name": "required_tier",
+        "type": "defined:StakeTier",
+        "offset": 48,
+        "size": 1
+      },
+      {
+        "name": "risk_level",
+        "type": "defined:ProjectRiskLevel",
+        "offset": 49,
+        "size": 1
+      },
+      {
+        "name": "status",
+        "type": "defined:ProjectStatus",
+        "offset": 50,
+        "size": 1
+      },
+      {
+        "name": "metadata_hash",
+        "type": "array:u8:32",
+        "offset": 51,
+        "size": 32
+      },
+      {
+        "name": "receiving_account",
+        "type": "pubkey",
+        "offset": 83,
+        "size": 32
+      },
+      {
+        "name": "governance_proposal",
+        "type": "pubkey",
+        "offset": 115,
+        "size": 32
+      },
+      {
+        "name": "total_participants",
+        "type": "u64",
+        "offset": 147,
+        "size": 8
+      },
+      {
+        "name": "bump",
+        "type": "u8",
+        "offset": 155,
+        "size": 1
+      }
+    ]
+  },
+  "ProtocolConfig": {
+    "discriminatorHex": "cf5bfa1c98b3d7d1",
+    "minimumLength": 166,
+    "fields": [
+      {
+        "name": "authority",
+        "type": "pubkey",
+        "offset": 8,
+        "size": 32
+      },
+      {
+        "name": "ryp_mint",
+        "type": "pubkey",
+        "offset": 40,
+        "size": 32
+      },
+      {
+        "name": "ryp_vault",
+        "type": "pubkey",
+        "offset": 72,
+        "size": 32
+      },
+      {
+        "name": "base_fee_bps",
+        "type": "u16",
+        "offset": 104,
+        "size": 2
+      },
+      {
+        "name": "tier_thresholds",
+        "type": "array:u64:5",
+        "offset": 106,
+        "size": 40
+      },
+      {
+        "name": "tier_fee_reduction_bps",
+        "type": "array:u16:5",
+        "offset": 146,
+        "size": 10
+      },
+      {
+        "name": "total_staked",
+        "type": "u64",
+        "offset": 156,
+        "size": 8
+      },
+      {
+        "name": "paused",
+        "type": "bool",
+        "offset": 164,
+        "size": 1
+      },
+      {
+        "name": "bump",
+        "type": "u8",
+        "offset": 165,
+        "size": 1
+      }
+    ]
+  },
+  "RewardClaimRecord": {
+    "discriminatorHex": "764d2d1024479a70",
+    "minimumLength": 106,
+    "fields": [
+      {
+        "name": "reward_epoch",
+        "type": "pubkey",
+        "offset": 8,
+        "size": 32
+      },
+      {
+        "name": "wallet",
+        "type": "pubkey",
+        "offset": 40,
+        "size": 32
+      },
+      {
+        "name": "gross_allocation_amount",
+        "type": "u64",
+        "offset": 72,
+        "size": 8
+      },
+      {
+        "name": "delivery_cost_amount",
+        "type": "u64",
+        "offset": 80,
+        "size": 8
+      },
+      {
+        "name": "net_claim_amount",
+        "type": "u64",
+        "offset": 88,
+        "size": 8
+      },
+      {
+        "name": "rolled_forward_amount",
+        "type": "u64",
+        "offset": 96,
+        "size": 8
+      },
+      {
+        "name": "claimed",
+        "type": "bool",
+        "offset": 104,
+        "size": 1
+      },
+      {
+        "name": "bump",
+        "type": "u8",
+        "offset": 105,
+        "size": 1
+      }
+    ]
+  },
   "RewardConfig": {
     "discriminatorHex": "a3ae6250e6774540",
     "minimumLength": 131,
     "fields": [
-      { "name": "authority", "type": "pubkey", "offset": 8, "size": 32 },
-      { "name": "protocol_config", "type": "pubkey", "offset": 40, "size": 32 },
-      { "name": "ryp_mint", "type": "pubkey", "offset": 72, "size": 32 },
-      { "name": "epoch_cadence_seconds", "type": "i64", "offset": 104, "size": 8 },
-      { "name": "holder_split_bps", "type": "u16", "offset": 112, "size": 2 },
-      { "name": "staker_split_bps", "type": "u16", "offset": 114, "size": 2 },
-      { "name": "treasury_split_bps", "type": "u16", "offset": 116, "size": 2 },
-      { "name": "registered_vault_roles_mask", "type": "u8", "offset": 118, "size": 1 },
-      { "name": "verified_vault_roles_mask", "type": "u8", "offset": 119, "size": 1 },
-      { "name": "total_epoch_drafts", "type": "u64", "offset": 120, "size": 8 },
-      { "name": "paused", "type": "bool", "offset": 128, "size": 1 },
-      { "name": "draft_only", "type": "bool", "offset": 129, "size": 1 },
-      { "name": "bump", "type": "u8", "offset": 130, "size": 1 }
-    ]
-  },
-  "RewardVaultState": {
-    "discriminatorHex": "35ee1cf0ec7c199a",
-    "minimumLength": 141,
-    "fields": [
-      { "name": "reward_config", "type": "pubkey", "offset": 8, "size": 32 },
-      { "name": "role", "type": "defined:RewardVaultRole", "offset": 40, "size": 1 },
-      { "name": "reward_mint", "type": "pubkey", "offset": 41, "size": 32 },
-      { "name": "vault_address", "type": "pubkey", "offset": 73, "size": 32 },
-      { "name": "custody_model", "type": "defined:RewardVaultCustodyModel", "offset": 105, "size": 1 },
-      { "name": "verification_status", "type": "defined:RewardVaultVerificationStatus", "offset": 106, "size": 1 },
-      { "name": "metadata_hash", "type": "array:u8:32", "offset": 107, "size": 32 },
-      { "name": "receives_user_funds", "type": "bool", "offset": 139, "size": 1 },
-      { "name": "bump", "type": "u8", "offset": 140, "size": 1 }
+      {
+        "name": "authority",
+        "type": "pubkey",
+        "offset": 8,
+        "size": 32
+      },
+      {
+        "name": "protocol_config",
+        "type": "pubkey",
+        "offset": 40,
+        "size": 32
+      },
+      {
+        "name": "ryp_mint",
+        "type": "pubkey",
+        "offset": 72,
+        "size": 32
+      },
+      {
+        "name": "epoch_cadence_seconds",
+        "type": "i64",
+        "offset": 104,
+        "size": 8
+      },
+      {
+        "name": "holder_split_bps",
+        "type": "u16",
+        "offset": 112,
+        "size": 2
+      },
+      {
+        "name": "staker_split_bps",
+        "type": "u16",
+        "offset": 114,
+        "size": 2
+      },
+      {
+        "name": "treasury_split_bps",
+        "type": "u16",
+        "offset": 116,
+        "size": 2
+      },
+      {
+        "name": "registered_vault_roles_mask",
+        "type": "u8",
+        "offset": 118,
+        "size": 1
+      },
+      {
+        "name": "verified_vault_roles_mask",
+        "type": "u8",
+        "offset": 119,
+        "size": 1
+      },
+      {
+        "name": "total_epoch_drafts",
+        "type": "u64",
+        "offset": 120,
+        "size": 8
+      },
+      {
+        "name": "paused",
+        "type": "bool",
+        "offset": 128,
+        "size": 1
+      },
+      {
+        "name": "draft_only",
+        "type": "bool",
+        "offset": 129,
+        "size": 1
+      },
+      {
+        "name": "bump",
+        "type": "u8",
+        "offset": 130,
+        "size": 1
+      }
     ]
   },
   "RewardEpoch": {
     "discriminatorHex": "d6676a610e04219c",
     "minimumLength": 163,
     "fields": [
-      { "name": "reward_config", "type": "pubkey", "offset": 8, "size": 32 },
-      { "name": "epoch_id", "type": "u64", "offset": 40, "size": 8 },
-      { "name": "snapshot_taken_at", "type": "i64", "offset": 48, "size": 8 },
-      { "name": "created_at", "type": "i64", "offset": 56, "size": 8 },
-      { "name": "reward_mint", "type": "pubkey", "offset": 64, "size": 32 },
-      { "name": "reward_pool_amount", "type": "u64", "offset": 96, "size": 8 },
-      { "name": "distributed_net_amount", "type": "u64", "offset": 104, "size": 8 },
-      { "name": "reserved_delivery_cost_amount", "type": "u64", "offset": 112, "size": 8 },
-      { "name": "rolled_forward_amount", "type": "u64", "offset": 120, "size": 8 },
-      { "name": "exclusion_list_hash", "type": "array:u8:32", "offset": 128, "size": 32 },
-      { "name": "status", "type": "defined:RewardEpochStatus", "offset": 160, "size": 1 },
-      { "name": "execution_blocked", "type": "bool", "offset": 161, "size": 1 },
-      { "name": "bump", "type": "u8", "offset": 162, "size": 1 }
+      {
+        "name": "reward_config",
+        "type": "pubkey",
+        "offset": 8,
+        "size": 32
+      },
+      {
+        "name": "epoch_id",
+        "type": "u64",
+        "offset": 40,
+        "size": 8
+      },
+      {
+        "name": "snapshot_taken_at",
+        "type": "i64",
+        "offset": 48,
+        "size": 8
+      },
+      {
+        "name": "created_at",
+        "type": "i64",
+        "offset": 56,
+        "size": 8
+      },
+      {
+        "name": "reward_mint",
+        "type": "pubkey",
+        "offset": 64,
+        "size": 32
+      },
+      {
+        "name": "reward_pool_amount",
+        "type": "u64",
+        "offset": 96,
+        "size": 8
+      },
+      {
+        "name": "distributed_net_amount",
+        "type": "u64",
+        "offset": 104,
+        "size": 8
+      },
+      {
+        "name": "reserved_delivery_cost_amount",
+        "type": "u64",
+        "offset": 112,
+        "size": 8
+      },
+      {
+        "name": "rolled_forward_amount",
+        "type": "u64",
+        "offset": 120,
+        "size": 8
+      },
+      {
+        "name": "exclusion_list_hash",
+        "type": "array:u8:32",
+        "offset": 128,
+        "size": 32
+      },
+      {
+        "name": "status",
+        "type": "defined:RewardEpochStatus",
+        "offset": 160,
+        "size": 1
+      },
+      {
+        "name": "execution_blocked",
+        "type": "bool",
+        "offset": 161,
+        "size": 1
+      },
+      {
+        "name": "bump",
+        "type": "u8",
+        "offset": 162,
+        "size": 1
+      }
+    ]
+  },
+  "RewardVaultState": {
+    "discriminatorHex": "35ee1cf0ec7c199a",
+    "minimumLength": 141,
+    "fields": [
+      {
+        "name": "reward_config",
+        "type": "pubkey",
+        "offset": 8,
+        "size": 32
+      },
+      {
+        "name": "role",
+        "type": "defined:RewardVaultRole",
+        "offset": 40,
+        "size": 1
+      },
+      {
+        "name": "reward_mint",
+        "type": "pubkey",
+        "offset": 41,
+        "size": 32
+      },
+      {
+        "name": "vault_address",
+        "type": "pubkey",
+        "offset": 73,
+        "size": 32
+      },
+      {
+        "name": "custody_model",
+        "type": "defined:RewardVaultCustodyModel",
+        "offset": 105,
+        "size": 1
+      },
+      {
+        "name": "verification_status",
+        "type": "defined:RewardVaultVerificationStatus",
+        "offset": 106,
+        "size": 1
+      },
+      {
+        "name": "metadata_hash",
+        "type": "array:u8:32",
+        "offset": 107,
+        "size": 32
+      },
+      {
+        "name": "receives_user_funds",
+        "type": "bool",
+        "offset": 139,
+        "size": 1
+      },
+      {
+        "name": "bump",
+        "type": "u8",
+        "offset": 140,
+        "size": 1
+      }
+    ]
+  },
+  "SeedBotPermission": {
+    "discriminatorHex": "f63209dc906c8915",
+    "minimumLength": 132,
+    "fields": [
+      {
+        "name": "owner",
+        "type": "pubkey",
+        "offset": 8,
+        "size": 32
+      },
+      {
+        "name": "position",
+        "type": "pubkey",
+        "offset": 40,
+        "size": 32
+      },
+      {
+        "name": "permission_hash",
+        "type": "array:u8:32",
+        "offset": 72,
+        "size": 32
+      },
+      {
+        "name": "created_at",
+        "type": "i64",
+        "offset": 104,
+        "size": 8
+      },
+      {
+        "name": "expires_at",
+        "type": "i64",
+        "offset": 112,
+        "size": 8
+      },
+      {
+        "name": "max_trade_amount",
+        "type": "u64",
+        "offset": 120,
+        "size": 8
+      },
+      {
+        "name": "max_daily_trades",
+        "type": "u16",
+        "offset": 128,
+        "size": 2
+      },
+      {
+        "name": "revoked",
+        "type": "bool",
+        "offset": 130,
+        "size": 1
+      },
+      {
+        "name": "bump",
+        "type": "u8",
+        "offset": 131,
+        "size": 1
+      }
+    ]
+  },
+  "StakePosition": {
+    "discriminatorHex": "4ea51e6fab7d0bdc",
+    "minimumLength": 80,
+    "fields": [
+      {
+        "name": "owner",
+        "type": "pubkey",
+        "offset": 8,
+        "size": 32
+      },
+      {
+        "name": "staked_amount",
+        "type": "u64",
+        "offset": 40,
+        "size": 8
+      },
+      {
+        "name": "tier",
+        "type": "defined:StakeTier",
+        "offset": 48,
+        "size": 1
+      },
+      {
+        "name": "staking_start_ts",
+        "type": "i64",
+        "offset": 49,
+        "size": 8
+      },
+      {
+        "name": "voting_rights_eligible_ts",
+        "type": "i64",
+        "offset": 57,
+        "size": 8
+      },
+      {
+        "name": "last_reward_claim_ts",
+        "type": "i64",
+        "offset": 65,
+        "size": 8
+      },
+      {
+        "name": "golden_key_active",
+        "type": "bool",
+        "offset": 73,
+        "size": 1
+      },
+      {
+        "name": "voting_rights_active",
+        "type": "bool",
+        "offset": 74,
+        "size": 1
+      },
+      {
+        "name": "vote_count",
+        "type": "u32",
+        "offset": 75,
+        "size": 4
+      },
+      {
+        "name": "bump",
+        "type": "u8",
+        "offset": 79,
+        "size": 1
+      }
     ]
   }
 }

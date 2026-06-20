@@ -11,8 +11,15 @@ pub const STAKE_POSITION_SEED: &[u8] = b"stake-position";
 pub const REWARD_CONFIG_SEED: &[u8] = b"reward-config";
 pub const REWARD_VAULT_STATE_SEED: &[u8] = b"reward-vault";
 pub const REWARD_EPOCH_SEED: &[u8] = b"reward-epoch";
+pub const REWARD_CLAIM_SEED: &[u8] = b"reward-claim";
+pub const GOVERNANCE_PROPOSAL_SEED: &[u8] = b"governance-proposal";
+pub const GOVERNANCE_VOTE_SEED: &[u8] = b"governance-vote";
+pub const PROJECT_RECORD_SEED: &[u8] = b"project-record";
+pub const PROJECT_PARTICIPATION_SEED: &[u8] = b"project-participation";
+pub const SEEDBOT_PERMISSION_SEED: &[u8] = b"seedbot-permission";
 pub const VOTING_RIGHTS_DELAY_SECONDS: i64 = 14 * 24 * 60 * 60;
 pub const MAX_REWARD_EPOCH_CADENCE_SECONDS: i64 = 366 * 24 * 60 * 60;
+pub const MAX_SEEDBOT_PERMISSION_SECONDS: i64 = 30 * 24 * 60 * 60;
 pub const BPS_DENOMINATOR: u16 = 10_000;
 
 #[program]
@@ -494,6 +501,466 @@ pub mod cryptoseeds_protocol {
 
         Ok(())
     }
+
+    pub fn update_fee_config(
+        ctx: Context<UpdateFeeConfig>,
+        base_fee_bps: u16,
+        tier_fee_reduction_bps: [u16; 5],
+    ) -> Result<()> {
+        validate_protocol_authority(&ctx.accounts.config, &ctx.accounts.authority.key())?;
+        require!(base_fee_bps <= 1_000, CryptoSeedsError::FeeTooHigh);
+        validate_fee_reductions(base_fee_bps, &tier_fee_reduction_bps)?;
+
+        let config = &mut ctx.accounts.config;
+        config.base_fee_bps = base_fee_bps;
+        config.tier_fee_reduction_bps = tier_fee_reduction_bps;
+
+        emit!(FeeConfigUpdated {
+            authority: ctx.accounts.authority.key(),
+            base_fee_bps,
+            tier_fee_reduction_bps,
+        });
+
+        Ok(())
+    }
+
+    pub fn transfer_protocol_authority(
+        ctx: Context<TransferProtocolAuthority>,
+        new_authority: Pubkey,
+    ) -> Result<()> {
+        validate_protocol_authority(&ctx.accounts.config, &ctx.accounts.authority.key())?;
+        require!(
+            new_authority != Pubkey::default(),
+            CryptoSeedsError::InvalidAuthority
+        );
+
+        let previous_authority = ctx.accounts.config.authority;
+        ctx.accounts.config.authority = new_authority;
+
+        emit!(ProtocolAuthorityTransferred {
+            previous_authority,
+            new_authority,
+        });
+
+        Ok(())
+    }
+
+    pub fn review_reward_epoch(ctx: Context<ReviewRewardEpoch>, _epoch_id: u64) -> Result<()> {
+        validate_reward_authority(
+            &ctx.accounts.config,
+            &ctx.accounts.reward_config,
+            ctx.accounts.config.key(),
+            &ctx.accounts.authority.key(),
+        )?;
+        validate_reward_epoch_status(ctx.accounts.reward_epoch.status, RewardEpochStatus::Drafted)?;
+
+        let reward_epoch = &mut ctx.accounts.reward_epoch;
+        reward_epoch.status = RewardEpochStatus::Reviewed;
+        reward_epoch.execution_blocked = false;
+
+        emit!(RewardEpochReviewed {
+            reward_config: reward_epoch.reward_config,
+            epoch_id: reward_epoch.epoch_id,
+        });
+
+        Ok(())
+    }
+
+    pub fn cancel_reward_epoch(ctx: Context<CancelRewardEpoch>, _epoch_id: u64) -> Result<()> {
+        validate_reward_authority(
+            &ctx.accounts.config,
+            &ctx.accounts.reward_config,
+            ctx.accounts.config.key(),
+            &ctx.accounts.authority.key(),
+        )?;
+        require!(
+            ctx.accounts.reward_epoch.status != RewardEpochStatus::Cancelled,
+            CryptoSeedsError::InvalidRewardEpochStatus
+        );
+
+        let reward_epoch = &mut ctx.accounts.reward_epoch;
+        reward_epoch.status = RewardEpochStatus::Cancelled;
+        reward_epoch.execution_blocked = true;
+
+        emit!(RewardEpochCancelled {
+            reward_config: reward_epoch.reward_config,
+            epoch_id: reward_epoch.epoch_id,
+        });
+
+        Ok(())
+    }
+
+    pub fn create_reward_claim_record(
+        ctx: Context<CreateRewardClaimRecord>,
+        _epoch_id: u64,
+        wallet: Pubkey,
+        gross_allocation_amount: u64,
+        delivery_cost_amount: u64,
+        net_claim_amount: u64,
+        rolled_forward_amount: u64,
+    ) -> Result<()> {
+        validate_reward_authority(
+            &ctx.accounts.config,
+            &ctx.accounts.reward_config,
+            ctx.accounts.config.key(),
+            &ctx.accounts.authority.key(),
+        )?;
+        validate_reward_epoch_claimable(&ctx.accounts.reward_epoch)?;
+        validate_reward_claim_accounting(
+            gross_allocation_amount,
+            delivery_cost_amount,
+            net_claim_amount,
+            rolled_forward_amount,
+        )?;
+        require!(
+            wallet != Pubkey::default(),
+            CryptoSeedsError::InvalidRewardClaim
+        );
+
+        let claim_record = &mut ctx.accounts.claim_record;
+        claim_record.reward_epoch = ctx.accounts.reward_epoch.key();
+        claim_record.wallet = wallet;
+        claim_record.gross_allocation_amount = gross_allocation_amount;
+        claim_record.delivery_cost_amount = delivery_cost_amount;
+        claim_record.net_claim_amount = net_claim_amount;
+        claim_record.rolled_forward_amount = rolled_forward_amount;
+        claim_record.claimed = false;
+        claim_record.bump = ctx.bumps.claim_record;
+
+        emit!(RewardClaimRecordCreated {
+            reward_epoch: claim_record.reward_epoch,
+            wallet,
+            gross_allocation_amount,
+            net_claim_amount,
+            rolled_forward_amount,
+        });
+
+        Ok(())
+    }
+
+    pub fn claim_reward_record(ctx: Context<ClaimRewardRecord>) -> Result<()> {
+        validate_reward_epoch_claimable(&ctx.accounts.reward_epoch)?;
+        require_keys_eq!(
+            ctx.accounts.claim_record.wallet,
+            ctx.accounts.owner.key(),
+            CryptoSeedsError::Unauthorized
+        );
+        require!(
+            !ctx.accounts.claim_record.claimed,
+            CryptoSeedsError::RewardAlreadyClaimed
+        );
+        require!(
+            ctx.accounts.claim_record.net_claim_amount > 0,
+            CryptoSeedsError::InvalidRewardClaim
+        );
+
+        let claim_record = &mut ctx.accounts.claim_record;
+        claim_record.claimed = true;
+
+        emit!(RewardClaimed {
+            reward_epoch: claim_record.reward_epoch,
+            wallet: claim_record.wallet,
+            net_claim_amount: claim_record.net_claim_amount,
+        });
+
+        Ok(())
+    }
+
+    pub fn create_governance_proposal(
+        ctx: Context<CreateGovernanceProposal>,
+        proposal_id: u64,
+        category: GovernanceProposalCategory,
+        metadata_hash: [u8; 32],
+    ) -> Result<()> {
+        validate_protocol_authority(&ctx.accounts.config, &ctx.accounts.authority.key())?;
+        validate_metadata_hash(&metadata_hash)?;
+
+        let clock = Clock::get()?;
+        let proposal = &mut ctx.accounts.proposal;
+        proposal.proposal_id = proposal_id;
+        proposal.authority = ctx.accounts.authority.key();
+        proposal.category = category;
+        proposal.status = GovernanceProposalStatus::Open;
+        proposal.metadata_hash = metadata_hash;
+        proposal.yes_votes = 0;
+        proposal.no_votes = 0;
+        proposal.created_at = clock.unix_timestamp;
+        proposal.closed_at = 0;
+        proposal.bump = ctx.bumps.proposal;
+
+        emit!(GovernanceProposalCreated {
+            proposal: proposal.key(),
+            proposal_id,
+            category,
+        });
+
+        Ok(())
+    }
+
+    pub fn cast_governance_vote(
+        ctx: Context<CastGovernanceVote>,
+        _proposal_id: u64,
+        approve: bool,
+    ) -> Result<()> {
+        require!(
+            !ctx.accounts.config.paused,
+            CryptoSeedsError::ProtocolPaused
+        );
+        require!(
+            ctx.accounts.proposal.status == GovernanceProposalStatus::Open,
+            CryptoSeedsError::GovernanceProposalClosed
+        );
+        require_keys_eq!(
+            ctx.accounts.position.owner,
+            ctx.accounts.owner.key(),
+            CryptoSeedsError::Unauthorized
+        );
+        require!(
+            ctx.accounts.position.voting_rights_active,
+            CryptoSeedsError::VotingRightsLocked
+        );
+
+        let vote_record = &mut ctx.accounts.vote_record;
+        vote_record.proposal = ctx.accounts.proposal.key();
+        vote_record.wallet = ctx.accounts.owner.key();
+        vote_record.approve = approve;
+        vote_record.voted_at = Clock::get()?.unix_timestamp;
+        vote_record.bump = ctx.bumps.vote_record;
+
+        let proposal = &mut ctx.accounts.proposal;
+        if approve {
+            proposal.yes_votes = proposal
+                .yes_votes
+                .checked_add(1)
+                .ok_or(CryptoSeedsError::MathOverflow)?;
+        } else {
+            proposal.no_votes = proposal
+                .no_votes
+                .checked_add(1)
+                .ok_or(CryptoSeedsError::MathOverflow)?;
+        }
+
+        ctx.accounts.position.vote_count = ctx
+            .accounts
+            .position
+            .vote_count
+            .checked_add(1)
+            .ok_or(CryptoSeedsError::MathOverflow)?;
+
+        emit!(GovernanceVoteCast {
+            proposal: proposal.key(),
+            wallet: ctx.accounts.owner.key(),
+            approve,
+        });
+
+        Ok(())
+    }
+
+    pub fn close_governance_proposal(
+        ctx: Context<CloseGovernanceProposal>,
+        _proposal_id: u64,
+        approved: bool,
+    ) -> Result<()> {
+        validate_protocol_authority(&ctx.accounts.config, &ctx.accounts.authority.key())?;
+        require!(
+            ctx.accounts.proposal.status == GovernanceProposalStatus::Open,
+            CryptoSeedsError::GovernanceProposalClosed
+        );
+
+        let proposal = &mut ctx.accounts.proposal;
+        proposal.status = if approved {
+            GovernanceProposalStatus::Approved
+        } else {
+            GovernanceProposalStatus::Rejected
+        };
+        proposal.closed_at = Clock::get()?.unix_timestamp;
+
+        emit!(GovernanceProposalClosed {
+            proposal: proposal.key(),
+            approved,
+        });
+
+        Ok(())
+    }
+
+    pub fn register_project(
+        ctx: Context<RegisterProject>,
+        project_id: u64,
+        required_tier: StakeTier,
+        risk_level: ProjectRiskLevel,
+        status: ProjectStatus,
+        metadata_hash: [u8; 32],
+        receiving_account: Pubkey,
+        governance_proposal: Pubkey,
+    ) -> Result<()> {
+        validate_protocol_authority(&ctx.accounts.config, &ctx.accounts.authority.key())?;
+        validate_metadata_hash(&metadata_hash)?;
+        require!(
+            required_tier != StakeTier::None,
+            CryptoSeedsError::StakeBelowSeedTier
+        );
+        require!(
+            receiving_account != Pubkey::default(),
+            CryptoSeedsError::InvalidProjectAccount
+        );
+
+        let project = &mut ctx.accounts.project;
+        project.project_id = project_id;
+        project.authority = ctx.accounts.authority.key();
+        project.required_tier = required_tier;
+        project.risk_level = risk_level;
+        project.status = status;
+        project.metadata_hash = metadata_hash;
+        project.receiving_account = receiving_account;
+        project.governance_proposal = governance_proposal;
+        project.total_participants = 0;
+        project.bump = ctx.bumps.project;
+
+        emit!(ProjectRegistered {
+            project: project.key(),
+            project_id,
+            required_tier,
+            risk_level,
+            status,
+        });
+
+        Ok(())
+    }
+
+    pub fn update_project_status(
+        ctx: Context<UpdateProjectStatus>,
+        _project_id: u64,
+        status: ProjectStatus,
+    ) -> Result<()> {
+        validate_protocol_authority(&ctx.accounts.config, &ctx.accounts.authority.key())?;
+        ctx.accounts.project.status = status;
+
+        emit!(ProjectStatusUpdated {
+            project: ctx.accounts.project.key(),
+            status,
+        });
+
+        Ok(())
+    }
+
+    pub fn participate_project(
+        ctx: Context<ParticipateProject>,
+        _project_id: u64,
+        participation_amount: u64,
+        disclosure_hash: [u8; 32],
+    ) -> Result<()> {
+        require!(
+            !ctx.accounts.config.paused,
+            CryptoSeedsError::ProtocolPaused
+        );
+        validate_metadata_hash(&disclosure_hash)?;
+        require!(participation_amount > 0, CryptoSeedsError::InvalidAmount);
+        require_keys_eq!(
+            ctx.accounts.position.owner,
+            ctx.accounts.owner.key(),
+            CryptoSeedsError::Unauthorized
+        );
+        require!(
+            ctx.accounts
+                .position
+                .tier
+                .can_access(ctx.accounts.project.required_tier),
+            CryptoSeedsError::InsufficientTier
+        );
+        require!(
+            ctx.accounts.project.status.is_participation_open(),
+            CryptoSeedsError::ProjectNotOpen
+        );
+
+        let clock = Clock::get()?;
+        let participation = &mut ctx.accounts.participation;
+        participation.project = ctx.accounts.project.key();
+        participation.wallet = ctx.accounts.owner.key();
+        participation.participation_amount = participation_amount;
+        participation.disclosure_hash = disclosure_hash;
+        participation.joined_at = clock.unix_timestamp;
+        participation.status = ProjectParticipationStatus::Active;
+        participation.bump = ctx.bumps.participation;
+
+        ctx.accounts.project.total_participants = ctx
+            .accounts
+            .project
+            .total_participants
+            .checked_add(1)
+            .ok_or(CryptoSeedsError::MathOverflow)?;
+
+        emit!(ProjectParticipationRecorded {
+            project: participation.project,
+            wallet: participation.wallet,
+            participation_amount,
+        });
+
+        Ok(())
+    }
+
+    pub fn create_seedbot_permission(
+        ctx: Context<CreateSeedBotPermission>,
+        permission_hash: [u8; 32],
+        expires_at: i64,
+        max_trade_amount: u64,
+        max_daily_trades: u16,
+    ) -> Result<()> {
+        require!(
+            !ctx.accounts.config.paused,
+            CryptoSeedsError::ProtocolPaused
+        );
+        validate_metadata_hash(&permission_hash)?;
+        require_keys_eq!(
+            ctx.accounts.position.owner,
+            ctx.accounts.owner.key(),
+            CryptoSeedsError::Unauthorized
+        );
+        require!(
+            ctx.accounts.position.tier != StakeTier::None,
+            CryptoSeedsError::StakeBelowSeedTier
+        );
+        validate_seedbot_permission_limits(expires_at, max_trade_amount, max_daily_trades)?;
+
+        let permission = &mut ctx.accounts.permission;
+        permission.owner = ctx.accounts.owner.key();
+        permission.position = ctx.accounts.position.key();
+        permission.permission_hash = permission_hash;
+        permission.created_at = Clock::get()?.unix_timestamp;
+        permission.expires_at = expires_at;
+        permission.max_trade_amount = max_trade_amount;
+        permission.max_daily_trades = max_daily_trades;
+        permission.revoked = false;
+        permission.bump = ctx.bumps.permission;
+
+        emit!(SeedBotPermissionCreated {
+            owner: permission.owner,
+            expires_at,
+            max_trade_amount,
+            max_daily_trades,
+        });
+
+        Ok(())
+    }
+
+    pub fn revoke_seedbot_permission(ctx: Context<RevokeSeedBotPermission>) -> Result<()> {
+        require_keys_eq!(
+            ctx.accounts.permission.owner,
+            ctx.accounts.owner.key(),
+            CryptoSeedsError::Unauthorized
+        );
+        require!(
+            !ctx.accounts.permission.revoked,
+            CryptoSeedsError::SeedBotPermissionRevoked
+        );
+
+        ctx.accounts.permission.revoked = true;
+
+        emit!(SeedBotPermissionRevoked {
+            owner: ctx.accounts.owner.key(),
+        });
+
+        Ok(())
+    }
 }
 
 #[derive(Accounts)]
@@ -729,6 +1196,258 @@ pub struct DraftRewardEpoch<'info> {
     pub system_program: Program<'info, System>,
 }
 
+#[derive(Accounts)]
+pub struct UpdateFeeConfig<'info> {
+    pub authority: Signer<'info>,
+    #[account(mut, seeds = [CONFIG_SEED], bump = config.bump)]
+    pub config: Account<'info, ProtocolConfig>,
+}
+
+#[derive(Accounts)]
+pub struct TransferProtocolAuthority<'info> {
+    pub authority: Signer<'info>,
+    #[account(mut, seeds = [CONFIG_SEED], bump = config.bump)]
+    pub config: Account<'info, ProtocolConfig>,
+}
+
+#[derive(Accounts)]
+#[instruction(epoch_id: u64)]
+pub struct ReviewRewardEpoch<'info> {
+    pub authority: Signer<'info>,
+    #[account(seeds = [CONFIG_SEED], bump = config.bump)]
+    pub config: Account<'info, ProtocolConfig>,
+    #[account(mut, seeds = [REWARD_CONFIG_SEED], bump = reward_config.bump)]
+    pub reward_config: Account<'info, RewardConfig>,
+    #[account(
+        mut,
+        seeds = [
+            REWARD_EPOCH_SEED,
+            reward_config.key().as_ref(),
+            epoch_id.to_le_bytes().as_ref()
+        ],
+        bump = reward_epoch.bump
+    )]
+    pub reward_epoch: Account<'info, RewardEpoch>,
+}
+
+#[derive(Accounts)]
+#[instruction(epoch_id: u64)]
+pub struct CancelRewardEpoch<'info> {
+    pub authority: Signer<'info>,
+    #[account(seeds = [CONFIG_SEED], bump = config.bump)]
+    pub config: Account<'info, ProtocolConfig>,
+    #[account(seeds = [REWARD_CONFIG_SEED], bump = reward_config.bump)]
+    pub reward_config: Account<'info, RewardConfig>,
+    #[account(
+        mut,
+        seeds = [
+            REWARD_EPOCH_SEED,
+            reward_config.key().as_ref(),
+            epoch_id.to_le_bytes().as_ref()
+        ],
+        bump = reward_epoch.bump
+    )]
+    pub reward_epoch: Account<'info, RewardEpoch>,
+}
+
+#[derive(Accounts)]
+#[instruction(epoch_id: u64, wallet: Pubkey)]
+pub struct CreateRewardClaimRecord<'info> {
+    #[account(mut)]
+    pub authority: Signer<'info>,
+    #[account(seeds = [CONFIG_SEED], bump = config.bump)]
+    pub config: Account<'info, ProtocolConfig>,
+    #[account(seeds = [REWARD_CONFIG_SEED], bump = reward_config.bump)]
+    pub reward_config: Account<'info, RewardConfig>,
+    #[account(
+        seeds = [
+            REWARD_EPOCH_SEED,
+            reward_config.key().as_ref(),
+            epoch_id.to_le_bytes().as_ref()
+        ],
+        bump = reward_epoch.bump
+    )]
+    pub reward_epoch: Account<'info, RewardEpoch>,
+    #[account(
+        init,
+        payer = authority,
+        space = 8 + RewardClaimRecord::INIT_SPACE,
+        seeds = [REWARD_CLAIM_SEED, reward_epoch.key().as_ref(), wallet.as_ref()],
+        bump
+    )]
+    pub claim_record: Account<'info, RewardClaimRecord>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct ClaimRewardRecord<'info> {
+    pub owner: Signer<'info>,
+    #[account()]
+    pub reward_epoch: Account<'info, RewardEpoch>,
+    #[account(
+        mut,
+        seeds = [REWARD_CLAIM_SEED, reward_epoch.key().as_ref(), owner.key().as_ref()],
+        bump = claim_record.bump
+    )]
+    pub claim_record: Account<'info, RewardClaimRecord>,
+}
+
+#[derive(Accounts)]
+#[instruction(proposal_id: u64)]
+pub struct CreateGovernanceProposal<'info> {
+    #[account(mut)]
+    pub authority: Signer<'info>,
+    #[account(seeds = [CONFIG_SEED], bump = config.bump)]
+    pub config: Account<'info, ProtocolConfig>,
+    #[account(
+        init,
+        payer = authority,
+        space = 8 + GovernanceProposal::INIT_SPACE,
+        seeds = [GOVERNANCE_PROPOSAL_SEED, proposal_id.to_le_bytes().as_ref()],
+        bump
+    )]
+    pub proposal: Account<'info, GovernanceProposal>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+#[instruction(proposal_id: u64)]
+pub struct CastGovernanceVote<'info> {
+    #[account(mut)]
+    pub owner: Signer<'info>,
+    #[account(seeds = [CONFIG_SEED], bump = config.bump)]
+    pub config: Account<'info, ProtocolConfig>,
+    #[account(
+        mut,
+        seeds = [STAKE_POSITION_SEED, owner.key().as_ref()],
+        bump = position.bump
+    )]
+    pub position: Account<'info, StakePosition>,
+    #[account(
+        mut,
+        seeds = [GOVERNANCE_PROPOSAL_SEED, proposal_id.to_le_bytes().as_ref()],
+        bump = proposal.bump
+    )]
+    pub proposal: Account<'info, GovernanceProposal>,
+    #[account(
+        init,
+        payer = owner,
+        space = 8 + GovernanceVoteRecord::INIT_SPACE,
+        seeds = [GOVERNANCE_VOTE_SEED, proposal.key().as_ref(), owner.key().as_ref()],
+        bump
+    )]
+    pub vote_record: Account<'info, GovernanceVoteRecord>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+#[instruction(proposal_id: u64)]
+pub struct CloseGovernanceProposal<'info> {
+    pub authority: Signer<'info>,
+    #[account(seeds = [CONFIG_SEED], bump = config.bump)]
+    pub config: Account<'info, ProtocolConfig>,
+    #[account(
+        mut,
+        seeds = [GOVERNANCE_PROPOSAL_SEED, proposal_id.to_le_bytes().as_ref()],
+        bump = proposal.bump
+    )]
+    pub proposal: Account<'info, GovernanceProposal>,
+}
+
+#[derive(Accounts)]
+#[instruction(project_id: u64)]
+pub struct RegisterProject<'info> {
+    #[account(mut)]
+    pub authority: Signer<'info>,
+    #[account(seeds = [CONFIG_SEED], bump = config.bump)]
+    pub config: Account<'info, ProtocolConfig>,
+    #[account(
+        init,
+        payer = authority,
+        space = 8 + ProjectRecord::INIT_SPACE,
+        seeds = [PROJECT_RECORD_SEED, project_id.to_le_bytes().as_ref()],
+        bump
+    )]
+    pub project: Account<'info, ProjectRecord>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+#[instruction(project_id: u64)]
+pub struct UpdateProjectStatus<'info> {
+    pub authority: Signer<'info>,
+    #[account(seeds = [CONFIG_SEED], bump = config.bump)]
+    pub config: Account<'info, ProtocolConfig>,
+    #[account(
+        mut,
+        seeds = [PROJECT_RECORD_SEED, project_id.to_le_bytes().as_ref()],
+        bump = project.bump
+    )]
+    pub project: Account<'info, ProjectRecord>,
+}
+
+#[derive(Accounts)]
+#[instruction(project_id: u64)]
+pub struct ParticipateProject<'info> {
+    #[account(mut)]
+    pub owner: Signer<'info>,
+    #[account(seeds = [CONFIG_SEED], bump = config.bump)]
+    pub config: Account<'info, ProtocolConfig>,
+    #[account(
+        seeds = [STAKE_POSITION_SEED, owner.key().as_ref()],
+        bump = position.bump
+    )]
+    pub position: Account<'info, StakePosition>,
+    #[account(
+        mut,
+        seeds = [PROJECT_RECORD_SEED, project_id.to_le_bytes().as_ref()],
+        bump = project.bump
+    )]
+    pub project: Account<'info, ProjectRecord>,
+    #[account(
+        init,
+        payer = owner,
+        space = 8 + ProjectParticipationRecord::INIT_SPACE,
+        seeds = [PROJECT_PARTICIPATION_SEED, project.key().as_ref(), owner.key().as_ref()],
+        bump
+    )]
+    pub participation: Account<'info, ProjectParticipationRecord>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct CreateSeedBotPermission<'info> {
+    #[account(mut)]
+    pub owner: Signer<'info>,
+    #[account(seeds = [CONFIG_SEED], bump = config.bump)]
+    pub config: Account<'info, ProtocolConfig>,
+    #[account(
+        seeds = [STAKE_POSITION_SEED, owner.key().as_ref()],
+        bump = position.bump
+    )]
+    pub position: Account<'info, StakePosition>,
+    #[account(
+        init,
+        payer = owner,
+        space = 8 + SeedBotPermission::INIT_SPACE,
+        seeds = [SEEDBOT_PERMISSION_SEED, owner.key().as_ref()],
+        bump
+    )]
+    pub permission: Account<'info, SeedBotPermission>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct RevokeSeedBotPermission<'info> {
+    pub owner: Signer<'info>,
+    #[account(
+        mut,
+        seeds = [SEEDBOT_PERMISSION_SEED, owner.key().as_ref()],
+        bump = permission.bump
+    )]
+    pub permission: Account<'info, SeedBotPermission>,
+}
+
 #[account]
 #[derive(InitSpace)]
 pub struct ProtocolConfig {
@@ -831,6 +1550,72 @@ pub struct RewardExclusionList {
     pub bump: u8,
 }
 
+#[account]
+#[derive(InitSpace)]
+pub struct GovernanceProposal {
+    pub proposal_id: u64,
+    pub authority: Pubkey,
+    pub category: GovernanceProposalCategory,
+    pub status: GovernanceProposalStatus,
+    pub metadata_hash: [u8; 32],
+    pub yes_votes: u64,
+    pub no_votes: u64,
+    pub created_at: i64,
+    pub closed_at: i64,
+    pub bump: u8,
+}
+
+#[account]
+#[derive(InitSpace)]
+pub struct GovernanceVoteRecord {
+    pub proposal: Pubkey,
+    pub wallet: Pubkey,
+    pub approve: bool,
+    pub voted_at: i64,
+    pub bump: u8,
+}
+
+#[account]
+#[derive(InitSpace)]
+pub struct ProjectRecord {
+    pub project_id: u64,
+    pub authority: Pubkey,
+    pub required_tier: StakeTier,
+    pub risk_level: ProjectRiskLevel,
+    pub status: ProjectStatus,
+    pub metadata_hash: [u8; 32],
+    pub receiving_account: Pubkey,
+    pub governance_proposal: Pubkey,
+    pub total_participants: u64,
+    pub bump: u8,
+}
+
+#[account]
+#[derive(InitSpace)]
+pub struct ProjectParticipationRecord {
+    pub project: Pubkey,
+    pub wallet: Pubkey,
+    pub participation_amount: u64,
+    pub disclosure_hash: [u8; 32],
+    pub joined_at: i64,
+    pub status: ProjectParticipationStatus,
+    pub bump: u8,
+}
+
+#[account]
+#[derive(InitSpace)]
+pub struct SeedBotPermission {
+    pub owner: Pubkey,
+    pub position: Pubkey,
+    pub permission_hash: [u8; 32],
+    pub created_at: i64,
+    pub expires_at: i64,
+    pub max_trade_amount: u64,
+    pub max_daily_trades: u16,
+    pub revoked: bool,
+    pub bump: u8,
+}
+
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, InitSpace)]
 pub enum StakeTier {
     None,
@@ -857,6 +1642,79 @@ impl StakeTier {
             Self::None
         }
     }
+
+    pub fn rank(self) -> u8 {
+        match self {
+            Self::None => 0,
+            Self::Seed => 1,
+            Self::Sprout => 2,
+            Self::Sapling => 3,
+            Self::Tree => 4,
+            Self::Fruit => 5,
+        }
+    }
+
+    pub fn can_access(self, required_tier: StakeTier) -> bool {
+        self.rank() >= required_tier.rank() && required_tier != StakeTier::None
+    }
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, InitSpace)]
+pub enum GovernanceProposalCategory {
+    ProjectApproval,
+    TreasuryAllocation,
+    ProtocolUpgrade,
+    DonationCause,
+    SeedBotFeature,
+    RiskPolicy,
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, InitSpace)]
+pub enum GovernanceProposalStatus {
+    Open,
+    Approved,
+    Rejected,
+    Cancelled,
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, InitSpace)]
+pub enum ProjectRiskLevel {
+    Low,
+    Medium,
+    High,
+    Experimental,
+    Donation,
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, InitSpace)]
+pub enum ProjectStatus {
+    Proposed,
+    UnderReview,
+    GovernanceVote,
+    Approved,
+    Open,
+    Active,
+    MilestoneReached,
+    HarvestAvailable,
+    Completed,
+    Paused,
+    Rejected,
+}
+
+impl ProjectStatus {
+    pub fn is_participation_open(self) -> bool {
+        matches!(
+            self,
+            Self::Open | Self::Active | Self::MilestoneReached | Self::HarvestAvailable
+        )
+    }
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, InitSpace)]
+pub enum ProjectParticipationStatus {
+    Active,
+    Completed,
+    Cancelled,
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, InitSpace)]
@@ -994,6 +1852,102 @@ pub struct RewardEpochDrafted {
     pub execution_blocked: bool,
 }
 
+#[event]
+pub struct FeeConfigUpdated {
+    pub authority: Pubkey,
+    pub base_fee_bps: u16,
+    pub tier_fee_reduction_bps: [u16; 5],
+}
+
+#[event]
+pub struct ProtocolAuthorityTransferred {
+    pub previous_authority: Pubkey,
+    pub new_authority: Pubkey,
+}
+
+#[event]
+pub struct RewardEpochReviewed {
+    pub reward_config: Pubkey,
+    pub epoch_id: u64,
+}
+
+#[event]
+pub struct RewardEpochCancelled {
+    pub reward_config: Pubkey,
+    pub epoch_id: u64,
+}
+
+#[event]
+pub struct RewardClaimRecordCreated {
+    pub reward_epoch: Pubkey,
+    pub wallet: Pubkey,
+    pub gross_allocation_amount: u64,
+    pub net_claim_amount: u64,
+    pub rolled_forward_amount: u64,
+}
+
+#[event]
+pub struct RewardClaimed {
+    pub reward_epoch: Pubkey,
+    pub wallet: Pubkey,
+    pub net_claim_amount: u64,
+}
+
+#[event]
+pub struct GovernanceProposalCreated {
+    pub proposal: Pubkey,
+    pub proposal_id: u64,
+    pub category: GovernanceProposalCategory,
+}
+
+#[event]
+pub struct GovernanceVoteCast {
+    pub proposal: Pubkey,
+    pub wallet: Pubkey,
+    pub approve: bool,
+}
+
+#[event]
+pub struct GovernanceProposalClosed {
+    pub proposal: Pubkey,
+    pub approved: bool,
+}
+
+#[event]
+pub struct ProjectRegistered {
+    pub project: Pubkey,
+    pub project_id: u64,
+    pub required_tier: StakeTier,
+    pub risk_level: ProjectRiskLevel,
+    pub status: ProjectStatus,
+}
+
+#[event]
+pub struct ProjectStatusUpdated {
+    pub project: Pubkey,
+    pub status: ProjectStatus,
+}
+
+#[event]
+pub struct ProjectParticipationRecorded {
+    pub project: Pubkey,
+    pub wallet: Pubkey,
+    pub participation_amount: u64,
+}
+
+#[event]
+pub struct SeedBotPermissionCreated {
+    pub owner: Pubkey,
+    pub expires_at: i64,
+    pub max_trade_amount: u64,
+    pub max_daily_trades: u16,
+}
+
+#[event]
+pub struct SeedBotPermissionRevoked {
+    pub owner: Pubkey,
+}
+
 #[error_code]
 pub enum CryptoSeedsError {
     #[msg("The provided amount is invalid.")]
@@ -1044,6 +1998,28 @@ pub enum CryptoSeedsError {
     InvalidRewardPool,
     #[msg("Reward snapshot timing is outside the configured epoch cadence.")]
     InvalidRewardSnapshotTiming,
+    #[msg("The provided protocol authority is invalid.")]
+    InvalidAuthority,
+    #[msg("Reward epoch status does not allow this action.")]
+    InvalidRewardEpochStatus,
+    #[msg("Reward claim accounting is invalid.")]
+    InvalidRewardClaim,
+    #[msg("Reward claim has already been recorded as claimed.")]
+    RewardAlreadyClaimed,
+    #[msg("Governance proposal is not open for voting.")]
+    GovernanceProposalClosed,
+    #[msg("The metadata hash is invalid.")]
+    InvalidMetadata,
+    #[msg("Project account is invalid.")]
+    InvalidProjectAccount,
+    #[msg("Wallet tier is insufficient for this action.")]
+    InsufficientTier,
+    #[msg("Project is not open for participation.")]
+    ProjectNotOpen,
+    #[msg("SeedBot permission limits are invalid.")]
+    InvalidSeedBotPermission,
+    #[msg("SeedBot permission is already revoked.")]
+    SeedBotPermissionRevoked,
 }
 
 fn validate_thresholds(thresholds: &[u64; 5]) -> Result<()> {
@@ -1219,6 +2195,83 @@ fn validate_reward_vault_for_epoch(
     Ok(())
 }
 
+fn validate_reward_epoch_status(
+    actual: RewardEpochStatus,
+    expected: RewardEpochStatus,
+) -> Result<()> {
+    require!(
+        actual == expected,
+        CryptoSeedsError::InvalidRewardEpochStatus
+    );
+    Ok(())
+}
+
+fn validate_reward_epoch_claimable(reward_epoch: &RewardEpoch) -> Result<()> {
+    require!(
+        reward_epoch.status == RewardEpochStatus::Reviewed,
+        CryptoSeedsError::InvalidRewardEpochStatus
+    );
+    require!(
+        !reward_epoch.execution_blocked,
+        CryptoSeedsError::RewardExecutionNotApproved
+    );
+
+    Ok(())
+}
+
+fn validate_reward_claim_accounting(
+    gross_allocation_amount: u64,
+    delivery_cost_amount: u64,
+    net_claim_amount: u64,
+    rolled_forward_amount: u64,
+) -> Result<()> {
+    require!(
+        gross_allocation_amount > 0,
+        CryptoSeedsError::InvalidRewardClaim
+    );
+    let accounted = delivery_cost_amount
+        .checked_add(net_claim_amount)
+        .and_then(|value| value.checked_add(rolled_forward_amount))
+        .ok_or(CryptoSeedsError::MathOverflow)?;
+    require!(
+        accounted == gross_allocation_amount,
+        CryptoSeedsError::InvalidRewardClaim
+    );
+
+    Ok(())
+}
+
+fn validate_metadata_hash(metadata_hash: &[u8; 32]) -> Result<()> {
+    require!(*metadata_hash != [0; 32], CryptoSeedsError::InvalidMetadata);
+    Ok(())
+}
+
+fn validate_seedbot_permission_limits(
+    expires_at: i64,
+    max_trade_amount: u64,
+    max_daily_trades: u16,
+) -> Result<()> {
+    let now = Clock::get()?.unix_timestamp;
+    require!(expires_at > now, CryptoSeedsError::InvalidSeedBotPermission);
+    require!(
+        expires_at
+            .checked_sub(now)
+            .ok_or(CryptoSeedsError::MathOverflow)?
+            <= MAX_SEEDBOT_PERMISSION_SECONDS,
+        CryptoSeedsError::InvalidSeedBotPermission
+    );
+    require!(
+        max_trade_amount > 0,
+        CryptoSeedsError::InvalidSeedBotPermission
+    );
+    require!(
+        max_daily_trades > 0,
+        CryptoSeedsError::InvalidSeedBotPermission
+    );
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1305,7 +2358,9 @@ mod tests {
 
         assert!(validate_reward_snapshot_timing(now - weekly_cadence, now, weekly_cadence).is_ok());
         assert!(validate_reward_snapshot_timing(now + 1, now, weekly_cadence).is_err());
-        assert!(validate_reward_snapshot_timing(now - weekly_cadence - 1, now, weekly_cadence).is_err());
+        assert!(
+            validate_reward_snapshot_timing(now - weekly_cadence - 1, now, weekly_cadence).is_err()
+        );
     }
 
     #[test]
@@ -1365,6 +2420,38 @@ mod tests {
             RewardVaultRole::HolderReward,
         )
         .is_err());
+    }
+
+    #[test]
+    fn validates_reward_claim_accounting() {
+        assert!(validate_reward_claim_accounting(1_000, 100, 700, 200).is_ok());
+        assert!(validate_reward_claim_accounting(1_000, 100, 700, 199).is_err());
+        assert!(validate_reward_claim_accounting(0, 0, 0, 0).is_err());
+    }
+
+    #[test]
+    fn validates_metadata_hashes() {
+        assert!(validate_metadata_hash(&[9; 32]).is_ok());
+        assert!(validate_metadata_hash(&[0; 32]).is_err());
+    }
+
+    #[test]
+    fn maps_tier_access_for_project_participation() {
+        assert!(StakeTier::Fruit.can_access(StakeTier::Seed));
+        assert!(StakeTier::Sprout.can_access(StakeTier::Sprout));
+        assert!(!StakeTier::Seed.can_access(StakeTier::Sprout));
+        assert!(!StakeTier::Fruit.can_access(StakeTier::None));
+    }
+
+    #[test]
+    fn maps_project_status_participation_windows() {
+        assert!(ProjectStatus::Open.is_participation_open());
+        assert!(ProjectStatus::Active.is_participation_open());
+        assert!(ProjectStatus::MilestoneReached.is_participation_open());
+        assert!(ProjectStatus::HarvestAvailable.is_participation_open());
+        assert!(!ProjectStatus::Proposed.is_participation_open());
+        assert!(!ProjectStatus::Paused.is_participation_open());
+        assert!(!ProjectStatus::Completed.is_participation_open());
     }
 
     fn reward_vault_state(

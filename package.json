@@ -8,6 +8,7 @@
     "build": "tsc && vite build",
     "preview": "vite preview --host 127.0.0.1",
     "test": "vitest run",
+    "devnet:mint:test": "node scripts/create-devnet-test-mint.mjs",
     "devnet:prep": "node scripts/prepare-devnet-deployment.mjs",
     "devnet:readiness": "node scripts/check-devnet-readiness.mjs",
     "protocol:build": "anchor build --ignore-keys",

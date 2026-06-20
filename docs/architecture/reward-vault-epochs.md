@@ -62,7 +62,7 @@ Anchor now includes the first reward-account scaffold:
 | --- | --- |
 | `RewardConfig` | Reward authority, mint, vault roles, epoch cadence, pause flags |
 | `RewardVaultState` | Role, mint, vault address, verification metadata hash |
-| `RewardEpoch` | Snapshot timestamp, pool amount, net payout total, delivery cost reserve, rollover total |
+| `RewardEpoch` | Snapshot timestamp, pool amount, net payout total, delivery cost reserve, rollover total, review status |
 | `RewardClaimRecord` | Wallet, epoch, claimed amount, delivery cost, rollover, claim state |
 | `RewardExclusionList` | Hash or registry pointer for excluded wallets |
 
@@ -74,10 +74,14 @@ Current reward instructions:
 | `register_reward_vault` | Registers one role-specific vault state as pending verification | No funds |
 | `verify_reward_vault` | Marks a reviewed vault state as verified when metadata hash matches | No funds |
 | `draft_reward_epoch` | Creates a balanced, execution-blocked epoch draft | No funds |
+| `review_reward_epoch` | Marks a drafted epoch as reviewed and claim-record eligible | No funds |
+| `cancel_reward_epoch` | Cancels an epoch and keeps execution blocked | No funds |
+| `create_reward_claim_record` | Creates a wallet-specific claim accounting record after review | No funds |
+| `claim_reward_record` | Lets the wallet mark its reviewed claim record as claimed | No funds |
 
-No claim or payout instruction exists yet.
+No vault-moving payout instruction exists yet.
 
-Reward logic remains modular from staking until the full claim, batching, exclusion-list, and authority review is complete.
+Reward logic remains modular from staking until batching, exclusion-list execution, funded vault transfer mechanics, and authority review are complete.
 
 ## Protocol Rejection Rules
 
@@ -88,6 +92,9 @@ The Anchor validation layer rejects:
 - zero or out-of-bounds reward cadence,
 - zero reward pools,
 - unbalanced epoch accounting,
+- claim records before epoch review,
+- duplicate reward claims,
+- invalid claim accounting,
 - disabled vaults,
 - unverified vaults,
 - vault states with the wrong role, reward mint, or reward config,
@@ -112,7 +119,7 @@ Protocol model:
 
 - `programs/cryptoseeds_protocol/src/lib.rs`
 
-The protocol model stores reward config, vault verification state, and draft epochs only. It keeps `execution_blocked = true` on drafted epochs.
+The protocol model stores reward config, vault verification state, reviewed epochs, and wallet-level claim records. It keeps `execution_blocked = true` on drafted or cancelled epochs and flips it off only after `review_reward_epoch`.
 
 Frontend read-only model:
 
@@ -121,7 +128,7 @@ Frontend read-only model:
 - `src/solana/protocolAccountLayouts.json`
 - `src/views/AdminView.tsx`
 
-The Admin Dashboard can derive and decode reward config, vault state, and draft epoch accounts for inspection. It does not expose reward setup, claim, payout, or vault-movement transaction builders.
+The Admin Dashboard can derive and decode reward config, vault state, and epoch accounts for inspection. It does not expose reward setup, claim, payout, or vault-movement transaction builders.
 Reward account decoders verify Anchor account discriminators before reading account fields.
 The localnet Anchor smoke script uses the same layout manifest when parsing live reward accounts.
 The smoke result includes an `adminRewardInspection` report that mirrors the Admin Dashboard's read-only inspection posture against live localnet accounts.

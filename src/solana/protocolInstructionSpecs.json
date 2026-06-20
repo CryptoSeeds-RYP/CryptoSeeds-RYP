@@ -1,39 +1,959 @@
 {
-  "stake_ryp": {
-    "discriminatorHex": "b746a41746842ce8",
-    "args": ["amount"],
-    "accounts": [
-      { "name": "owner", "label": "Owner", "role": "Signer and fee payer", "signer": true, "writable": true },
-      { "name": "config", "label": "Protocol config", "role": "Config PDA", "signer": false, "writable": true },
-      { "name": "ryp_mint", "label": "RYP mint", "role": "Token mint reference", "signer": false, "writable": false },
-      { "name": "owner_ryp_account", "label": "Owner RYP account", "role": "Source token account", "signer": false, "writable": true },
-      { "name": "ryp_vault", "label": "RYP vault", "role": "Protocol staking vault", "signer": false, "writable": true },
-      { "name": "position", "label": "Stake position", "role": "Per-wallet stake state PDA", "signer": false, "writable": true },
-      { "name": "token_program", "label": "Token program", "role": "SPL token CPI", "signer": false, "writable": false },
-      { "name": "associated_token_program", "label": "Associated token program", "role": "ATA validation", "signer": false, "writable": false },
-      { "name": "system_program", "label": "System program", "role": "Account initialization", "signer": false, "writable": false }
-    ]
-  },
-  "unstake_ryp": {
-    "discriminatorHex": "ae0b5ccc93d66cdd",
-    "args": ["amount"],
-    "accounts": [
-      { "name": "owner", "label": "Owner", "role": "Signer and fee payer", "signer": true, "writable": true },
-      { "name": "config", "label": "Protocol config", "role": "Config PDA", "signer": false, "writable": true },
-      { "name": "ryp_mint", "label": "RYP mint", "role": "Token mint reference", "signer": false, "writable": false },
-      { "name": "owner_ryp_account", "label": "Owner RYP account", "role": "Destination token account", "signer": false, "writable": true },
-      { "name": "ryp_vault", "label": "RYP vault", "role": "Protocol staking vault", "signer": false, "writable": true },
-      { "name": "position", "label": "Stake position", "role": "Per-wallet stake state PDA", "signer": false, "writable": true },
-      { "name": "token_program", "label": "Token program", "role": "SPL token CPI", "signer": false, "writable": false }
-    ]
-  },
   "activate_voting_rights": {
     "discriminatorHex": "463cc3194dbcfb73",
     "args": [],
     "accounts": [
-      { "name": "owner", "label": "Owner", "role": "Signer", "signer": true, "writable": false },
-      { "name": "config", "label": "Protocol config", "role": "Config PDA", "signer": false, "writable": false },
-      { "name": "position", "label": "Stake position", "role": "Per-wallet stake state PDA", "signer": false, "writable": true }
+      {
+        "name": "owner",
+        "label": "Owner",
+        "role": "Signer",
+        "signer": true,
+        "writable": false
+      },
+      {
+        "name": "config",
+        "label": "Protocol config",
+        "role": "Config PDA",
+        "signer": false,
+        "writable": false
+      },
+      {
+        "name": "position",
+        "label": "Stake position",
+        "role": "Per-wallet stake state PDA",
+        "signer": false,
+        "writable": true
+      }
+    ]
+  },
+  "cancel_reward_epoch": {
+    "discriminatorHex": "fbcec2e37706337b",
+    "args": [
+      "_epoch_id"
+    ],
+    "accounts": [
+      {
+        "name": "authority",
+        "label": "authority",
+        "role": "authority",
+        "signer": true,
+        "writable": false
+      },
+      {
+        "name": "config",
+        "label": "config",
+        "role": "config",
+        "signer": false,
+        "writable": false
+      },
+      {
+        "name": "reward_config",
+        "label": "reward config",
+        "role": "reward config",
+        "signer": false,
+        "writable": false
+      },
+      {
+        "name": "reward_epoch",
+        "label": "reward epoch",
+        "role": "reward epoch",
+        "signer": false,
+        "writable": true
+      }
+    ]
+  },
+  "cast_governance_vote": {
+    "discriminatorHex": "9d64dbf71b2dbc29",
+    "args": [
+      "_proposal_id",
+      "approve"
+    ],
+    "accounts": [
+      {
+        "name": "owner",
+        "label": "owner",
+        "role": "owner",
+        "signer": true,
+        "writable": true
+      },
+      {
+        "name": "config",
+        "label": "config",
+        "role": "config",
+        "signer": false,
+        "writable": false
+      },
+      {
+        "name": "position",
+        "label": "position",
+        "role": "position",
+        "signer": false,
+        "writable": true
+      },
+      {
+        "name": "proposal",
+        "label": "proposal",
+        "role": "proposal",
+        "signer": false,
+        "writable": true
+      },
+      {
+        "name": "vote_record",
+        "label": "vote record",
+        "role": "vote record",
+        "signer": false,
+        "writable": true
+      },
+      {
+        "name": "system_program",
+        "label": "system program",
+        "role": "system program",
+        "signer": false,
+        "writable": false
+      }
+    ]
+  },
+  "claim_reward_record": {
+    "discriminatorHex": "bad5cb11c7fba2e1",
+    "args": [],
+    "accounts": [
+      {
+        "name": "owner",
+        "label": "owner",
+        "role": "owner",
+        "signer": true,
+        "writable": false
+      },
+      {
+        "name": "reward_epoch",
+        "label": "reward epoch",
+        "role": "reward epoch",
+        "signer": false,
+        "writable": false
+      },
+      {
+        "name": "claim_record",
+        "label": "claim record",
+        "role": "claim record",
+        "signer": false,
+        "writable": true
+      }
+    ]
+  },
+  "close_governance_proposal": {
+    "discriminatorHex": "b91c8c08c270de11",
+    "args": [
+      "_proposal_id",
+      "approved"
+    ],
+    "accounts": [
+      {
+        "name": "authority",
+        "label": "authority",
+        "role": "authority",
+        "signer": true,
+        "writable": false
+      },
+      {
+        "name": "config",
+        "label": "config",
+        "role": "config",
+        "signer": false,
+        "writable": false
+      },
+      {
+        "name": "proposal",
+        "label": "proposal",
+        "role": "proposal",
+        "signer": false,
+        "writable": true
+      }
+    ]
+  },
+  "create_governance_proposal": {
+    "discriminatorHex": "665a7285933f71a8",
+    "args": [
+      "proposal_id",
+      "category",
+      "metadata_hash"
+    ],
+    "accounts": [
+      {
+        "name": "authority",
+        "label": "authority",
+        "role": "authority",
+        "signer": true,
+        "writable": true
+      },
+      {
+        "name": "config",
+        "label": "config",
+        "role": "config",
+        "signer": false,
+        "writable": false
+      },
+      {
+        "name": "proposal",
+        "label": "proposal",
+        "role": "proposal",
+        "signer": false,
+        "writable": true
+      },
+      {
+        "name": "system_program",
+        "label": "system program",
+        "role": "system program",
+        "signer": false,
+        "writable": false
+      }
+    ]
+  },
+  "create_reward_claim_record": {
+    "discriminatorHex": "957279d551758059",
+    "args": [
+      "_epoch_id",
+      "wallet",
+      "gross_allocation_amount",
+      "delivery_cost_amount",
+      "net_claim_amount",
+      "rolled_forward_amount"
+    ],
+    "accounts": [
+      {
+        "name": "authority",
+        "label": "authority",
+        "role": "authority",
+        "signer": true,
+        "writable": true
+      },
+      {
+        "name": "config",
+        "label": "config",
+        "role": "config",
+        "signer": false,
+        "writable": false
+      },
+      {
+        "name": "reward_config",
+        "label": "reward config",
+        "role": "reward config",
+        "signer": false,
+        "writable": false
+      },
+      {
+        "name": "reward_epoch",
+        "label": "reward epoch",
+        "role": "reward epoch",
+        "signer": false,
+        "writable": false
+      },
+      {
+        "name": "claim_record",
+        "label": "claim record",
+        "role": "claim record",
+        "signer": false,
+        "writable": true
+      },
+      {
+        "name": "system_program",
+        "label": "system program",
+        "role": "system program",
+        "signer": false,
+        "writable": false
+      }
+    ]
+  },
+  "create_seedbot_permission": {
+    "discriminatorHex": "7d65450eeaaec4de",
+    "args": [
+      "permission_hash",
+      "expires_at",
+      "max_trade_amount",
+      "max_daily_trades"
+    ],
+    "accounts": [
+      {
+        "name": "owner",
+        "label": "owner",
+        "role": "owner",
+        "signer": true,
+        "writable": true
+      },
+      {
+        "name": "config",
+        "label": "config",
+        "role": "config",
+        "signer": false,
+        "writable": false
+      },
+      {
+        "name": "position",
+        "label": "position",
+        "role": "position",
+        "signer": false,
+        "writable": false
+      },
+      {
+        "name": "permission",
+        "label": "permission",
+        "role": "permission",
+        "signer": false,
+        "writable": true
+      },
+      {
+        "name": "system_program",
+        "label": "system program",
+        "role": "system program",
+        "signer": false,
+        "writable": false
+      }
+    ]
+  },
+  "draft_reward_epoch": {
+    "discriminatorHex": "2b97706f55302d50",
+    "args": [
+      "epoch_id",
+      "snapshot_taken_at",
+      "reward_pool_amount",
+      "distributed_net_amount",
+      "reserved_delivery_cost_amount",
+      "rolled_forward_amount",
+      "exclusion_list_hash"
+    ],
+    "accounts": [
+      {
+        "name": "authority",
+        "label": "authority",
+        "role": "authority",
+        "signer": true,
+        "writable": true
+      },
+      {
+        "name": "config",
+        "label": "config",
+        "role": "config",
+        "signer": false,
+        "writable": false
+      },
+      {
+        "name": "reward_config",
+        "label": "reward config",
+        "role": "reward config",
+        "signer": false,
+        "writable": true
+      },
+      {
+        "name": "holder_reward_vault_state",
+        "label": "holder reward vault state",
+        "role": "holder reward vault state",
+        "signer": false,
+        "writable": false
+      },
+      {
+        "name": "staker_reward_vault_state",
+        "label": "staker reward vault state",
+        "role": "staker reward vault state",
+        "signer": false,
+        "writable": false
+      },
+      {
+        "name": "independent_treasury_vault_state",
+        "label": "independent treasury vault state",
+        "role": "independent treasury vault state",
+        "signer": false,
+        "writable": false
+      },
+      {
+        "name": "delivery_cost_reserve_state",
+        "label": "delivery cost reserve state",
+        "role": "delivery cost reserve state",
+        "signer": false,
+        "writable": false
+      },
+      {
+        "name": "rollover_vault_state",
+        "label": "rollover vault state",
+        "role": "rollover vault state",
+        "signer": false,
+        "writable": false
+      },
+      {
+        "name": "reward_epoch",
+        "label": "reward epoch",
+        "role": "reward epoch",
+        "signer": false,
+        "writable": true
+      },
+      {
+        "name": "system_program",
+        "label": "system program",
+        "role": "system program",
+        "signer": false,
+        "writable": false
+      }
+    ]
+  },
+  "initialize_config": {
+    "discriminatorHex": "d07f1501c2bec446",
+    "args": [
+      "base_fee_bps",
+      "tier_thresholds",
+      "tier_fee_reduction_bps"
+    ],
+    "accounts": [
+      {
+        "name": "authority",
+        "label": "authority",
+        "role": "authority",
+        "signer": true,
+        "writable": true
+      },
+      {
+        "name": "ryp_mint",
+        "label": "ryp mint",
+        "role": "ryp mint",
+        "signer": false,
+        "writable": false
+      },
+      {
+        "name": "config",
+        "label": "config",
+        "role": "config",
+        "signer": false,
+        "writable": true
+      },
+      {
+        "name": "ryp_vault",
+        "label": "ryp vault",
+        "role": "ryp vault",
+        "signer": false,
+        "writable": true
+      },
+      {
+        "name": "token_program",
+        "label": "token program",
+        "role": "token program",
+        "signer": false,
+        "writable": false
+      },
+      {
+        "name": "associated_token_program",
+        "label": "associated token program",
+        "role": "associated token program",
+        "signer": false,
+        "writable": false
+      },
+      {
+        "name": "system_program",
+        "label": "system program",
+        "role": "system program",
+        "signer": false,
+        "writable": false
+      }
+    ]
+  },
+  "initialize_reward_config": {
+    "discriminatorHex": "542d0dc2ebb539ab",
+    "args": [
+      "epoch_cadence_seconds",
+      "holder_split_bps",
+      "staker_split_bps",
+      "treasury_split_bps"
+    ],
+    "accounts": [
+      {
+        "name": "authority",
+        "label": "authority",
+        "role": "authority",
+        "signer": true,
+        "writable": true
+      },
+      {
+        "name": "config",
+        "label": "config",
+        "role": "config",
+        "signer": false,
+        "writable": false
+      },
+      {
+        "name": "ryp_mint",
+        "label": "ryp mint",
+        "role": "ryp mint",
+        "signer": false,
+        "writable": false
+      },
+      {
+        "name": "reward_config",
+        "label": "reward config",
+        "role": "reward config",
+        "signer": false,
+        "writable": true
+      },
+      {
+        "name": "system_program",
+        "label": "system program",
+        "role": "system program",
+        "signer": false,
+        "writable": false
+      }
+    ]
+  },
+  "participate_project": {
+    "discriminatorHex": "b8bfbc29229bc624",
+    "args": [
+      "_project_id",
+      "participation_amount",
+      "disclosure_hash"
+    ],
+    "accounts": [
+      {
+        "name": "owner",
+        "label": "owner",
+        "role": "owner",
+        "signer": true,
+        "writable": true
+      },
+      {
+        "name": "config",
+        "label": "config",
+        "role": "config",
+        "signer": false,
+        "writable": false
+      },
+      {
+        "name": "position",
+        "label": "position",
+        "role": "position",
+        "signer": false,
+        "writable": false
+      },
+      {
+        "name": "project",
+        "label": "project",
+        "role": "project",
+        "signer": false,
+        "writable": true
+      },
+      {
+        "name": "participation",
+        "label": "participation",
+        "role": "participation",
+        "signer": false,
+        "writable": true
+      },
+      {
+        "name": "system_program",
+        "label": "system program",
+        "role": "system program",
+        "signer": false,
+        "writable": false
+      }
+    ]
+  },
+  "register_project": {
+    "discriminatorHex": "829679d8b7e1f3c0",
+    "args": [
+      "project_id",
+      "required_tier",
+      "risk_level",
+      "status",
+      "metadata_hash",
+      "receiving_account",
+      "governance_proposal"
+    ],
+    "accounts": [
+      {
+        "name": "authority",
+        "label": "authority",
+        "role": "authority",
+        "signer": true,
+        "writable": true
+      },
+      {
+        "name": "config",
+        "label": "config",
+        "role": "config",
+        "signer": false,
+        "writable": false
+      },
+      {
+        "name": "project",
+        "label": "project",
+        "role": "project",
+        "signer": false,
+        "writable": true
+      },
+      {
+        "name": "system_program",
+        "label": "system program",
+        "role": "system program",
+        "signer": false,
+        "writable": false
+      }
+    ]
+  },
+  "register_reward_vault": {
+    "discriminatorHex": "cb37299cfc7fb9ef",
+    "args": [
+      "role",
+      "vault_address",
+      "custody_model",
+      "metadata_hash"
+    ],
+    "accounts": [
+      {
+        "name": "authority",
+        "label": "authority",
+        "role": "authority",
+        "signer": true,
+        "writable": true
+      },
+      {
+        "name": "config",
+        "label": "config",
+        "role": "config",
+        "signer": false,
+        "writable": false
+      },
+      {
+        "name": "reward_config",
+        "label": "reward config",
+        "role": "reward config",
+        "signer": false,
+        "writable": true
+      },
+      {
+        "name": "reward_vault_state",
+        "label": "reward vault state",
+        "role": "reward vault state",
+        "signer": false,
+        "writable": true
+      },
+      {
+        "name": "system_program",
+        "label": "system program",
+        "role": "system program",
+        "signer": false,
+        "writable": false
+      }
+    ]
+  },
+  "review_reward_epoch": {
+    "discriminatorHex": "6cb37850de53c2dd",
+    "args": [
+      "_epoch_id"
+    ],
+    "accounts": [
+      {
+        "name": "authority",
+        "label": "authority",
+        "role": "authority",
+        "signer": true,
+        "writable": false
+      },
+      {
+        "name": "config",
+        "label": "config",
+        "role": "config",
+        "signer": false,
+        "writable": false
+      },
+      {
+        "name": "reward_config",
+        "label": "reward config",
+        "role": "reward config",
+        "signer": false,
+        "writable": true
+      },
+      {
+        "name": "reward_epoch",
+        "label": "reward epoch",
+        "role": "reward epoch",
+        "signer": false,
+        "writable": true
+      }
+    ]
+  },
+  "revoke_seedbot_permission": {
+    "discriminatorHex": "82d44235b9eb1617",
+    "args": [],
+    "accounts": [
+      {
+        "name": "owner",
+        "label": "owner",
+        "role": "owner",
+        "signer": true,
+        "writable": false
+      },
+      {
+        "name": "permission",
+        "label": "permission",
+        "role": "permission",
+        "signer": false,
+        "writable": true
+      }
+    ]
+  },
+  "set_pause": {
+    "discriminatorHex": "3f209a0238674f2d",
+    "args": [
+      "paused"
+    ],
+    "accounts": [
+      {
+        "name": "authority",
+        "label": "authority",
+        "role": "authority",
+        "signer": true,
+        "writable": false
+      },
+      {
+        "name": "config",
+        "label": "config",
+        "role": "config",
+        "signer": false,
+        "writable": true
+      }
+    ]
+  },
+  "stake_ryp": {
+    "discriminatorHex": "b746a41746842ce8",
+    "args": [
+      "amount"
+    ],
+    "accounts": [
+      {
+        "name": "owner",
+        "label": "Owner",
+        "role": "Signer and fee payer",
+        "signer": true,
+        "writable": true
+      },
+      {
+        "name": "config",
+        "label": "Protocol config",
+        "role": "Config PDA",
+        "signer": false,
+        "writable": true
+      },
+      {
+        "name": "ryp_mint",
+        "label": "RYP mint",
+        "role": "Token mint reference",
+        "signer": false,
+        "writable": false
+      },
+      {
+        "name": "owner_ryp_account",
+        "label": "Owner RYP account",
+        "role": "Source token account",
+        "signer": false,
+        "writable": true
+      },
+      {
+        "name": "ryp_vault",
+        "label": "RYP vault",
+        "role": "Protocol staking vault",
+        "signer": false,
+        "writable": true
+      },
+      {
+        "name": "position",
+        "label": "Stake position",
+        "role": "Per-wallet stake state PDA",
+        "signer": false,
+        "writable": true
+      },
+      {
+        "name": "token_program",
+        "label": "Token program",
+        "role": "SPL token CPI",
+        "signer": false,
+        "writable": false
+      },
+      {
+        "name": "associated_token_program",
+        "label": "Associated token program",
+        "role": "ATA validation",
+        "signer": false,
+        "writable": false
+      },
+      {
+        "name": "system_program",
+        "label": "System program",
+        "role": "Account initialization",
+        "signer": false,
+        "writable": false
+      }
+    ]
+  },
+  "transfer_protocol_authority": {
+    "discriminatorHex": "234c244d88709ede",
+    "args": [
+      "new_authority"
+    ],
+    "accounts": [
+      {
+        "name": "authority",
+        "label": "authority",
+        "role": "authority",
+        "signer": true,
+        "writable": false
+      },
+      {
+        "name": "config",
+        "label": "config",
+        "role": "config",
+        "signer": false,
+        "writable": true
+      }
+    ]
+  },
+  "unstake_ryp": {
+    "discriminatorHex": "ae0b5ccc93d66cdd",
+    "args": [
+      "amount"
+    ],
+    "accounts": [
+      {
+        "name": "owner",
+        "label": "Owner",
+        "role": "Signer and fee payer",
+        "signer": true,
+        "writable": true
+      },
+      {
+        "name": "config",
+        "label": "Protocol config",
+        "role": "Config PDA",
+        "signer": false,
+        "writable": true
+      },
+      {
+        "name": "ryp_mint",
+        "label": "RYP mint",
+        "role": "Token mint reference",
+        "signer": false,
+        "writable": false
+      },
+      {
+        "name": "owner_ryp_account",
+        "label": "Owner RYP account",
+        "role": "Destination token account",
+        "signer": false,
+        "writable": true
+      },
+      {
+        "name": "ryp_vault",
+        "label": "RYP vault",
+        "role": "Protocol staking vault",
+        "signer": false,
+        "writable": true
+      },
+      {
+        "name": "position",
+        "label": "Stake position",
+        "role": "Per-wallet stake state PDA",
+        "signer": false,
+        "writable": true
+      },
+      {
+        "name": "token_program",
+        "label": "Token program",
+        "role": "SPL token CPI",
+        "signer": false,
+        "writable": false
+      }
+    ]
+  },
+  "update_fee_config": {
+    "discriminatorHex": "68b867f258976b14",
+    "args": [
+      "base_fee_bps",
+      "tier_fee_reduction_bps"
+    ],
+    "accounts": [
+      {
+        "name": "authority",
+        "label": "authority",
+        "role": "authority",
+        "signer": true,
+        "writable": false
+      },
+      {
+        "name": "config",
+        "label": "config",
+        "role": "config",
+        "signer": false,
+        "writable": true
+      }
+    ]
+  },
+  "update_project_status": {
+    "discriminatorHex": "322efca04fdd0544",
+    "args": [
+      "_project_id",
+      "status"
+    ],
+    "accounts": [
+      {
+        "name": "authority",
+        "label": "authority",
+        "role": "authority",
+        "signer": true,
+        "writable": false
+      },
+      {
+        "name": "config",
+        "label": "config",
+        "role": "config",
+        "signer": false,
+        "writable": false
+      },
+      {
+        "name": "project",
+        "label": "project",
+        "role": "project",
+        "signer": false,
+        "writable": true
+      }
+    ]
+  },
+  "verify_reward_vault": {
+    "discriminatorHex": "66d3afeefc0e7bf5",
+    "args": [
+      "role",
+      "expected_metadata_hash"
+    ],
+    "accounts": [
+      {
+        "name": "authority",
+        "label": "authority",
+        "role": "authority",
+        "signer": true,
+        "writable": false
+      },
+      {
+        "name": "config",
+        "label": "config",
+        "role": "config",
+        "signer": false,
+        "writable": false
+      },
+      {
+        "name": "reward_config",
+        "label": "reward config",
+        "role": "reward config",
+        "signer": false,
+        "writable": true
+      },
+      {
+        "name": "reward_vault_state",
+        "label": "reward vault state",
+        "role": "reward vault state",
+        "signer": false,
+        "writable": true
+      }
     ]
   }
 }

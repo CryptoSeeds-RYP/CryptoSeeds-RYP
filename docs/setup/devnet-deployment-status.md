@@ -1,6 +1,6 @@
 # Devnet Deployment Status
 
-Date: 2026-06-01
+Date: 2026-06-20
 
 ## Public Devnet IDs
 
@@ -28,6 +28,7 @@ Repo-side devnet prep is partially complete:
 - `.env.devnet.example` contains the devnet prep values.
 - Anchor build and IDL drift checks pass with the synced program id.
 - Localnet smoke passes with the synced program id.
+- `npm run devnet:mint:test -- --env .env.devnet.example` is available to create the configured devnet test mint from ignored local keypairs.
 
 External blocker:
 
@@ -40,7 +41,7 @@ External blocker:
 After funding `Hqt69SbbvfkTbdC23ysWAxCZrTf9mYCMe8uuVDPdjPHe` on devnet, create the test mint with the local keypair:
 
 ```bash
-wsl bash -lc "cd /mnt/c/Users/FiercePC/Desktop/crypto-seeds-microverse && spl-token create-token target/devnet/ryp-test-mint-keypair.json --decimals 6 --url devnet --fee-payer target/devnet/devnet-authority.json --mint-authority target/devnet/devnet-authority.json"
+npm run devnet:mint:test -- --env .env.devnet.example
 ```
 
 Then rerun:

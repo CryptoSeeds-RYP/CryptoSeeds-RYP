@@ -120,6 +120,7 @@ function byteSize(type) {
   if (typeof type === "string") {
     if (type === "pubkey") return 32;
     if (type === "u64" || type === "i64") return 8;
+    if (type === "u32") return 4;
     if (type === "u16") return 2;
     if (type === "u8" || type === "bool") return 1;
   }
