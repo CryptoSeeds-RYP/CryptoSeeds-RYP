@@ -98,8 +98,16 @@ function validateFixture(fixture) {
   if (epoch?.status !== "DECODED") blockers.push("Reward epoch must be decoded in the fixture.");
   const epochDecoded = epoch?.decoded;
   if (epochDecoded) {
-    if (epochDecoded.status !== "DRAFTED") blockers.push("Reward epoch must remain drafted.");
-    if (epochDecoded.executionBlocked !== true) blockers.push("Reward epoch execution must remain blocked.");
+    const safeDraftInspection = epochDecoded.status === "DRAFTED" && epochDecoded.executionBlocked === true;
+    const safeReviewedInspection =
+      epochDecoded.status === "REVIEWED" &&
+      epochDecoded.executionBlocked === false &&
+      inspection.executionMode === "READ_ONLY" &&
+      inspection.rewardExecutionExposed === false &&
+      epochClaimTotalsAreBounded(epochDecoded);
+    if (!safeDraftInspection && !safeReviewedInspection) {
+      blockers.push("Reward epoch must be either drafted/blocked or reviewed/read-only with bounded claim totals.");
+    }
     if (!epochAccountingBalances(epochDecoded)) blockers.push("Reward epoch accounting must balance.");
     if (env.VITE_REWARD_INSPECTION_EPOCH_ID !== epochDecoded.epochId) {
       blockers.push("Fixture app env reward inspection epoch id must match the decoded localnet epoch.");
@@ -133,6 +141,20 @@ function epochAccountingBalances(epoch) {
       BigInt(epoch.rewardPoolAmount) ===
       BigInt(epoch.distributedNetAmount) + BigInt(epoch.reservedDeliveryCostAmount ?? 0) + BigInt(epoch.rolledForwardAmount)
     );
+  } catch {
+    return false;
+  }
+}
+
+function epochClaimTotalsAreBounded(epoch) {
+  try {
+    const rewardPool = BigInt(epoch.rewardPoolAmount);
+    const distributedNet = BigInt(epoch.distributedNetAmount);
+    const recordedGross = BigInt(epoch.recordedGrossAllocationAmount ?? 0);
+    const recordedNet = BigInt(epoch.recordedNetClaimAmount ?? 0);
+    const claimedNet = BigInt(epoch.claimedNetAmount ?? 0);
+
+    return recordedGross <= rewardPool && recordedNet <= distributedNet && claimedNet <= recordedNet;
   } catch {
     return false;
   }

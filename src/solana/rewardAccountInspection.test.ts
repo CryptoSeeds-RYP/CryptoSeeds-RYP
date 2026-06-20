@@ -164,6 +164,20 @@ describe("reward account inspection", () => {
     expect(validateRewardAccountInspection(inspection).blockers).toEqual([]);
   });
 
+  it("allows reviewed read-only reward inspections when claim totals are bounded", () => {
+    const inspection = buildDecodedInspection({
+      epoch: {
+        status: "REVIEWED",
+        executionBlocked: false,
+        recordedGrossAllocationAmount: "900",
+        recordedNetClaimAmount: "700",
+        claimedNetAmount: "700",
+      },
+    });
+
+    expect(validateRewardAccountInspection(inspection).blockers).toEqual([]);
+  });
+
   it("blocks unsafe decoded admin reward inspections", () => {
     const inspection = buildDecodedInspection({
       rewardConfig: {
@@ -189,8 +203,23 @@ describe("reward account inspection", () => {
     expect(blockers).toContain("draft-only");
     expect(blockers).toContain("is not verified");
     expect(blockers).toContain("must not be marked as receiving user funds");
-    expect(blockers).toContain("execution must remain blocked");
+    expect(blockers).toContain("drafted/blocked or reviewed/read-only");
     expect(blockers).toContain("accounting does not balance");
+  });
+
+  it("blocks reviewed reward inspections when claim totals exceed reviewed bounds", () => {
+    const inspection = buildDecodedInspection({
+      epoch: {
+        status: "REVIEWED",
+        executionBlocked: false,
+        claimedNetAmount: "701",
+        recordedNetClaimAmount: "700",
+      },
+    });
+
+    expect(validateRewardAccountInspection(inspection).blockers).toContain(
+      "Reward epoch must be drafted/blocked or reviewed/read-only with bounded claim totals.",
+    );
   });
 });
 

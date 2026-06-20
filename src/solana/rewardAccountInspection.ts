@@ -318,11 +318,14 @@ export function validateRewardAccountInspection(inspection: RewardAccountInspect
     if (inspection.epoch.rewardConfig !== inspection.rewardConfigAddress) {
       blockers.push("Reward epoch points to a different reward config.");
     }
-    if (inspection.epoch.status !== "DRAFTED") {
-      blockers.push("Reward epoch must remain drafted in the current Admin inspection flow.");
-    }
-    if (!inspection.epoch.executionBlocked) {
-      blockers.push("Reward epoch execution must remain blocked in the current Admin inspection flow.");
+    const safeDraftInspection = inspection.epoch.status === "DRAFTED" && inspection.epoch.executionBlocked;
+    const safeReviewedInspection =
+      inspection.epoch.status === "REVIEWED" &&
+      !inspection.epoch.executionBlocked &&
+      inspection.executionMode === "READ_ONLY" &&
+      rewardEpochClaimTotalsAreBounded(inspection.epoch);
+    if (!safeDraftInspection && !safeReviewedInspection) {
+      blockers.push("Reward epoch must be drafted/blocked or reviewed/read-only with bounded claim totals.");
     }
     if (!rewardEpochAccountingBalances(inspection.epoch)) {
       blockers.push("Reward epoch accounting does not balance.");
@@ -458,6 +461,20 @@ function rewardEpochAccountingBalances(epoch: RewardEpochAccount) {
     const delivery = BigInt(epoch.reservedDeliveryCostAmount);
     const rollover = BigInt(epoch.rolledForwardAmount);
     return pool === distributed + delivery + rollover;
+  } catch {
+    return false;
+  }
+}
+
+function rewardEpochClaimTotalsAreBounded(epoch: RewardEpochAccount) {
+  try {
+    const rewardPool = BigInt(epoch.rewardPoolAmount);
+    const distributed = BigInt(epoch.distributedNetAmount);
+    const recordedGross = BigInt(epoch.recordedGrossAllocationAmount);
+    const recordedNet = BigInt(epoch.recordedNetClaimAmount);
+    const claimedNet = BigInt(epoch.claimedNetAmount);
+
+    return recordedGross <= rewardPool && recordedNet <= distributed && claimedNet <= recordedNet;
   } catch {
     return false;
   }

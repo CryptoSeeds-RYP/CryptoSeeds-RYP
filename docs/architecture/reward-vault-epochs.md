@@ -148,7 +148,7 @@ The localnet Anchor smoke script uses the same layout manifest when parsing live
 The smoke result includes an `adminRewardInspection` report that mirrors the Admin Dashboard's read-only inspection posture against live localnet accounts.
 The reward claim batch planner converts a reviewed holder epoch into preview-only claim-record and wallet-claim transaction plans. It does not sign, broadcast, create claim records, or expose payout execution in the Admin Dashboard.
 `npm run protocol:admin:fixture:wsl` writes `target/localnet-admin-fixture.json` with the localnet RPC URL, app env values, decoded reward accounts, and read-only Admin inspection report for browser harness work.
-`npm run protocol:admin:fixture:check` validates the exported fixture before browser work by checking read-only mode, reward split totals, draft-only status, blocked epoch execution, vault verification, no user-fund vault receivers, and the app reward-inspection epoch id.
+`npm run protocol:admin:fixture:check` validates the exported fixture before browser work by checking read-only mode, reward split totals, reward config draft-only status, safe drafted or reviewed epoch state, bounded claim totals, vault verification, no user-fund vault receivers, and the app reward-inspection epoch id.
 
 Localnet inspection:
 
