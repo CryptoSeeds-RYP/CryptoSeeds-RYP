@@ -33,6 +33,9 @@ The Anchor permission record now stores the minimum live-automation guardrails o
 - max daily volume amount,
 - max daily trade count,
 - max slippage bps,
+- tier at creation,
+- staked amount at creation,
+- staking start timestamp at creation,
 - revoked flag.
 
 These fields are still not enough to enable autonomous trading by themselves. Venue adapters must also enforce the matching off-chain strategy packet, wallet signature policy, and execution venue controls before any live route is allowed.

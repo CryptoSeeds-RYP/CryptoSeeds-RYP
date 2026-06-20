@@ -613,7 +613,7 @@
   },
   "SeedBotPermission": {
     "discriminatorHex": "f63209dc906c8915",
-    "minimumLength": 142,
+    "minimumLength": 159,
     "fields": [
       {
         "name": "owner",
@@ -670,15 +670,33 @@
         "size": 2
       },
       {
+        "name": "tier_at_creation",
+        "type": "defined:StakeTier",
+        "offset": 140,
+        "size": 1
+      },
+      {
+        "name": "staked_amount_at_creation",
+        "type": "u64",
+        "offset": 141,
+        "size": 8
+      },
+      {
+        "name": "staking_start_ts_at_creation",
+        "type": "i64",
+        "offset": 149,
+        "size": 8
+      },
+      {
         "name": "revoked",
         "type": "bool",
-        "offset": 140,
+        "offset": 157,
         "size": 1
       },
       {
         "name": "bump",
         "type": "u8",
-        "offset": 141,
+        "offset": 158,
         "size": 1
       }
     ]

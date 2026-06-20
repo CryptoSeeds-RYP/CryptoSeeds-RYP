@@ -415,6 +415,13 @@ async function runSmoke(connection) {
   assertEqual("SeedBot permission max daily volume", permissionRecord.maxDailyVolumeAmount, SEEDBOT_MAX_DAILY_VOLUME_AMOUNT);
   assertEqual("SeedBot permission max daily trades", permissionRecord.maxDailyTrades, SEEDBOT_MAX_DAILY_TRADES);
   assertEqual("SeedBot permission max slippage bps", permissionRecord.maxSlippageBps, SEEDBOT_MAX_SLIPPAGE_BPS);
+  assertEqual("SeedBot permission tier snapshot", permissionRecord.tierAtCreation, 1);
+  assertEqual("SeedBot permission stake snapshot", permissionRecord.stakedAmountAtCreation, SEED_STAKE_AMOUNT);
+  assertEqual(
+    "SeedBot permission staking start snapshot",
+    permissionRecord.stakingStartTsAtCreation,
+    stakedPosition.stakingStartTs,
+  );
   assertEqual("SeedBot permission revoked", permissionRecord.revoked, false);
 
   log("calling revoke_seedbot_permission");
@@ -2170,6 +2177,9 @@ function parseSeedBotPermission(data) {
     maxDailyVolumeAmount: data.readBigUInt64LE(offset.max_daily_volume_amount),
     maxDailyTrades: data.readUInt16LE(offset.max_daily_trades),
     maxSlippageBps: data.readUInt16LE(offset.max_slippage_bps),
+    tierAtCreation: data.readUInt8(offset.tier_at_creation),
+    stakedAmountAtCreation: data.readBigUInt64LE(offset.staked_amount_at_creation),
+    stakingStartTsAtCreation: data.readBigInt64LE(offset.staking_start_ts_at_creation),
     revoked: data.readUInt8(offset.revoked) === 1,
     bump: data.readUInt8(offset.bump),
   };

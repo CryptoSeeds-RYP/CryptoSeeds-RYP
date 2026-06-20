@@ -1342,7 +1342,9 @@ pub mod cryptoseeds_protocol {
             ctx.accounts.position.tier != StakeTier::None,
             CryptoSeedsError::StakeBelowSeedTier
         );
-        validate_seedbot_permission_limits(
+        let created_at = Clock::get()?.unix_timestamp;
+        validate_seedbot_permission_limits_at(
+            created_at,
             expires_at,
             max_trade_amount,
             max_daily_volume_amount,
@@ -1354,22 +1356,29 @@ pub mod cryptoseeds_protocol {
         permission.owner = ctx.accounts.owner.key();
         permission.position = ctx.accounts.position.key();
         permission.permission_hash = permission_hash;
-        permission.created_at = Clock::get()?.unix_timestamp;
+        permission.created_at = created_at;
         permission.expires_at = expires_at;
         permission.max_trade_amount = max_trade_amount;
         permission.max_daily_volume_amount = max_daily_volume_amount;
         permission.max_daily_trades = max_daily_trades;
         permission.max_slippage_bps = max_slippage_bps;
+        permission.tier_at_creation = ctx.accounts.position.tier;
+        permission.staked_amount_at_creation = ctx.accounts.position.staked_amount;
+        permission.staking_start_ts_at_creation = ctx.accounts.position.staking_start_ts;
         permission.revoked = false;
         permission.bump = ctx.bumps.permission;
 
         emit!(SeedBotPermissionCreated {
             owner: permission.owner,
+            position: permission.position,
+            created_at,
             expires_at,
             max_trade_amount,
             max_daily_volume_amount,
             max_daily_trades,
             max_slippage_bps,
+            tier_at_creation: permission.tier_at_creation,
+            staked_amount_at_creation: permission.staked_amount_at_creation,
         });
 
         Ok(())
@@ -2246,6 +2255,9 @@ pub struct SeedBotPermission {
     pub max_daily_volume_amount: u64,
     pub max_daily_trades: u16,
     pub max_slippage_bps: u16,
+    pub tier_at_creation: StakeTier,
+    pub staked_amount_at_creation: u64,
+    pub staking_start_ts_at_creation: i64,
     pub revoked: bool,
     pub bump: u8,
 }
@@ -2629,11 +2641,15 @@ pub struct ProjectParticipationRecorded {
 #[event]
 pub struct SeedBotPermissionCreated {
     pub owner: Pubkey,
+    pub position: Pubkey,
+    pub created_at: i64,
     pub expires_at: i64,
     pub max_trade_amount: u64,
     pub max_daily_volume_amount: u64,
     pub max_daily_trades: u16,
     pub max_slippage_bps: u16,
+    pub tier_at_creation: StakeTier,
+    pub staked_amount_at_creation: u64,
 }
 
 #[event]
@@ -3282,24 +3298,6 @@ fn validate_reward_vault_for_token_claim(
 fn validate_metadata_hash(metadata_hash: &[u8; 32]) -> Result<()> {
     require!(*metadata_hash != [0; 32], CryptoSeedsError::InvalidMetadata);
     Ok(())
-}
-
-fn validate_seedbot_permission_limits(
-    expires_at: i64,
-    max_trade_amount: u64,
-    max_daily_volume_amount: u64,
-    max_daily_trades: u16,
-    max_slippage_bps: u16,
-) -> Result<()> {
-    let now = Clock::get()?.unix_timestamp;
-    validate_seedbot_permission_limits_at(
-        now,
-        expires_at,
-        max_trade_amount,
-        max_daily_volume_amount,
-        max_daily_trades,
-        max_slippage_bps,
-    )
 }
 
 fn validate_seedbot_permission_limits_at(
