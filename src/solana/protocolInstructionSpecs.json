@@ -785,6 +785,58 @@
       }
     ]
   },
+  "record_project_participant_refund": {
+    "discriminatorHex": "4225b6d9531669f7",
+    "args": [
+      "_project_id",
+      "refund_amount",
+      "refund_metadata_hash"
+    ],
+    "accounts": [
+      {
+        "name": "authority",
+        "label": "authority",
+        "role": "authority",
+        "signer": true,
+        "writable": true
+      },
+      {
+        "name": "config",
+        "label": "config",
+        "role": "config",
+        "signer": false,
+        "writable": false
+      },
+      {
+        "name": "project",
+        "label": "project",
+        "role": "project",
+        "signer": false,
+        "writable": true
+      },
+      {
+        "name": "participation",
+        "label": "participation",
+        "role": "participation",
+        "signer": false,
+        "writable": false
+      },
+      {
+        "name": "refund_record",
+        "label": "refund record",
+        "role": "refund record",
+        "signer": false,
+        "writable": true
+      },
+      {
+        "name": "system_program",
+        "label": "system program",
+        "role": "system program",
+        "signer": false,
+        "writable": false
+      }
+    ]
+  },
   "set_project_pause": {
     "discriminatorHex": "d385f9aa156f8307",
     "args": [

@@ -21,6 +21,7 @@ import {
   buildProjectParticipationTransactionPlan,
   buildRegisterProjectTransactionPlan,
   buildRegisterRewardVaultTransactionPlan,
+  buildRecordProjectParticipantRefundTransactionPlan,
   buildRecordProjectRefundTransactionPlan,
   buildRevokeProjectOperatorTransactionPlan,
   buildRecordSeedBotUsageTransactionPlan,
@@ -37,6 +38,7 @@ import {
   deriveProtocolAddresses,
   deriveProjectDisclosureRevisionAddress,
   deriveProjectOperatorAddress,
+  deriveProjectRefundRecordAddress,
   deriveRewardClaimRecordAddress,
   parseRypAmountToBaseUnits,
   PROJECT_OPERATOR_PERMISSION_PAUSE,
@@ -446,6 +448,14 @@ describe("protocol transaction plan", () => {
       refundAmountBaseUnits: 300n,
       refundMetadataHash: "bb".repeat(32),
     });
+    const refundRecord = deriveProjectRefundRecordAddress({ projectId: 9n, walletAddress: ownerAddress });
+    const recordParticipantRefund = buildRecordProjectParticipantRefundTransactionPlan({
+      authorityAddress: ownerAddress,
+      projectId: 9n,
+      refundAmountBaseUnits: 300n,
+      refundMetadataHash: "cc".repeat(32),
+      walletAddress: ownerAddress,
+    });
 
     expect(transferProjectAuthority.action).toBe("TRANSFER_PROJECT_AUTHORITY");
     expect(transferProjectAuthority.instructions[0].dataHex).toMatch(/^1421786cd3d4cff7/);
@@ -545,6 +555,18 @@ describe("protocol transaction plan", () => {
     expect(recordRefund.instructions[0].accounts.map((account) => account.anchorName)).toEqual(
       PROTOCOL_INSTRUCTION_SPECS.record_project_refund.accounts.map((account) => account.name),
     );
+    expect(recordParticipantRefund.action).toBe("RECORD_PROJECT_PARTICIPANT_REFUND");
+    expect(recordParticipantRefund.amountBaseUnits).toBe("300");
+    expect(recordParticipantRefund.instructions[0].dataHex).toBe(
+      `4225b6d9531669f709000000000000002c01000000000000${"cc".repeat(32)}`,
+    );
+    expect(recordParticipantRefund.instructions[0].accounts.map((account) => account.anchorName)).toEqual(
+      PROTOCOL_INSTRUCTION_SPECS.record_project_participant_refund.accounts.map((account) => account.name),
+    );
+    expect(
+      recordParticipantRefund.instructions[0].accounts.find((account) => account.anchorName === "refund_record")
+        ?.address,
+    ).toBe(refundRecord);
   });
 
   it("builds SeedBot permission and fee config plans with bounded args", () => {

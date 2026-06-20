@@ -17,6 +17,7 @@ pub const GOVERNANCE_PROPOSAL_SEED: &[u8] = b"governance-proposal";
 pub const GOVERNANCE_VOTE_SEED: &[u8] = b"governance-vote";
 pub const PROJECT_RECORD_SEED: &[u8] = b"project-record";
 pub const PROJECT_PARTICIPATION_SEED: &[u8] = b"project-participation";
+pub const PROJECT_REFUND_RECORD_SEED: &[u8] = b"project-refund";
 pub const PROJECT_DISCLOSURE_REVISION_SEED: &[u8] = b"project-disclosure-revision";
 pub const PROJECT_OPERATOR_SEED: &[u8] = b"project-operator";
 pub const SEEDBOT_PERMISSION_SEED: &[u8] = b"seedbot-permission";
@@ -1702,6 +1703,42 @@ pub mod cryptoseeds_protocol {
         Ok(())
     }
 
+    pub fn record_project_participant_refund(
+        ctx: Context<RecordProjectParticipantRefund>,
+        _project_id: u64,
+        refund_amount: u64,
+        refund_metadata_hash: [u8; 32],
+    ) -> Result<()> {
+        validate_project_authority(&ctx.accounts.config, &ctx.accounts.authority.key())?;
+        validate_metadata_hash(&refund_metadata_hash)?;
+        validate_project_participant_refund_amount(
+            &ctx.accounts.participation,
+            ctx.accounts.project.key(),
+            refund_amount,
+        )?;
+        record_project_refund_accounting(&mut ctx.accounts.project, refund_amount)?;
+
+        let refund_record = &mut ctx.accounts.refund_record;
+        refund_record.project = ctx.accounts.project.key();
+        refund_record.wallet = ctx.accounts.participation.wallet;
+        refund_record.participation = ctx.accounts.participation.key();
+        refund_record.refund_amount = refund_amount;
+        refund_record.refund_metadata_hash = refund_metadata_hash;
+        refund_record.recorded_at = Clock::get()?.unix_timestamp;
+        refund_record.bump = ctx.bumps.refund_record;
+
+        emit!(ProjectParticipantRefundRecorded {
+            project: refund_record.project,
+            wallet: refund_record.wallet,
+            participation: refund_record.participation,
+            refund_amount,
+            total_refunded_amount: ctx.accounts.project.total_refunded_amount,
+            refund_metadata_hash,
+        });
+
+        Ok(())
+    }
+
     pub fn participate_project(
         ctx: Context<ParticipateProject>,
         _project_id: u64,
@@ -2803,6 +2840,35 @@ pub struct RecordProjectRefund<'info> {
 
 #[derive(Accounts)]
 #[instruction(project_id: u64)]
+pub struct RecordProjectParticipantRefund<'info> {
+    #[account(mut)]
+    pub authority: Signer<'info>,
+    #[account(seeds = [CONFIG_SEED], bump = config.bump)]
+    pub config: Account<'info, ProtocolConfig>,
+    #[account(
+        mut,
+        seeds = [PROJECT_RECORD_SEED, project_id.to_le_bytes().as_ref()],
+        bump = project.bump
+    )]
+    pub project: Account<'info, ProjectRecord>,
+    #[account(
+        seeds = [PROJECT_PARTICIPATION_SEED, project.key().as_ref(), participation.wallet.as_ref()],
+        bump = participation.bump
+    )]
+    pub participation: Account<'info, ProjectParticipationRecord>,
+    #[account(
+        init,
+        payer = authority,
+        space = 8 + ProjectRefundRecord::INIT_SPACE,
+        seeds = [PROJECT_REFUND_RECORD_SEED, project.key().as_ref(), participation.wallet.as_ref()],
+        bump
+    )]
+    pub refund_record: Account<'info, ProjectRefundRecord>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+#[instruction(project_id: u64)]
 pub struct ParticipateProject<'info> {
     #[account(mut)]
     pub owner: Signer<'info>,
@@ -3107,6 +3173,18 @@ pub struct ProjectParticipationRecord {
     pub disclosure_hash: [u8; 32],
     pub joined_at: i64,
     pub status: ProjectParticipationStatus,
+    pub bump: u8,
+}
+
+#[account]
+#[derive(InitSpace)]
+pub struct ProjectRefundRecord {
+    pub project: Pubkey,
+    pub wallet: Pubkey,
+    pub participation: Pubkey,
+    pub refund_amount: u64,
+    pub refund_metadata_hash: [u8; 32],
+    pub recorded_at: i64,
     pub bump: u8,
 }
 
@@ -3624,6 +3702,16 @@ pub struct ProjectRefundRecorded {
 }
 
 #[event]
+pub struct ProjectParticipantRefundRecorded {
+    pub project: Pubkey,
+    pub wallet: Pubkey,
+    pub participation: Pubkey,
+    pub refund_amount: u64,
+    pub total_refunded_amount: u64,
+    pub refund_metadata_hash: [u8; 32],
+}
+
+#[event]
 pub struct ProjectParticipationRecorded {
     pub project: Pubkey,
     pub wallet: Pubkey,
@@ -3811,6 +3899,8 @@ pub enum CryptoSeedsError {
     ProjectOperatorPermissionDenied,
     #[msg("Project refund accounting exceeds the recorded refund pool.")]
     ProjectRefundExceedsPool,
+    #[msg("Project participant refund exceeds the recorded participation amount.")]
+    ProjectRefundExceedsParticipation,
     #[msg("Project must be cancelled before refund accounting is recorded.")]
     ProjectNotCancelled,
     #[msg("Wallet tier is insufficient for this action.")]
@@ -4862,6 +4952,24 @@ fn record_project_refund_accounting(project: &mut ProjectRecord, refund_amount: 
     );
     project.total_refunded_amount = updated_total;
 
+    Ok(())
+}
+
+fn validate_project_participant_refund_amount(
+    participation: &ProjectParticipationRecord,
+    project: Pubkey,
+    refund_amount: u64,
+) -> Result<()> {
+    require_keys_eq!(
+        participation.project,
+        project,
+        CryptoSeedsError::InvalidProjectAccount
+    );
+    require!(refund_amount > 0, CryptoSeedsError::InvalidAmount);
+    require!(
+        refund_amount <= participation.participation_amount,
+        CryptoSeedsError::ProjectRefundExceedsParticipation
+    );
     Ok(())
 }
 
@@ -6095,6 +6203,35 @@ mod tests {
         let mut completed_project = project_record();
         completed_project.status = ProjectStatus::Completed;
         assert!(cancel_project_accounting(&mut completed_project, 3_000, [9; 32], 0).is_err());
+    }
+
+    #[test]
+    fn validates_project_participant_refund_accounting() {
+        let project = Pubkey::new_unique();
+        let mut participation = ProjectParticipationRecord {
+            project,
+            wallet: Pubkey::new_unique(),
+            participation_amount: 500,
+            disclosure_hash: [7; 32],
+            joined_at: 1_000,
+            status: ProjectParticipationStatus::Active,
+            bump: 255,
+        };
+
+        assert!(validate_project_participant_refund_amount(&participation, project, 500).is_ok());
+        assert!(validate_project_participant_refund_amount(&participation, project, 0).is_err());
+        assert!(validate_project_participant_refund_amount(&participation, project, 501).is_err());
+        assert!(validate_project_participant_refund_amount(
+            &participation,
+            Pubkey::new_unique(),
+            500
+        )
+        .is_err());
+
+        participation.participation_amount = u64::MAX;
+        assert!(
+            validate_project_participant_refund_amount(&participation, project, u64::MAX).is_ok()
+        );
     }
 
     fn reward_vault_state(

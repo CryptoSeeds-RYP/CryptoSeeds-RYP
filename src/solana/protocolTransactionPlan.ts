@@ -21,6 +21,7 @@ export const GOVERNANCE_PROPOSAL_SEED = "governance-proposal";
 export const GOVERNANCE_VOTE_SEED = "governance-vote";
 export const PROJECT_RECORD_SEED = "project-record";
 export const PROJECT_PARTICIPATION_SEED = "project-participation";
+export const PROJECT_REFUND_RECORD_SEED = "project-refund";
 export const PROJECT_DISCLOSURE_REVISION_SEED = "project-disclosure-revision";
 export const PROJECT_OPERATOR_SEED = "project-operator";
 export const SEEDBOT_PERMISSION_SEED = "seedbot-permission";
@@ -60,6 +61,7 @@ type ProtocolAddressBook = ReturnType<typeof deriveProtocolAddresses> &
     permission?: string;
     project?: string;
     projectDisclosureRevision?: string;
+    refundRecord?: string;
     proposal?: string;
     rewardEpoch?: string;
     rewardSourceVault?: string;
@@ -387,6 +389,10 @@ export type RecordProjectRefundPlanInput = {
   projectId: bigint | number | string;
   refundAmountBaseUnits: bigint | number | string;
   refundMetadataHash: string | Uint8Array | number[];
+};
+
+export type RecordProjectParticipantRefundPlanInput = RecordProjectRefundPlanInput & {
+  walletAddress: string;
 };
 
 export type ProjectParticipationPlanInput = {
@@ -1440,6 +1446,45 @@ export function buildRecordProjectRefundTransactionPlan({
   });
 }
 
+export function buildRecordProjectParticipantRefundTransactionPlan({
+  authorityAddress,
+  projectId,
+  refundAmountBaseUnits,
+  refundMetadataHash,
+  walletAddress,
+}: RecordProjectParticipantRefundPlanInput): PreparedSolanaTransactionPlan {
+  const project = toU64(projectId);
+  const refundAmount = toU64(refundAmountBaseUnits);
+  const addresses = {
+    ...deriveProtocolAddresses(authorityAddress),
+    authority: new PublicKey(authorityAddress).toBase58(),
+    participation: deriveProjectParticipationAddress({ projectId: project, walletAddress }),
+    project: deriveProjectRecordAddress(project),
+    refundRecord: deriveProjectRefundRecordAddress({ projectId: project, walletAddress }),
+  };
+  const spec = instructionSpec("record_project_participant_refund");
+  const instruction = instructionPlan({
+    accounts: accountsFromSpec(spec, addresses),
+    argDataHex: [u64LeHex(project), u64LeHex(refundAmount), fixedHashHex(refundMetadataHash)].join(""),
+    discriminatorHex: spec.discriminatorHex,
+    instructionName: "record_project_participant_refund",
+    programId: addresses.programId,
+  });
+
+  return transactionPlan({
+    action: "RECORD_PROJECT_PARTICIPANT_REFUND",
+    addresses,
+    amountBaseUnits: refundAmount.toString(),
+    feePayer: addresses.authority,
+    instruction,
+    warnings: [
+      "Admin-only participant refund accounting; this creates a per-wallet refund evidence record and does not transfer tokens.",
+      "The refund amount cannot exceed the wallet's recorded project participation amount.",
+      "The project must already be cancelled and the aggregate refund pool cannot be exceeded.",
+    ],
+  });
+}
+
 export function buildProjectParticipationTransactionPlan({
   disclosureHash,
   disclosureRevisionId,
@@ -1761,6 +1806,23 @@ export function deriveProjectParticipationAddress({
   return address.toBase58();
 }
 
+export function deriveProjectRefundRecordAddress({
+  projectId,
+  walletAddress,
+}: {
+  projectId: bigint | number | string;
+  walletAddress: string;
+}) {
+  const programId = new PublicKey(appConfig.protocolProgramId);
+  const project = new PublicKey(deriveProjectRecordAddress(projectId));
+  const wallet = new PublicKey(walletAddress);
+  const [address] = PublicKey.findProgramAddressSync(
+    [textSeed(PROJECT_REFUND_RECORD_SEED), project.toBuffer(), wallet.toBuffer()],
+    programId,
+  );
+  return address.toBase58();
+}
+
 export function deriveProjectDisclosureRevisionAddress({
   projectId,
   revisionId,
@@ -1928,6 +1990,7 @@ function derivedAccountReferences(addresses: ProtocolAddressBook): TransactionAc
     ["project", "Project record"],
     ["project_disclosure_revision", "Project disclosure revision"],
     ["participation", "Project participation"],
+    ["refund_record", "Project refund record"],
     ["operator_record", "Project operator"],
     ["permission", "SeedBot permission"],
   ] as const) {
@@ -1994,6 +2057,8 @@ function addressForProtocolAccountIfPresent(addresses: ProtocolAddressBook, name
       return addresses.project;
     case "project_disclosure_revision":
       return addresses.projectDisclosureRevision;
+    case "refund_record":
+      return addresses.refundRecord;
     case "proposal":
       return addresses.proposal;
     case "reward_config":

@@ -167,6 +167,54 @@
       }
     ]
   },
+  "ProjectRefundRecord": {
+    "discriminatorHex": "082cbe457da845bb",
+    "minimumLength": 153,
+    "fields": [
+      {
+        "name": "project",
+        "type": "pubkey",
+        "offset": 8,
+        "size": 32
+      },
+      {
+        "name": "wallet",
+        "type": "pubkey",
+        "offset": 40,
+        "size": 32
+      },
+      {
+        "name": "participation",
+        "type": "pubkey",
+        "offset": 72,
+        "size": 32
+      },
+      {
+        "name": "refund_amount",
+        "type": "u64",
+        "offset": 104,
+        "size": 8
+      },
+      {
+        "name": "refund_metadata_hash",
+        "type": "array:u8:32",
+        "offset": 112,
+        "size": 32
+      },
+      {
+        "name": "recorded_at",
+        "type": "i64",
+        "offset": 144,
+        "size": 8
+      },
+      {
+        "name": "bump",
+        "type": "u8",
+        "offset": 152,
+        "size": 1
+      }
+    ]
+  },
   "ProjectRecord": {
     "discriminatorHex": "5dae70cbe77b5c38",
     "minimumLength": 302,
