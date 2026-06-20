@@ -15,6 +15,7 @@ import {
   Transaction,
   TransactionInstruction,
 } from "@solana/web3.js";
+import { keccak_256 } from "@noble/hashes/sha3";
 
 const TOKEN_PROGRAM_ID = new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
 const ASSOCIATED_TOKEN_PROGRAM_ID = new PublicKey("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL");
@@ -646,6 +647,7 @@ async function runSmoke(connection) {
 	      "review_reward_epoch",
 	      "create_reward_claim_record",
 	      "claim_reward_tokens",
+	      "create_reward_claim_record_from_proof",
 	      "claim_reward_record_rollover",
 	      "reject_duplicate_reward_claim",
 	      "admin_reward_inspection_report",
@@ -839,9 +841,21 @@ async function runRewardSmoke(
   await assertMissingAccount(connection, unbalancedEpoch, "reward epoch after unbalanced rejection");
 
   const rewardEpoch = deriveRewardEpochAddress({ epochId: 3n, rewardConfig });
+  const stakerRolloverLeafIndex = 0n;
+  const stakerRolloverMerkleRoot = rewardClaimLeafHash({
+    deliveryCostAmount: 0n,
+    grossAllocationAmount: 200n,
+    leafIndex: stakerRolloverLeafIndex,
+    netClaimAmount: 0n,
+    rewardEpoch,
+    role: REWARD_ROLES[1],
+    rolledForwardAmount: 200n,
+    wallet: owner.publicKey,
+  });
   log("calling draft_reward_epoch");
   await draftRewardEpoch(connection, {
     authority,
+    claimMerkleRoot: stakerRolloverMerkleRoot,
     config,
     distributedNetAmount: 700n,
     epochId: 3n,
@@ -857,6 +871,11 @@ async function runRewardSmoke(
   assertEqual("drafted reward epoch pool", draftedRewardEpoch.rewardPoolAmount, 1_000n);
   assertEqual("drafted reward epoch status", draftedRewardEpoch.status, 0);
   assertEqual("drafted reward epoch execution blocked", draftedRewardEpoch.executionBlocked, true);
+  assertEqual(
+    "drafted reward epoch claim Merkle root",
+    draftedRewardEpoch.claimMerkleRoot.toString("hex"),
+    stakerRolloverMerkleRoot.toString("hex"),
+  );
 
   const holderRewardClaimRecord = deriveRewardClaimAddress({
     rewardEpoch,
@@ -957,20 +976,21 @@ async function runRewardSmoke(
     "custom program error",
   );
 
-  log("calling claim_reward_record for staker rollover");
-  await createRewardClaimRecord(connection, {
-    authority,
-    config,
+  log("calling create_reward_claim_record_from_proof for staker rollover");
+  await createRewardClaimRecordFromProof(connection, {
     deliveryCostAmount: 0n,
+    epochId: 3n,
     grossAllocationAmount: 200n,
+    leafIndex: stakerRolloverLeafIndex,
     netClaimAmount: 0n,
+    owner,
     rewardClaimRecord: stakerRewardClaimRecord,
     rewardConfig,
     rewardEpoch,
     role: REWARD_ROLES[1],
     rolledForwardAmount: 200n,
-    wallet: owner.publicKey,
   });
+  log("calling claim_reward_record for staker rollover");
   await claimRewardRecord(connection, {
     owner,
     rewardClaimRecord: stakerRewardClaimRecord,
@@ -1066,6 +1086,7 @@ async function buildAdminRewardInspectionReport(connection, { rewardConfig, rewa
         distributedNetAmount: decodedRewardEpoch.distributedNetAmount.toString(),
         epochId: decodedRewardEpoch.epochId.toString(),
         executionBlocked: decodedRewardEpoch.executionBlocked,
+        claimMerkleRoot: decodedRewardEpoch.claimMerkleRoot.toString("hex"),
         claimedNetAmount: decodedRewardEpoch.claimedNetAmount.toString(),
         recordedGrossAllocationAmount: decodedRewardEpoch.recordedGrossAllocationAmount.toString(),
         recordedNetClaimAmount: decodedRewardEpoch.recordedNetClaimAmount.toString(),
@@ -1218,6 +1239,7 @@ async function draftRewardEpoch(
   connection,
   {
     authority,
+    claimMerkleRoot = REWARD_METADATA_HASH,
     config,
     distributedNetAmount = 700n,
     epochId,
@@ -1232,7 +1254,7 @@ async function draftRewardEpoch(
   },
 ) {
   const effectiveSnapshotTakenAt = snapshotTakenAt ?? await recentRewardSnapshotTime(connection);
-  const data = Buffer.alloc(8 + 8 + 8 + 8 + 8 + 8 + 8 + 32);
+  const data = Buffer.alloc(8 + 8 + 8 + 8 + 8 + 8 + 8 + 32 + 32);
   discriminator("draft_reward_epoch").copy(data, 0);
   data.writeBigUInt64LE(epochId, 8);
   data.writeBigInt64LE(effectiveSnapshotTakenAt, 16);
@@ -1241,6 +1263,7 @@ async function draftRewardEpoch(
   data.writeBigUInt64LE(reservedDeliveryCostAmount, 40);
   data.writeBigUInt64LE(rolledForwardAmount, 48);
   exclusionListHash.copy(data, 56);
+  claimMerkleRoot.copy(data, 88);
 
   const instruction = new TransactionInstruction({
     programId,
@@ -1320,6 +1343,53 @@ async function createRewardClaimRecord(
   });
 
   await sendAndConfirm(connection, new Transaction().add(instruction), [authority]);
+}
+
+async function createRewardClaimRecordFromProof(
+  connection,
+  {
+    deliveryCostAmount = 100n,
+    epochId = 3n,
+    grossAllocationAmount = 1_000n,
+    leafIndex = 0n,
+    netClaimAmount = 700n,
+    owner,
+    proof = [],
+    rewardClaimRecord,
+    rewardConfig,
+    rewardEpoch,
+    role,
+    rolledForwardAmount = 200n,
+  },
+) {
+  const data = Buffer.alloc(8 + 8 + 1 + 8 + 8 + 8 + 8 + 8 + 4 + proof.length * 32);
+  discriminator("create_reward_claim_record_from_proof").copy(data, 0);
+  data.writeBigUInt64LE(epochId, 8);
+  data.writeUInt8(role.variant, 16);
+  data.writeBigUInt64LE(grossAllocationAmount, 17);
+  data.writeBigUInt64LE(deliveryCostAmount, 25);
+  data.writeBigUInt64LE(netClaimAmount, 33);
+  data.writeBigUInt64LE(rolledForwardAmount, 41);
+  data.writeBigUInt64LE(leafIndex, 49);
+  data.writeUInt32LE(proof.length, 57);
+  let offset = 61;
+  for (const node of proof) {
+    Buffer.from(node).copy(data, offset);
+    offset += 32;
+  }
+  const instruction = new TransactionInstruction({
+    programId,
+    keys: [
+      accountMeta(owner.publicKey, true, true),
+      accountMeta(rewardConfig, false, false),
+      accountMeta(rewardEpoch, false, true),
+      accountMeta(rewardClaimRecord, false, true),
+      accountMeta(SystemProgram.programId, false, false),
+    ],
+    data,
+  });
+
+  await sendAndConfirm(connection, new Transaction().add(instruction), [owner]);
 }
 
 async function claimRewardRecord(connection, { owner, rewardEpoch, rewardClaimRecord, role }) {
@@ -1614,6 +1684,37 @@ function deriveRewardClaimAddress({ rewardEpoch, role, wallet }) {
   )[0];
 }
 
+function rewardClaimLeafHash({
+  deliveryCostAmount,
+  grossAllocationAmount,
+  leafIndex,
+  netClaimAmount,
+  rewardEpoch,
+  role,
+  rolledForwardAmount,
+  wallet,
+}) {
+  return keccakHash([
+    Buffer.from("cryptoseeds-reward-claim-v1"),
+    rewardEpoch.toBuffer(),
+    Buffer.from([role.variant]),
+    wallet.toBuffer(),
+    u64Buffer(grossAllocationAmount),
+    u64Buffer(deliveryCostAmount),
+    u64Buffer(netClaimAmount),
+    u64Buffer(rolledForwardAmount),
+    u64Buffer(leafIndex),
+  ]);
+}
+
+function rewardClaimNodeHash(left, right) {
+  return keccakHash([Buffer.from("cryptoseeds-merkle-node-v1"), left, right]);
+}
+
+function keccakHash(buffers) {
+  return Buffer.from(keccak_256(Buffer.concat(buffers)));
+}
+
 function deriveGovernanceProposalAddress(proposalId) {
   const proposalSeed = Buffer.alloc(8);
   proposalSeed.writeBigUInt64LE(proposalId);
@@ -1651,6 +1752,12 @@ function deriveSeedBotPermissionAddress(wallet) {
     [Buffer.from("seedbot-permission"), wallet.toBuffer()],
     programId,
   )[0];
+}
+
+function u64Buffer(value) {
+  const buffer = Buffer.alloc(8);
+  buffer.writeBigUInt64LE(value);
+  return buffer;
 }
 
 async function initializeConfig(
@@ -1978,6 +2085,7 @@ function parseRewardEpoch(data) {
     recordedNetClaimAmount: data.readBigUInt64LE(offset.recorded_net_claim_amount),
     claimedNetAmount: data.readBigUInt64LE(offset.claimed_net_amount),
     exclusionListHash: data.subarray(offset.exclusion_list_hash, offset.exclusion_list_hash + 32),
+    claimMerkleRoot: data.subarray(offset.claim_merkle_root, offset.claim_merkle_root + 32),
     status: data.readUInt8(offset.status),
     executionBlocked: data.readUInt8(offset.execution_blocked) === 1,
     bump: data.readUInt8(offset.bump),

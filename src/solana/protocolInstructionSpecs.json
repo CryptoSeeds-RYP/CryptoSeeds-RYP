@@ -338,6 +338,56 @@
       }
     ]
   },
+  "create_reward_claim_record_from_proof": {
+    "discriminatorHex": "3260ecd7ed5d2463",
+    "args": [
+      "_epoch_id",
+      "reward_role",
+      "gross_allocation_amount",
+      "delivery_cost_amount",
+      "net_claim_amount",
+      "rolled_forward_amount",
+      "leaf_index",
+      "proof"
+    ],
+    "accounts": [
+      {
+        "name": "owner",
+        "label": "owner",
+        "role": "owner",
+        "signer": true,
+        "writable": true
+      },
+      {
+        "name": "reward_config",
+        "label": "reward config",
+        "role": "reward config",
+        "signer": false,
+        "writable": false
+      },
+      {
+        "name": "reward_epoch",
+        "label": "reward epoch",
+        "role": "reward epoch",
+        "signer": false,
+        "writable": true
+      },
+      {
+        "name": "claim_record",
+        "label": "claim record",
+        "role": "claim record",
+        "signer": false,
+        "writable": true
+      },
+      {
+        "name": "system_program",
+        "label": "system program",
+        "role": "system program",
+        "signer": false,
+        "writable": false
+      }
+    ]
+  },
   "create_seedbot_permission": {
     "discriminatorHex": "7d65450eeaaec4de",
     "args": [
@@ -395,7 +445,8 @@
       "distributed_net_amount",
       "reserved_delivery_cost_amount",
       "rolled_forward_amount",
-      "exclusion_list_hash"
+      "exclusion_list_hash",
+      "claim_merkle_root"
     ],
     "accounts": [
       {

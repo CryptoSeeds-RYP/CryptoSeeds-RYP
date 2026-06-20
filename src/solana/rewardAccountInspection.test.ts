@@ -119,25 +119,29 @@ describe("reward account inspection", () => {
   it("decodes RewardEpoch account bytes", () => {
     const rewardConfig = Keypair.generate().publicKey;
     const rewardMint = Keypair.generate().publicKey;
-    const data = new Uint8Array(187);
+    const data = new Uint8Array(REWARD_ACCOUNT_LAYOUTS.RewardEpoch.minimumLength);
+    const offset = Object.fromEntries(
+      REWARD_ACCOUNT_LAYOUTS.RewardEpoch.fields.map((field) => [field.name, field.offset]),
+    ) as Record<string, number>;
 
     writeDiscriminator(data, "RewardEpoch");
-    writePubkey(data, 8, rewardConfig);
-    view(data).setBigUint64(40, 3n, true);
-    view(data).setBigInt64(48, 1_800_000_000n, true);
-    view(data).setBigInt64(56, 1_800_000_010n, true);
-    writePubkey(data, 64, rewardMint);
-    view(data).setBigUint64(96, 1_000n, true);
-    view(data).setBigUint64(104, 700n, true);
-    view(data).setBigUint64(112, 100n, true);
-    view(data).setBigUint64(120, 200n, true);
-    view(data).setBigUint64(128, 900n, true);
-    view(data).setBigUint64(136, 700n, true);
-    view(data).setBigUint64(144, 700n, true);
-    data.fill(9, 152, 184);
-    data[184] = 0;
-    data[185] = 1;
-    data[186] = 253;
+    writePubkey(data, offset.reward_config, rewardConfig);
+    view(data).setBigUint64(offset.epoch_id, 3n, true);
+    view(data).setBigInt64(offset.snapshot_taken_at, 1_800_000_000n, true);
+    view(data).setBigInt64(offset.created_at, 1_800_000_010n, true);
+    writePubkey(data, offset.reward_mint, rewardMint);
+    view(data).setBigUint64(offset.reward_pool_amount, 1_000n, true);
+    view(data).setBigUint64(offset.distributed_net_amount, 700n, true);
+    view(data).setBigUint64(offset.reserved_delivery_cost_amount, 100n, true);
+    view(data).setBigUint64(offset.rolled_forward_amount, 200n, true);
+    view(data).setBigUint64(offset.recorded_gross_allocation_amount, 900n, true);
+    view(data).setBigUint64(offset.recorded_net_claim_amount, 700n, true);
+    view(data).setBigUint64(offset.claimed_net_amount, 700n, true);
+    data.fill(9, offset.exclusion_list_hash, offset.exclusion_list_hash + 32);
+    data.fill(8, offset.claim_merkle_root, offset.claim_merkle_root + 32);
+    data[offset.status] = 0;
+    data[offset.execution_blocked] = 1;
+    data[offset.bump] = 253;
 
     expect(decodeRewardEpochAccount(data)).toMatchObject({
       createdAt: "1800000010",
@@ -145,6 +149,7 @@ describe("reward account inspection", () => {
       epochId: "3",
       executionBlocked: true,
       exclusionListHash: "09".repeat(32),
+      claimMerkleRoot: "08".repeat(32),
       claimedNetAmount: "700",
       recordedGrossAllocationAmount: "900",
       recordedNetClaimAmount: "700",
@@ -280,6 +285,7 @@ function buildDecodedInspection(
       recordedNetClaimAmount: "700",
       claimedNetAmount: "700",
       exclusionListHash: "09".repeat(32),
+      claimMerkleRoot: "08".repeat(32),
       status: "DRAFTED",
       executionBlocked: true,
       bump: 254,

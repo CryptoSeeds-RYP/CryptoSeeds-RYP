@@ -3,6 +3,7 @@ use anchor_spl::{
     associated_token::AssociatedToken,
     token_interface::{transfer_checked, Mint, TokenAccount, TokenInterface, TransferChecked},
 };
+use sha3::{Digest, Keccak256};
 
 declare_id!("5RWpGEGB9Yr7cmaoWZJQ9t263Wb8K18GrcMDqHByLXSb");
 
@@ -22,6 +23,7 @@ pub const MAX_REWARD_EPOCH_CADENCE_SECONDS: i64 = 366 * 24 * 60 * 60;
 pub const MAX_SEEDBOT_PERMISSION_SECONDS: i64 = 30 * 24 * 60 * 60;
 pub const MAX_SEEDBOT_DAILY_TRADES: u16 = 50;
 pub const MAX_SEEDBOT_SLIPPAGE_BPS: u16 = 500;
+pub const MAX_REWARD_MERKLE_PROOF_NODES: usize = 32;
 pub const BPS_DENOMINATOR: u16 = 10_000;
 
 #[program]
@@ -522,6 +524,7 @@ pub mod cryptoseeds_protocol {
         reserved_delivery_cost_amount: u64,
         rolled_forward_amount: u64,
         exclusion_list_hash: [u8; 32],
+        claim_merkle_root: [u8; 32],
     ) -> Result<()> {
         validate_reward_authority(
             &ctx.accounts.config,
@@ -597,6 +600,7 @@ pub mod cryptoseeds_protocol {
         reward_epoch.recorded_net_claim_amount = 0;
         reward_epoch.claimed_net_amount = 0;
         reward_epoch.exclusion_list_hash = exclusion_list_hash;
+        reward_epoch.claim_merkle_root = claim_merkle_root;
         reward_epoch.status = RewardEpochStatus::Drafted;
         reward_epoch.execution_blocked = true;
         reward_epoch.bump = ctx.bumps.reward_epoch;
@@ -829,6 +833,82 @@ pub mod cryptoseeds_protocol {
             reward_epoch: claim_record.reward_epoch,
             reward_role,
             wallet,
+            gross_allocation_amount,
+            net_claim_amount,
+            rolled_forward_amount,
+        });
+
+        Ok(())
+    }
+
+    pub fn create_reward_claim_record_from_proof(
+        ctx: Context<CreateRewardClaimRecordFromProof>,
+        _epoch_id: u64,
+        reward_role: RewardVaultRole,
+        gross_allocation_amount: u64,
+        delivery_cost_amount: u64,
+        net_claim_amount: u64,
+        rolled_forward_amount: u64,
+        leaf_index: u64,
+        proof: Vec<[u8; 32]>,
+    ) -> Result<()> {
+        validate_reward_claim_role(reward_role)?;
+        validate_reward_epoch_claimable(&ctx.accounts.reward_epoch)?;
+        require_keys_eq!(
+            ctx.accounts.reward_epoch.reward_config,
+            ctx.accounts.reward_config.key(),
+            CryptoSeedsError::InvalidRewardClaim
+        );
+        validate_reward_claim_accounting(
+            gross_allocation_amount,
+            delivery_cost_amount,
+            net_claim_amount,
+            rolled_forward_amount,
+        )?;
+        validate_reward_merkle_proof(
+            &ctx.accounts.reward_epoch,
+            ctx.accounts.reward_epoch.key(),
+            reward_role,
+            ctx.accounts.owner.key(),
+            gross_allocation_amount,
+            delivery_cost_amount,
+            net_claim_amount,
+            rolled_forward_amount,
+            leaf_index,
+            &proof,
+        )?;
+
+        record_reward_claim_amounts(
+            &mut ctx.accounts.reward_epoch,
+            gross_allocation_amount,
+            net_claim_amount,
+        )?;
+
+        let claim_record = &mut ctx.accounts.claim_record;
+        claim_record.reward_epoch = ctx.accounts.reward_epoch.key();
+        claim_record.reward_role = reward_role;
+        claim_record.wallet = ctx.accounts.owner.key();
+        claim_record.gross_allocation_amount = gross_allocation_amount;
+        claim_record.delivery_cost_amount = delivery_cost_amount;
+        claim_record.net_claim_amount = net_claim_amount;
+        claim_record.rolled_forward_amount = rolled_forward_amount;
+        claim_record.claimed = false;
+        claim_record.bump = ctx.bumps.claim_record;
+
+        emit!(RewardClaimProofVerified {
+            reward_epoch: claim_record.reward_epoch,
+            reward_role,
+            wallet: claim_record.wallet,
+            gross_allocation_amount,
+            net_claim_amount,
+            rolled_forward_amount,
+            leaf_index,
+        });
+
+        emit!(RewardClaimRecordCreated {
+            reward_epoch: claim_record.reward_epoch,
+            reward_role,
+            wallet: claim_record.wallet,
             gross_allocation_amount,
             net_claim_amount,
             rolled_forward_amount,
@@ -1691,6 +1771,39 @@ pub struct CreateRewardClaimRecord<'info> {
 }
 
 #[derive(Accounts)]
+#[instruction(epoch_id: u64, reward_role: RewardVaultRole)]
+pub struct CreateRewardClaimRecordFromProof<'info> {
+    #[account(mut)]
+    pub owner: Signer<'info>,
+    #[account(seeds = [REWARD_CONFIG_SEED], bump = reward_config.bump)]
+    pub reward_config: Account<'info, RewardConfig>,
+    #[account(
+        mut,
+        seeds = [
+            REWARD_EPOCH_SEED,
+            reward_config.key().as_ref(),
+            epoch_id.to_le_bytes().as_ref()
+        ],
+        bump = reward_epoch.bump
+    )]
+    pub reward_epoch: Account<'info, RewardEpoch>,
+    #[account(
+        init,
+        payer = owner,
+        space = 8 + RewardClaimRecord::INIT_SPACE,
+        seeds = [
+            REWARD_CLAIM_SEED,
+            reward_epoch.key().as_ref(),
+            reward_role.seed(),
+            owner.key().as_ref()
+        ],
+        bump
+    )]
+    pub claim_record: Box<Account<'info, RewardClaimRecord>>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
 #[instruction(reward_role: RewardVaultRole)]
 pub struct ClaimRewardRecord<'info> {
     pub owner: Signer<'info>,
@@ -2000,6 +2113,7 @@ pub struct RewardEpoch {
     pub recorded_net_claim_amount: u64,
     pub claimed_net_amount: u64,
     pub exclusion_list_hash: [u8; 32],
+    pub claim_merkle_root: [u8; 32],
     pub status: RewardEpochStatus,
     pub execution_blocked: bool,
     pub bump: u8,
@@ -2399,6 +2513,17 @@ pub struct RewardClaimRecordCreated {
 }
 
 #[event]
+pub struct RewardClaimProofVerified {
+    pub reward_epoch: Pubkey,
+    pub reward_role: RewardVaultRole,
+    pub wallet: Pubkey,
+    pub gross_allocation_amount: u64,
+    pub net_claim_amount: u64,
+    pub rolled_forward_amount: u64,
+    pub leaf_index: u64,
+}
+
+#[event]
 pub struct RewardClaimed {
     pub reward_epoch: Pubkey,
     pub reward_role: RewardVaultRole,
@@ -2527,6 +2652,10 @@ pub enum CryptoSeedsError {
     InvalidRewardVaultCustody,
     #[msg("Reward claim has already been recorded as claimed.")]
     RewardAlreadyClaimed,
+    #[msg("Reward epoch does not have a claim Merkle root.")]
+    RewardMerkleRootMissing,
+    #[msg("Reward Merkle proof is invalid.")]
+    InvalidRewardMerkleProof,
     #[msg("Governance proposal is not open for voting.")]
     GovernanceProposalClosed,
     #[msg("The metadata hash is invalid.")]
@@ -2868,6 +2997,101 @@ fn record_reward_claim_amounts(
     Ok(())
 }
 
+fn validate_reward_merkle_proof(
+    reward_epoch: &RewardEpoch,
+    reward_epoch_key: Pubkey,
+    reward_role: RewardVaultRole,
+    wallet: Pubkey,
+    gross_allocation_amount: u64,
+    delivery_cost_amount: u64,
+    net_claim_amount: u64,
+    rolled_forward_amount: u64,
+    leaf_index: u64,
+    proof: &[[u8; 32]],
+) -> Result<()> {
+    require!(
+        reward_epoch.claim_merkle_root != [0; 32],
+        CryptoSeedsError::RewardMerkleRootMissing
+    );
+    require!(
+        proof.len() <= MAX_REWARD_MERKLE_PROOF_NODES,
+        CryptoSeedsError::InvalidRewardMerkleProof
+    );
+
+    let leaf = reward_claim_leaf_hash(
+        reward_epoch_key,
+        reward_role,
+        wallet,
+        gross_allocation_amount,
+        delivery_cost_amount,
+        net_claim_amount,
+        rolled_forward_amount,
+        leaf_index,
+    );
+    let calculated_root = calculate_indexed_merkle_root(leaf, leaf_index, proof)?;
+    require!(
+        calculated_root == reward_epoch.claim_merkle_root,
+        CryptoSeedsError::InvalidRewardMerkleProof
+    );
+
+    Ok(())
+}
+
+fn reward_claim_leaf_hash(
+    reward_epoch_key: Pubkey,
+    reward_role: RewardVaultRole,
+    wallet: Pubkey,
+    gross_allocation_amount: u64,
+    delivery_cost_amount: u64,
+    net_claim_amount: u64,
+    rolled_forward_amount: u64,
+    leaf_index: u64,
+) -> [u8; 32] {
+    let role_variant = [reward_role as u8];
+    let gross_bytes = gross_allocation_amount.to_le_bytes();
+    let delivery_bytes = delivery_cost_amount.to_le_bytes();
+    let net_bytes = net_claim_amount.to_le_bytes();
+    let rolled_bytes = rolled_forward_amount.to_le_bytes();
+    let index_bytes = leaf_index.to_le_bytes();
+
+    keccak_hashv(&[
+        b"cryptoseeds-reward-claim-v1",
+        reward_epoch_key.as_ref(),
+        &role_variant,
+        wallet.as_ref(),
+        &gross_bytes,
+        &delivery_bytes,
+        &net_bytes,
+        &rolled_bytes,
+        &index_bytes,
+    ])
+}
+
+fn calculate_indexed_merkle_root(
+    mut node: [u8; 32],
+    mut leaf_index: u64,
+    proof: &[[u8; 32]],
+) -> Result<[u8; 32]> {
+    for sibling in proof {
+        node = if leaf_index % 2 == 0 {
+            keccak_hashv(&[b"cryptoseeds-merkle-node-v1", &node, sibling])
+        } else {
+            keccak_hashv(&[b"cryptoseeds-merkle-node-v1", sibling, &node])
+        };
+        leaf_index /= 2;
+    }
+
+    Ok(node)
+}
+
+fn keccak_hashv(slices: &[&[u8]]) -> [u8; 32] {
+    let mut hasher = Keccak256::new();
+    for slice in slices {
+        hasher.update(slice);
+    }
+    hasher.finalize().into()
+}
+
 fn calculate_fee_route_amounts(
     fee_amount: u64,
     holder_split_bps: u16,
@@ -3182,6 +3406,101 @@ mod tests {
     }
 
     #[test]
+    fn validates_reward_claim_merkle_proofs() {
+        let reward_epoch_key = Pubkey::new_unique();
+        let wallet = Pubkey::new_unique();
+        let mut reward_epoch = reward_epoch(1_000, 700);
+        reward_epoch.claim_merkle_root = reward_claim_leaf_hash(
+            reward_epoch_key,
+            RewardVaultRole::HolderReward,
+            wallet,
+            700,
+            0,
+            700,
+            0,
+            0,
+        );
+
+        assert!(validate_reward_merkle_proof(
+            &reward_epoch,
+            reward_epoch_key,
+            RewardVaultRole::HolderReward,
+            wallet,
+            700,
+            0,
+            700,
+            0,
+            0,
+            &[],
+        )
+        .is_ok());
+
+        assert!(validate_reward_merkle_proof(
+            &reward_epoch,
+            reward_epoch_key,
+            RewardVaultRole::HolderReward,
+            wallet,
+            701,
+            0,
+            701,
+            0,
+            0,
+            &[],
+        )
+        .is_err());
+        assert!(validate_reward_merkle_proof(
+            &reward_epoch,
+            reward_epoch_key,
+            RewardVaultRole::HolderReward,
+            wallet,
+            700,
+            0,
+            700,
+            0,
+            1,
+            &[],
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn rejects_missing_or_oversized_reward_merkle_proofs() {
+        let reward_epoch_key = Pubkey::new_unique();
+        let wallet = Pubkey::new_unique();
+        let unrooted_epoch = reward_epoch(1_000, 700);
+        assert!(validate_reward_merkle_proof(
+            &unrooted_epoch,
+            reward_epoch_key,
+            RewardVaultRole::HolderReward,
+            wallet,
+            700,
+            0,
+            700,
+            0,
+            0,
+            &[],
+        )
+        .is_err());
+
+        let mut rooted_epoch = reward_epoch(1_000, 700);
+        rooted_epoch.claim_merkle_root = [1; 32];
+        let proof = [[2; 32]; MAX_REWARD_MERKLE_PROOF_NODES + 1];
+        assert!(validate_reward_merkle_proof(
+            &rooted_epoch,
+            reward_epoch_key,
+            RewardVaultRole::HolderReward,
+            wallet,
+            700,
+            0,
+            700,
+            0,
+            0,
+            &proof,
+        )
+        .is_err());
+    }
+
+    #[test]
     fn token_claim_vaults_must_be_program_controlled() {
         let reward_config = Pubkey::new_unique();
         let reward_mint = Pubkey::new_unique();
@@ -3383,6 +3702,7 @@ mod tests {
             recorded_net_claim_amount: 0,
             claimed_net_amount: 0,
             exclusion_list_hash: [9; 32],
+            claim_merkle_root: [0; 32],
             status: RewardEpochStatus::Reviewed,
             execution_blocked: false,
             bump: 255,

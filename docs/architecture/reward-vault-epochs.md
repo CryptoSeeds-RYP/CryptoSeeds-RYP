@@ -62,7 +62,7 @@ Anchor now includes the first reward-account scaffold:
 | --- | --- |
 | `RewardConfig` | Reward authority, mint, vault roles, epoch cadence, pause flags, routed fee total |
 | `RewardVaultState` | Role, mint, vault address, verification metadata hash, funded total |
-| `RewardEpoch` | Snapshot timestamp, pool amount, net payout total, delivery cost reserve, rollover total, recorded claim totals, paid claim totals, review status |
+| `RewardEpoch` | Snapshot timestamp, pool amount, net payout total, delivery cost reserve, rollover total, exclusion hash, claim Merkle root, recorded claim totals, paid claim totals, review status |
 | `RewardClaimRecord` | Wallet, epoch, holder/staker role, claimed amount, delivery cost, rollover, claim state |
 | `RewardExclusionList` | Hash or registry pointer for excluded wallets |
 
@@ -78,6 +78,7 @@ Current reward instructions:
 | `review_reward_epoch` | Marks a drafted epoch as reviewed and claim-record eligible | No funds |
 | `cancel_reward_epoch` | Cancels an epoch and keeps execution blocked | No funds |
 | `create_reward_claim_record` | Creates a wallet-specific, role-keyed claim accounting record after review | No funds |
+| `create_reward_claim_record_from_proof` | Lets a wallet create its own holder/staker claim record from a reviewed Merkle proof | No funds |
 | `claim_reward_record` | Lets the wallet mark a zero-net rollover claim record as claimed | No funds |
 | `claim_reward_tokens` | Lets the wallet claim a positive net reward from a verified program-controlled reward vault | Moves reviewed reward tokens only |
 
@@ -85,6 +86,9 @@ The token-claim path is intentionally narrow:
 
 - only holder and staker reward roles are claimable by wallets,
 - the claim record PDA includes the reward role so holder and staker claims cannot collide,
+- public claim creation can be proven against the reviewed epoch `claim_merkle_root`,
+- Merkle leaves bind the epoch PDA, role, wallet, gross allocation, delivery cost, net amount, rolled-forward amount, and leaf index,
+- Merkle proofs are capped to avoid unbounded instruction cost,
 - the source vault must match the reviewed `RewardVaultState`,
 - the source vault must be program-controlled,
 - the reward mint must match the reviewed epoch,
@@ -115,6 +119,8 @@ The Anchor validation layer rejects:
 - zero reward pools,
 - unbalanced epoch accounting,
 - claim records before epoch review,
+- proof-backed claim records when the epoch has no claim Merkle root,
+- invalid or oversized reward Merkle proofs,
 - fee routes into unverified or mismatched reward vaults,
 - holder/staker fee routes into non-program-controlled vaults,
 - claim-record totals that exceed reviewed epoch totals,
@@ -147,6 +153,7 @@ Protocol model:
 - `programs/cryptoseeds_protocol/src/lib.rs`
 
 The protocol model stores reward config, vault verification state, reviewed epochs, and wallet-level claim records. It keeps `execution_blocked = true` on drafted or cancelled epochs and flips it off only after `review_reward_epoch`.
+Reviewed epochs can also store a `claim_merkle_root` so wallets can create their own holder/staker claim records from off-chain snapshot proofs without requiring the authority to initialize every record individually.
 
 Frontend read-only model:
 

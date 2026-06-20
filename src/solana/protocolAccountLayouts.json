@@ -439,7 +439,7 @@
   },
   "RewardEpoch": {
     "discriminatorHex": "d6676a610e04219c",
-    "minimumLength": 187,
+    "minimumLength": 219,
     "fields": [
       {
         "name": "reward_config",
@@ -520,21 +520,27 @@
         "size": 32
       },
       {
+        "name": "claim_merkle_root",
+        "type": "array:u8:32",
+        "offset": 184,
+        "size": 32
+      },
+      {
         "name": "status",
         "type": "defined:RewardEpochStatus",
-        "offset": 184,
+        "offset": 216,
         "size": 1
       },
       {
         "name": "execution_blocked",
         "type": "bool",
-        "offset": 185,
+        "offset": 217,
         "size": 1
       },
       {
         "name": "bump",
         "type": "u8",
-        "offset": 186,
+        "offset": 218,
         "size": 1
       }
     ]
