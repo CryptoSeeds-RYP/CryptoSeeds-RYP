@@ -32,6 +32,7 @@ pub const MIN_GOVERNANCE_VOTING_WINDOW_SECONDS: i64 = 1;
 pub const MAX_GOVERNANCE_VOTING_WINDOW_SECONDS: i64 = 90 * 24 * 60 * 60;
 pub const MAX_GOVERNANCE_MINIMUM_VOTES: u64 = 1_000_000;
 pub const BPS_DENOMINATOR: u16 = 10_000;
+pub const RYP_TOKEN_TRANSFER_FEE_BPS: u16 = 100;
 pub const VOTING_RIGHTS_LEVEL_TWO_VOTE_COUNT: u32 = 100;
 pub const MAX_PROJECT_OPERATOR_PERMISSION_SECONDS: i64 = 90 * 24 * 60 * 60;
 pub const PROJECT_OPERATOR_PERMISSION_STATUS: u16 = 1;
@@ -4450,6 +4451,10 @@ fn calculate_fee_route_amounts(
     Ok((holder_amount, staker_amount, treasury_amount))
 }
 
+pub fn calculate_ryp_token_transfer_fee_amount(gross_amount: u64) -> Result<u64> {
+    calculate_bps_amount(gross_amount, RYP_TOKEN_TRANSFER_FEE_BPS)
+}
+
 fn calculate_bps_amount(amount: u64, bps: u16) -> Result<u64> {
     let calculated = (amount as u128)
         .checked_mul(bps as u128)
@@ -4712,7 +4717,10 @@ fn project_status_transition_allowed(current: ProjectStatus, next: ProjectStatus
             ProjectStatus::UnderReview | ProjectStatus::GovernanceVote | ProjectStatus::Rejected
         ),
         ProjectStatus::UnderReview => {
-            matches!(next, ProjectStatus::GovernanceVote | ProjectStatus::Rejected)
+            matches!(
+                next,
+                ProjectStatus::GovernanceVote | ProjectStatus::Rejected
+            )
         }
         ProjectStatus::GovernanceVote => {
             matches!(next, ProjectStatus::Approved | ProjectStatus::Rejected)
@@ -5060,6 +5068,31 @@ mod tests {
         assert_eq!(treasury, 9_999);
         assert_eq!(holder + staker + treasury, 30_000);
         assert!(calculate_fee_route_amounts(0, 3_334, 3_333).is_err());
+    }
+
+    #[test]
+    fn calculates_one_percent_ryp_transfer_fee_and_core_split() {
+        let transfer_amount = 1_000_000_000;
+        let fee_amount =
+            calculate_ryp_token_transfer_fee_amount(transfer_amount).expect("fee quote");
+        let (holder, staker, treasury) =
+            calculate_fee_route_amounts(fee_amount, 3_334, 3_333).expect("valid split");
+
+        assert_eq!(RYP_TOKEN_TRANSFER_FEE_BPS, 100);
+        assert_eq!(fee_amount, 10_000_000);
+        assert_eq!(holder, 3_334_000);
+        assert_eq!(staker, 3_333_000);
+        assert_eq!(treasury, 3_333_000);
+        assert_eq!(holder + staker + treasury, fee_amount);
+    }
+
+    #[test]
+    fn floors_tiny_transfer_fee_quotes_without_overflowing() {
+        assert_eq!(calculate_ryp_token_transfer_fee_amount(99).unwrap(), 0);
+        assert_eq!(
+            calculate_ryp_token_transfer_fee_amount(u64::MAX).unwrap(),
+            184_467_440_737_095_516
+        );
     }
 
     #[test]
@@ -5878,11 +5911,17 @@ mod tests {
             (ProjectStatus::Active, ProjectStatus::Paused),
             (ProjectStatus::Active, ProjectStatus::Completed),
             (ProjectStatus::MilestoneReached, ProjectStatus::Active),
-            (ProjectStatus::MilestoneReached, ProjectStatus::HarvestAvailable),
+            (
+                ProjectStatus::MilestoneReached,
+                ProjectStatus::HarvestAvailable,
+            ),
             (ProjectStatus::MilestoneReached, ProjectStatus::Paused),
             (ProjectStatus::MilestoneReached, ProjectStatus::Completed),
             (ProjectStatus::HarvestAvailable, ProjectStatus::Active),
-            (ProjectStatus::HarvestAvailable, ProjectStatus::MilestoneReached),
+            (
+                ProjectStatus::HarvestAvailable,
+                ProjectStatus::MilestoneReached,
+            ),
             (ProjectStatus::HarvestAvailable, ProjectStatus::Paused),
             (ProjectStatus::HarvestAvailable, ProjectStatus::Completed),
             (ProjectStatus::Paused, ProjectStatus::Open),
@@ -5910,41 +5949,35 @@ mod tests {
             ProjectStatus::Open
         )
         .is_err());
-        assert!(validate_project_status_transition(
-            ProjectStatus::Approved,
-            ProjectStatus::Active
-        )
-        .is_err());
+        assert!(
+            validate_project_status_transition(ProjectStatus::Approved, ProjectStatus::Active)
+                .is_err()
+        );
         assert!(validate_project_status_transition(
             ProjectStatus::Open,
             ProjectStatus::HarvestAvailable
         )
         .is_err());
-        assert!(validate_project_status_transition(
-            ProjectStatus::Paused,
-            ProjectStatus::Approved
-        )
-        .is_err());
-        assert!(validate_project_status_transition(
-            ProjectStatus::Open,
-            ProjectStatus::Cancelled
-        )
-        .is_err());
-        assert!(validate_project_status_transition(
-            ProjectStatus::Completed,
-            ProjectStatus::Open
-        )
-        .is_err());
-        assert!(validate_project_status_transition(
-            ProjectStatus::Cancelled,
-            ProjectStatus::Open
-        )
-        .is_err());
-        assert!(validate_project_status_transition(
-            ProjectStatus::Rejected,
-            ProjectStatus::Open
-        )
-        .is_err());
+        assert!(
+            validate_project_status_transition(ProjectStatus::Paused, ProjectStatus::Approved)
+                .is_err()
+        );
+        assert!(
+            validate_project_status_transition(ProjectStatus::Open, ProjectStatus::Cancelled)
+                .is_err()
+        );
+        assert!(
+            validate_project_status_transition(ProjectStatus::Completed, ProjectStatus::Open)
+                .is_err()
+        );
+        assert!(
+            validate_project_status_transition(ProjectStatus::Cancelled, ProjectStatus::Open)
+                .is_err()
+        );
+        assert!(
+            validate_project_status_transition(ProjectStatus::Rejected, ProjectStatus::Open)
+                .is_err()
+        );
         assert!(validate_project_status_transition(
             ProjectStatus::Rejected,
             ProjectStatus::Rejected

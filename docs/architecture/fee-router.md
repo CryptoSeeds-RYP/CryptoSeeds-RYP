@@ -77,6 +77,7 @@ The fee router must:
 - keep holder, staker, and treasury buckets visible,
 - validate that configured split shares total 10,000 bps,
 - allocate rounding remainder deterministically,
+- keep the Rust protocol arithmetic aligned to the 1% RYP transfer-fee target through `RYP_TOKEN_TRANSFER_FEE_BPS`,
 - support net-of-cost holder payouts where delivery costs are deducted from each holder's allocation,
 - roll dusty allocations forward into monthly, quarterly, or claim-only windows,
 - emit events for indexers,
