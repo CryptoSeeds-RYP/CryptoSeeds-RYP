@@ -140,11 +140,13 @@ Frontend read-only model:
 - `src/solana/rewardAccountInspection.test.ts`
 - `src/solana/protocolAccountLayouts.json`
 - `src/views/AdminView.tsx`
+- `src/solana/rewardClaimBatchPlan.ts`
 
 The Admin Dashboard can derive and decode reward config, vault state, and epoch accounts for inspection. It does not expose reward setup, claim, payout, or vault-movement transaction builders.
 Reward account decoders verify Anchor account discriminators before reading account fields.
 The localnet Anchor smoke script uses the same layout manifest when parsing live reward accounts.
 The smoke result includes an `adminRewardInspection` report that mirrors the Admin Dashboard's read-only inspection posture against live localnet accounts.
+The reward claim batch planner converts a reviewed holder epoch into preview-only claim-record and wallet-claim transaction plans. It does not sign, broadcast, create claim records, or expose payout execution in the Admin Dashboard.
 `npm run protocol:admin:fixture:wsl` writes `target/localnet-admin-fixture.json` with the localnet RPC URL, app env values, decoded reward accounts, and read-only Admin inspection report for browser harness work.
 `npm run protocol:admin:fixture:check` validates the exported fixture before browser work by checking read-only mode, reward split totals, draft-only status, blocked epoch execution, vault verification, no user-fund vault receivers, and the app reward-inspection epoch id.
 
