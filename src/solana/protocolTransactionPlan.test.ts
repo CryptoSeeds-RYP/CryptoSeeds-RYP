@@ -250,7 +250,9 @@ describe("protocol transaction plan", () => {
   it("builds SeedBot permission and fee config plans with bounded args", () => {
     const seedBot = buildCreateSeedBotPermissionTransactionPlan({
       expiresAtUnix: 1_800_000_000n,
+      maxDailyVolumeAmountBaseUnits: 1_500n,
       maxDailyTrades: 3,
+      maxSlippageBps: 100,
       maxTradeAmountBaseUnits: 500n,
       ownerAddress,
       permissionHash: new Uint8Array(32).fill(7),
@@ -264,7 +266,7 @@ describe("protocol transaction plan", () => {
 
     expect(seedBot.action).toBe("CREATE_SEEDBOT_PERMISSION");
     expect(seedBot.instructions[0].dataHex).toBe(
-      `7d65450eeaaec4de${"07".repeat(32)}00d2496b00000000f4010000000000000300`,
+      `7d65450eeaaec4de${"07".repeat(32)}00d2496b00000000f401000000000000dc0500000000000003006400`,
     );
     expect(revoke.action).toBe("REVOKE_PERMISSION");
     expect(revoke.instructions[0].dataHex).toBe("82d44235b9eb1617");

@@ -344,7 +344,9 @@
       "permission_hash",
       "expires_at",
       "max_trade_amount",
-      "max_daily_trades"
+      "max_daily_volume_amount",
+      "max_daily_trades",
+      "max_slippage_bps"
     ],
     "accounts": [
       {

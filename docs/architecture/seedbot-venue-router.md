@@ -25,6 +25,18 @@ Future mode:
 
 No adapter should send live orders until the user has explicitly approved the route and the venue-specific signature flow is implemented. No adapter should add discretionary automation until capped permissions, revoke controls, objective route parameters, security review, and jurisdictional legal review are complete.
 
+The Anchor permission record now stores the minimum live-automation guardrails on-chain:
+
+- permission hash,
+- expiry timestamp,
+- max trade amount,
+- max daily volume amount,
+- max daily trade count,
+- max slippage bps,
+- revoked flag.
+
+These fields are still not enough to enable autonomous trading by themselves. Venue adapters must also enforce the matching off-chain strategy packet, wallet signature policy, and execution venue controls before any live route is allowed.
+
 SeedBot allocation transaction previews should label mixed Solana and EVM route sets as `MULTICHAIN` so Phantom-only, MetaMask-only, and combined approval paths are not misrepresented.
 
 ## Hyperliquid Notes
@@ -87,7 +99,7 @@ Live implementation still needs:
 - nonce source and signing UX
 - order status polling UI
 - cancel/kill-switch transaction signing
-- max size, slippage, and position caps
+- position caps and venue-specific order validation
 
 ## Safety Rules
 

@@ -239,7 +239,9 @@ export type SeedBotPermissionPlanInput = {
   permissionHash: string | Uint8Array | number[];
   expiresAtUnix: bigint | number | string;
   maxTradeAmountBaseUnits: bigint | number | string;
+  maxDailyVolumeAmountBaseUnits: bigint | number | string;
   maxDailyTrades: number;
+  maxSlippageBps: number;
 };
 
 export type FeeConfigPlanInput = {
@@ -699,7 +701,9 @@ export function buildProjectParticipationTransactionPlan({
 
 export function buildCreateSeedBotPermissionTransactionPlan({
   expiresAtUnix,
+  maxDailyVolumeAmountBaseUnits,
   maxDailyTrades,
+  maxSlippageBps,
   maxTradeAmountBaseUnits,
   ownerAddress,
   permissionHash,
@@ -715,7 +719,9 @@ export function buildCreateSeedBotPermissionTransactionPlan({
       fixedHashHex(permissionHash),
       i64LeHex(toI64(expiresAtUnix)),
       u64LeHex(toU64(maxTradeAmountBaseUnits)),
+      u64LeHex(toU64(maxDailyVolumeAmountBaseUnits)),
       u16LeHex(maxDailyTrades),
+      u16LeHex(maxSlippageBps),
     ].join(""),
     discriminatorHex: spec.discriminatorHex,
     instructionName: "create_seedbot_permission",
@@ -727,7 +733,7 @@ export function buildCreateSeedBotPermissionTransactionPlan({
     addresses,
     instruction,
     warnings: [
-      "SeedBot permissions are bounded by on-chain expiry, max trade amount, and max daily trade count.",
+      "SeedBot permissions are bounded by on-chain expiry, max trade amount, max daily volume, daily trade count, and slippage.",
       "This does not grant custody of the wallet or seed phrase.",
     ],
   });

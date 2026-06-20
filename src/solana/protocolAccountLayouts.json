@@ -595,7 +595,7 @@
   },
   "SeedBotPermission": {
     "discriminatorHex": "f63209dc906c8915",
-    "minimumLength": 132,
+    "minimumLength": 142,
     "fields": [
       {
         "name": "owner",
@@ -627,30 +627,42 @@
         "offset": 112,
         "size": 8
       },
-      {
-        "name": "max_trade_amount",
-        "type": "u64",
-        "offset": 120,
-        "size": 8
-      },
-      {
-        "name": "max_daily_trades",
-        "type": "u16",
-        "offset": 128,
-        "size": 2
-      },
-      {
-        "name": "revoked",
-        "type": "bool",
-        "offset": 130,
-        "size": 1
-      },
-      {
-        "name": "bump",
-        "type": "u8",
-        "offset": 131,
-        "size": 1
-      }
+        {
+          "name": "max_trade_amount",
+          "type": "u64",
+          "offset": 120,
+          "size": 8
+        },
+        {
+          "name": "max_daily_volume_amount",
+          "type": "u64",
+          "offset": 128,
+          "size": 8
+        },
+        {
+          "name": "max_daily_trades",
+          "type": "u16",
+          "offset": 136,
+          "size": 2
+        },
+        {
+          "name": "max_slippage_bps",
+          "type": "u16",
+          "offset": 138,
+          "size": 2
+        },
+        {
+          "name": "revoked",
+          "type": "bool",
+          "offset": 140,
+          "size": 1
+        },
+        {
+          "name": "bump",
+          "type": "u8",
+          "offset": 141,
+          "size": 1
+        }
     ]
   },
   "StakePosition": {

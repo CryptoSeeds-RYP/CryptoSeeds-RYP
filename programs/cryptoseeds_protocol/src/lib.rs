@@ -20,6 +20,8 @@ pub const SEEDBOT_PERMISSION_SEED: &[u8] = b"seedbot-permission";
 pub const VOTING_RIGHTS_DELAY_SECONDS: i64 = 14 * 24 * 60 * 60;
 pub const MAX_REWARD_EPOCH_CADENCE_SECONDS: i64 = 366 * 24 * 60 * 60;
 pub const MAX_SEEDBOT_PERMISSION_SECONDS: i64 = 30 * 24 * 60 * 60;
+pub const MAX_SEEDBOT_DAILY_TRADES: u16 = 50;
+pub const MAX_SEEDBOT_SLIPPAGE_BPS: u16 = 500;
 pub const BPS_DENOMINATOR: u16 = 10_000;
 
 #[program]
@@ -1131,7 +1133,9 @@ pub mod cryptoseeds_protocol {
         permission_hash: [u8; 32],
         expires_at: i64,
         max_trade_amount: u64,
+        max_daily_volume_amount: u64,
         max_daily_trades: u16,
+        max_slippage_bps: u16,
     ) -> Result<()> {
         require!(
             !ctx.accounts.config.paused,
@@ -1147,7 +1151,13 @@ pub mod cryptoseeds_protocol {
             ctx.accounts.position.tier != StakeTier::None,
             CryptoSeedsError::StakeBelowSeedTier
         );
-        validate_seedbot_permission_limits(expires_at, max_trade_amount, max_daily_trades)?;
+        validate_seedbot_permission_limits(
+            expires_at,
+            max_trade_amount,
+            max_daily_volume_amount,
+            max_daily_trades,
+            max_slippage_bps,
+        )?;
 
         let permission = &mut ctx.accounts.permission;
         permission.owner = ctx.accounts.owner.key();
@@ -1156,7 +1166,9 @@ pub mod cryptoseeds_protocol {
         permission.created_at = Clock::get()?.unix_timestamp;
         permission.expires_at = expires_at;
         permission.max_trade_amount = max_trade_amount;
+        permission.max_daily_volume_amount = max_daily_volume_amount;
         permission.max_daily_trades = max_daily_trades;
+        permission.max_slippage_bps = max_slippage_bps;
         permission.revoked = false;
         permission.bump = ctx.bumps.permission;
 
@@ -1164,7 +1176,9 @@ pub mod cryptoseeds_protocol {
             owner: permission.owner,
             expires_at,
             max_trade_amount,
+            max_daily_volume_amount,
             max_daily_trades,
+            max_slippage_bps,
         });
 
         Ok(())
@@ -1977,7 +1991,9 @@ pub struct SeedBotPermission {
     pub created_at: i64,
     pub expires_at: i64,
     pub max_trade_amount: u64,
+    pub max_daily_volume_amount: u64,
     pub max_daily_trades: u16,
+    pub max_slippage_bps: u16,
     pub revoked: bool,
     pub bump: u8,
 }
@@ -2318,7 +2334,9 @@ pub struct SeedBotPermissionCreated {
     pub owner: Pubkey,
     pub expires_at: i64,
     pub max_trade_amount: u64,
+    pub max_daily_volume_amount: u64,
     pub max_daily_trades: u16,
+    pub max_slippage_bps: u16,
 }
 
 #[event]
@@ -2791,9 +2809,29 @@ fn validate_metadata_hash(metadata_hash: &[u8; 32]) -> Result<()> {
 fn validate_seedbot_permission_limits(
     expires_at: i64,
     max_trade_amount: u64,
+    max_daily_volume_amount: u64,
     max_daily_trades: u16,
+    max_slippage_bps: u16,
 ) -> Result<()> {
     let now = Clock::get()?.unix_timestamp;
+    validate_seedbot_permission_limits_at(
+        now,
+        expires_at,
+        max_trade_amount,
+        max_daily_volume_amount,
+        max_daily_trades,
+        max_slippage_bps,
+    )
+}
+
+fn validate_seedbot_permission_limits_at(
+    now: i64,
+    expires_at: i64,
+    max_trade_amount: u64,
+    max_daily_volume_amount: u64,
+    max_daily_trades: u16,
+    max_slippage_bps: u16,
+) -> Result<()> {
     require!(expires_at > now, CryptoSeedsError::InvalidSeedBotPermission);
     require!(
         expires_at
@@ -2807,7 +2845,15 @@ fn validate_seedbot_permission_limits(
         CryptoSeedsError::InvalidSeedBotPermission
     );
     require!(
-        max_daily_trades > 0,
+        max_daily_volume_amount >= max_trade_amount,
+        CryptoSeedsError::InvalidSeedBotPermission
+    );
+    require!(
+        max_daily_trades > 0 && max_daily_trades <= MAX_SEEDBOT_DAILY_TRADES,
+        CryptoSeedsError::InvalidSeedBotPermission
+    );
+    require!(
+        max_slippage_bps <= MAX_SEEDBOT_SLIPPAGE_BPS,
         CryptoSeedsError::InvalidSeedBotPermission
     );
 
@@ -3081,6 +3127,65 @@ mod tests {
     fn validates_metadata_hashes() {
         assert!(validate_metadata_hash(&[9; 32]).is_ok());
         assert!(validate_metadata_hash(&[0; 32]).is_err());
+    }
+
+    #[test]
+    fn validates_seedbot_permission_bounds() {
+        let now = 1_000;
+        assert!(validate_seedbot_permission_limits_at(
+            now,
+            now + 60,
+            1_000,
+            5_000,
+            5,
+            100,
+        )
+        .is_ok());
+        assert!(validate_seedbot_permission_limits_at(
+            now,
+            now,
+            1_000,
+            5_000,
+            5,
+            100,
+        )
+        .is_err());
+        assert!(validate_seedbot_permission_limits_at(
+            now,
+            now + MAX_SEEDBOT_PERMISSION_SECONDS + 1,
+            1_000,
+            5_000,
+            5,
+            100,
+        )
+        .is_err());
+        assert!(validate_seedbot_permission_limits_at(
+            now,
+            now + 60,
+            1_000,
+            999,
+            5,
+            100,
+        )
+        .is_err());
+        assert!(validate_seedbot_permission_limits_at(
+            now,
+            now + 60,
+            1_000,
+            5_000,
+            MAX_SEEDBOT_DAILY_TRADES + 1,
+            100,
+        )
+        .is_err());
+        assert!(validate_seedbot_permission_limits_at(
+            now,
+            now + 60,
+            1_000,
+            5_000,
+            5,
+            MAX_SEEDBOT_SLIPPAGE_BPS + 1,
+        )
+        .is_err());
     }
 
     #[test]

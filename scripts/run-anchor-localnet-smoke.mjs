@@ -26,6 +26,10 @@ const ADD_TO_SPROUT_AMOUNT = 15_000_000_000n;
 const SPROUT_STAKE_AMOUNT = 20_000_000_000n;
 const HOLDER_REWARD_CLAIM_AMOUNT = 700n;
 const PLATFORM_FEE_ROUTE_AMOUNT = 30_000n;
+const SEEDBOT_MAX_TRADE_AMOUNT = 500n;
+const SEEDBOT_MAX_DAILY_VOLUME_AMOUNT = 1_500n;
+const SEEDBOT_MAX_DAILY_TRADES = 3;
+const SEEDBOT_MAX_SLIPPAGE_BPS = 100;
 const PLATFORM_FEE_ROUTE_SPLIT = {
   holder: 10_002n,
   staker: 9_999n,
@@ -404,6 +408,10 @@ async function runSmoke(connection) {
   });
   const permissionRecord = parseSeedBotPermission(await getAccountData(connection, seedBotPermission));
   assertPublicKey("SeedBot permission owner", permissionRecord.owner, owner.publicKey);
+  assertEqual("SeedBot permission max trade amount", permissionRecord.maxTradeAmount, SEEDBOT_MAX_TRADE_AMOUNT);
+  assertEqual("SeedBot permission max daily volume", permissionRecord.maxDailyVolumeAmount, SEEDBOT_MAX_DAILY_VOLUME_AMOUNT);
+  assertEqual("SeedBot permission max daily trades", permissionRecord.maxDailyTrades, SEEDBOT_MAX_DAILY_TRADES);
+  assertEqual("SeedBot permission max slippage bps", permissionRecord.maxSlippageBps, SEEDBOT_MAX_SLIPPAGE_BPS);
   assertEqual("SeedBot permission revoked", permissionRecord.revoked, false);
 
   log("calling revoke_seedbot_permission");
@@ -1458,12 +1466,14 @@ async function participateProject(connection, { config, owner, participation, po
 }
 
 async function createSeedBotPermission(connection, { config, expiresAt, owner, permission, position }) {
-  const data = Buffer.alloc(8 + 32 + 8 + 8 + 2);
+  const data = Buffer.alloc(8 + 32 + 8 + 8 + 8 + 2 + 2);
   discriminator("create_seedbot_permission").copy(data, 0);
   REWARD_METADATA_HASH.copy(data, 8);
   data.writeBigInt64LE(expiresAt, 40);
-  data.writeBigUInt64LE(500n, 48);
-  data.writeUInt16LE(3, 56);
+  data.writeBigUInt64LE(SEEDBOT_MAX_TRADE_AMOUNT, 48);
+  data.writeBigUInt64LE(SEEDBOT_MAX_DAILY_VOLUME_AMOUNT, 56);
+  data.writeUInt16LE(SEEDBOT_MAX_DAILY_TRADES, 64);
+  data.writeUInt16LE(SEEDBOT_MAX_SLIPPAGE_BPS, 66);
   const instruction = new TransactionInstruction({
     programId,
     keys: [
@@ -1955,7 +1965,9 @@ function parseSeedBotPermission(data) {
     createdAt: data.readBigInt64LE(offset.created_at),
     expiresAt: data.readBigInt64LE(offset.expires_at),
     maxTradeAmount: data.readBigUInt64LE(offset.max_trade_amount),
+    maxDailyVolumeAmount: data.readBigUInt64LE(offset.max_daily_volume_amount),
     maxDailyTrades: data.readUInt16LE(offset.max_daily_trades),
+    maxSlippageBps: data.readUInt16LE(offset.max_slippage_bps),
     revoked: data.readUInt8(offset.revoked) === 1,
     bump: data.readUInt8(offset.bump),
   };
