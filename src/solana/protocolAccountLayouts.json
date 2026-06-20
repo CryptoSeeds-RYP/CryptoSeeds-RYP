@@ -301,7 +301,7 @@
   },
   "ProjectOperatorRecord": {
     "discriminatorHex": "03ab08c7eeb49be6",
-    "minimumLength": 124,
+    "minimumLength": 132,
     "fields": [
       {
         "name": "project",
@@ -340,15 +340,21 @@
         "size": 8
       },
       {
-        "name": "revoked_at",
+        "name": "expires_at",
         "type": "i64",
         "offset": 115,
         "size": 8
       },
       {
+        "name": "revoked_at",
+        "type": "i64",
+        "offset": 123,
+        "size": 8
+      },
+      {
         "name": "bump",
         "type": "u8",
-        "offset": 123,
+        "offset": 131,
         "size": 1
       }
     ]

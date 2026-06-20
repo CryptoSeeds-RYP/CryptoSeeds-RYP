@@ -505,6 +505,7 @@ async function runSmoke(connection) {
   const project = deriveProjectAddress(projectId);
   const projectParticipation = deriveProjectParticipationAddress({ project, wallet: owner.publicKey });
   const projectOperatorRecord = deriveProjectOperatorAddress({ operator: projectOperator.publicKey, project });
+  const projectOperatorExpiresAt = (await recentRewardSnapshotTime(connection)) + 60n * 60n;
   log("calling register_project for governance-vote draft project");
   await registerProject(connection, {
     authority: projectAuthority,
@@ -552,10 +553,28 @@ async function runSmoke(connection) {
   const unpausedProject = parseProjectRecord(await getAccountData(connection, project));
   assertEqual("project pause flag cleared", unpausedProject.participationPaused, false);
 
+  await expectFailure(
+    "grant_project_operator rejects expired permission window",
+    () =>
+      grantProjectOperator(connection, {
+        authority: projectAuthority,
+        config,
+        expiresAt: 0n,
+        operator: projectOperator.publicKey,
+        operatorRecord: projectOperatorRecord,
+        permissions: PROJECT_OPERATOR_PERMISSION_MASK,
+        project,
+        projectId,
+      }),
+    "custom program error",
+  );
+  await assertMissingAccount(connection, projectOperatorRecord, "project operator after invalid expiry rejection");
+
   log("calling grant_project_operator for draft project");
   await grantProjectOperator(connection, {
     authority: projectAuthority,
     config,
+    expiresAt: projectOperatorExpiresAt,
     operator: projectOperator.publicKey,
     operatorRecord: projectOperatorRecord,
     permissions: PROJECT_OPERATOR_PERMISSION_MASK,
@@ -569,6 +588,7 @@ async function runSmoke(connection) {
   assertEqual("project operator permissions", grantedOperator.permissions, PROJECT_OPERATOR_PERMISSION_MASK);
   assertEqual("project operator active", grantedOperator.active, true);
   assertEqual("project operator granted timestamp", grantedOperator.grantedAt > 0n, true);
+  assertEqual("project operator expires timestamp", grantedOperator.expiresAt, projectOperatorExpiresAt);
   assertEqual("project operator revoked timestamp inactive", grantedOperator.revokedAt, 0n);
 
   log("calling operator_set_project_pause for draft project");
@@ -1039,6 +1059,7 @@ async function runSmoke(connection) {
 	      "project_participation_bounds_accounting",
 	      "reject_non_authority_project_pause",
 	      "project_pause_toggle",
+	      "reject_expired_project_operator_grant",
 	      "grant_project_operator",
 	      "operator_project_pause_toggle",
 	      "reject_operator_project_status_transition",
@@ -2170,13 +2191,14 @@ async function setProjectPause(connection, { authority, config, paused, project,
 
 async function grantProjectOperator(
   connection,
-  { authority, config, operator, operatorRecord, permissions, project, projectId },
+  { authority, config, expiresAt, operator, operatorRecord, permissions, project, projectId },
 ) {
-  const data = Buffer.alloc(8 + 8 + 32 + 2);
+  const data = Buffer.alloc(8 + 8 + 32 + 2 + 8);
   discriminator("grant_project_operator").copy(data, 0);
   data.writeBigUInt64LE(projectId, 8);
   operator.toBuffer().copy(data, 16);
   data.writeUInt16LE(permissions, 48);
+  data.writeBigInt64LE(expiresAt, 50);
   const instruction = new TransactionInstruction({
     programId,
     keys: [
@@ -2935,6 +2957,7 @@ function parseProjectOperatorRecord(data) {
     permissions: data.readUInt16LE(offset.permissions),
     active: data.readUInt8(offset.active) === 1,
     grantedAt: data.readBigInt64LE(offset.granted_at),
+    expiresAt: data.readBigInt64LE(offset.expires_at),
     revokedAt: data.readBigInt64LE(offset.revoked_at),
     bump: data.readUInt8(offset.bump),
   };

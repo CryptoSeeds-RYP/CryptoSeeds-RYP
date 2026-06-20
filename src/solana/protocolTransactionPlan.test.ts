@@ -320,9 +320,11 @@ describe("protocol transaction plan", () => {
       projectId: 9n,
     });
     const operatorPermissions = PROJECT_OPERATOR_PERMISSION_STATUS | PROJECT_OPERATOR_PERMISSION_PAUSE;
+    const operatorExpiresAtUnix = 1_800_000_000n;
     const operatorRecord = deriveProjectOperatorAddress({ operatorAddress, projectId: 9n });
     const grantOperator = buildGrantProjectOperatorTransactionPlan({
       authorityAddress: ownerAddress,
+      expiresAtUnix: operatorExpiresAtUnix,
       operatorAddress,
       permissions: operatorPermissions,
       projectId: 9n,
@@ -396,7 +398,7 @@ describe("protocol transaction plan", () => {
     );
     expect(grantOperator.action).toBe("GRANT_PROJECT_OPERATOR");
     expect(grantOperator.instructions[0].dataHex).toMatch(/^1dce004acb6699280900000000000000/);
-    expect(grantOperator.instructions[0].dataHex.endsWith("0300")).toBe(true);
+    expect(grantOperator.instructions[0].dataHex.endsWith("030000d2496b00000000")).toBe(true);
     expect(grantOperator.instructions[0].accounts.map((account) => account.anchorName)).toEqual(
       PROTOCOL_INSTRUCTION_SPECS.grant_project_operator.accounts.map((account) => account.name),
     );
@@ -422,6 +424,7 @@ describe("protocol transaction plan", () => {
     expect(() =>
       buildGrantProjectOperatorTransactionPlan({
         authorityAddress: ownerAddress,
+        expiresAtUnix: operatorExpiresAtUnix,
         operatorAddress,
         permissions: operatorPermissions | 4,
         projectId: 9n,

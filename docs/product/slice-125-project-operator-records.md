@@ -8,6 +8,7 @@ Add project-scoped operator records so a reviewed project can delegate limited o
 
 - Added a `ProjectOperatorRecord` PDA derived from `project-operator + project + operator`.
 - Added permission bits for project status updates and project pause toggles.
+- Added mandatory expiry timestamps for operator records.
 - Added `grant_project_operator` and `revoke_project_operator` instructions controlled by the separated project authority.
 - Added operator-only project pause and project status instructions.
 - Blocked inactive/revoked operators.
@@ -21,11 +22,11 @@ Add project-scoped operator records so a reviewed project can delegate limited o
 - Operators cannot move funds.
 - Operators cannot change reward vaults, fee settings, treasury routing, staking state, or SeedBot permissions.
 - Operators cannot cancel projects or record refund accounting.
+- Operator grants must expire within the bounded project-operator permission window and must be renewed deliberately.
 
 ## Deferred
 
 - Operator dashboard controls.
-- Time-limited operator records.
 - Operator multisig support.
 - Operator metadata/disclosure records.
 - Operator event indexing for admin audit views.

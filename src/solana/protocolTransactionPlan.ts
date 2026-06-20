@@ -271,6 +271,7 @@ export type GrantProjectOperatorPlanInput = {
   projectId: bigint | number | string;
   operatorAddress: string;
   permissions: number;
+  expiresAtUnix: bigint | number | string;
 };
 
 export type RevokeProjectOperatorPlanInput = {
@@ -900,12 +901,14 @@ export function buildRegisterProjectTransactionPlan({
 
 export function buildGrantProjectOperatorTransactionPlan({
   authorityAddress,
+  expiresAtUnix,
   operatorAddress,
   permissions,
   projectId,
 }: GrantProjectOperatorPlanInput): PreparedSolanaTransactionPlan {
   assertProjectOperatorPermissions(permissions);
   const project = toU64(projectId);
+  const expiresAt = toI64(expiresAtUnix);
   const operator = new PublicKey(operatorAddress);
   const addresses = {
     ...deriveProtocolAddresses(authorityAddress),
@@ -916,7 +919,7 @@ export function buildGrantProjectOperatorTransactionPlan({
   const spec = instructionSpec("grant_project_operator");
   const instruction = instructionPlan({
     accounts: accountsFromSpec(spec, addresses),
-    argDataHex: [u64LeHex(project), pubkeyHex(operator), u16LeHex(permissions)].join(""),
+    argDataHex: [u64LeHex(project), pubkeyHex(operator), u16LeHex(permissions), i64LeHex(expiresAt)].join(""),
     discriminatorHex: spec.discriminatorHex,
     instructionName: "grant_project_operator",
     programId: addresses.programId,
@@ -930,6 +933,7 @@ export function buildGrantProjectOperatorTransactionPlan({
     warnings: [
       "Project operator grants are project-scoped and do not transfer global project authority.",
       "Operators can only use the explicitly granted status and/or pause permissions.",
+      "Operator permissions expire at the configured Unix timestamp and must be renewed deliberately.",
     ],
   });
 }

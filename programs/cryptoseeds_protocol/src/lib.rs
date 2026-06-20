@@ -32,6 +32,7 @@ pub const MAX_GOVERNANCE_VOTING_WINDOW_SECONDS: i64 = 90 * 24 * 60 * 60;
 pub const MAX_GOVERNANCE_MINIMUM_VOTES: u64 = 1_000_000;
 pub const BPS_DENOMINATOR: u16 = 10_000;
 pub const VOTING_RIGHTS_LEVEL_TWO_VOTE_COUNT: u32 = 100;
+pub const MAX_PROJECT_OPERATOR_PERMISSION_SECONDS: i64 = 90 * 24 * 60 * 60;
 pub const PROJECT_OPERATOR_PERMISSION_STATUS: u16 = 1;
 pub const PROJECT_OPERATOR_PERMISSION_PAUSE: u16 = 2;
 pub const PROJECT_OPERATOR_PERMISSION_MASK: u16 =
@@ -1447,15 +1448,17 @@ pub mod cryptoseeds_protocol {
         _project_id: u64,
         operator: Pubkey,
         permissions: u16,
+        expires_at: i64,
     ) -> Result<()> {
         validate_project_authority(&ctx.accounts.config, &ctx.accounts.authority.key())?;
+        let clock = Clock::get()?;
         validate_project_operator_permissions(permissions)?;
+        validate_project_operator_expiry(clock.unix_timestamp, expires_at)?;
         require!(
             operator != Pubkey::default() && operator != ctx.accounts.authority.key(),
             CryptoSeedsError::InvalidProjectOperator
         );
 
-        let clock = Clock::get()?;
         let operator_record = &mut ctx.accounts.operator_record;
         operator_record.project = ctx.accounts.project.key();
         operator_record.operator = operator;
@@ -1463,6 +1466,7 @@ pub mod cryptoseeds_protocol {
         operator_record.permissions = permissions;
         operator_record.active = true;
         operator_record.granted_at = clock.unix_timestamp;
+        operator_record.expires_at = expires_at;
         operator_record.revoked_at = 0;
         operator_record.bump = ctx.bumps.operator_record;
 
@@ -1470,6 +1474,7 @@ pub mod cryptoseeds_protocol {
             project: operator_record.project,
             operator,
             permissions,
+            expires_at,
         });
 
         Ok(())
@@ -1533,6 +1538,7 @@ pub mod cryptoseeds_protocol {
             ctx.accounts.project.key(),
             ctx.accounts.operator.key(),
             PROJECT_OPERATOR_PERMISSION_STATUS,
+            Clock::get()?.unix_timestamp,
         )?;
         validate_operator_project_status(status)?;
         require_keys_eq!(
@@ -1581,6 +1587,7 @@ pub mod cryptoseeds_protocol {
             ctx.accounts.project.key(),
             ctx.accounts.operator.key(),
             PROJECT_OPERATOR_PERMISSION_PAUSE,
+            Clock::get()?.unix_timestamp,
         )?;
         ctx.accounts.project.participation_paused = paused;
 
@@ -2978,6 +2985,7 @@ pub struct ProjectOperatorRecord {
     pub permissions: u16,
     pub active: bool,
     pub granted_at: i64,
+    pub expires_at: i64,
     pub revoked_at: i64,
     pub bump: u8,
 }
@@ -3428,6 +3436,7 @@ pub struct ProjectOperatorGranted {
     pub project: Pubkey,
     pub operator: Pubkey,
     pub permissions: u16,
+    pub expires_at: i64,
 }
 
 #[event]
@@ -3633,8 +3642,12 @@ pub enum CryptoSeedsError {
     InvalidProjectOperator,
     #[msg("Project operator permissions are invalid.")]
     InvalidProjectOperatorPermissions,
+    #[msg("Project operator expiry is invalid.")]
+    InvalidProjectOperatorExpiry,
     #[msg("Project operator record is inactive.")]
     ProjectOperatorInactive,
+    #[msg("Project operator record is expired.")]
+    ProjectOperatorExpired,
     #[msg("Project operator does not have permission for this action.")]
     ProjectOperatorPermissionDenied,
     #[msg("Project refund accounting exceeds the recorded refund pool.")]
@@ -3708,11 +3721,24 @@ fn validate_project_operator_permissions(permissions: u16) -> Result<()> {
     Ok(())
 }
 
+fn validate_project_operator_expiry(now: i64, expires_at: i64) -> Result<()> {
+    require!(
+        expires_at > now,
+        CryptoSeedsError::InvalidProjectOperatorExpiry
+    );
+    require!(
+        expires_at - now <= MAX_PROJECT_OPERATOR_PERMISSION_SECONDS,
+        CryptoSeedsError::InvalidProjectOperatorExpiry
+    );
+    Ok(())
+}
+
 fn validate_project_operator(
     operator_record: &ProjectOperatorRecord,
     project: Pubkey,
     operator: Pubkey,
     required_permission: u16,
+    now: i64,
 ) -> Result<()> {
     require_keys_eq!(
         operator_record.project,
@@ -3727,6 +3753,10 @@ fn validate_project_operator(
     require!(
         operator_record.active,
         CryptoSeedsError::ProjectOperatorInactive
+    );
+    require!(
+        operator_record.expires_at > now,
+        CryptoSeedsError::ProjectOperatorExpired
     );
     require!(
         operator_record.permissions & required_permission == required_permission,
@@ -5183,6 +5213,7 @@ mod tests {
 
     #[test]
     fn validates_project_operator_permissions_and_records() {
+        let now = 1_000;
         assert!(validate_project_operator_permissions(PROJECT_OPERATOR_PERMISSION_STATUS).is_ok());
         assert!(validate_project_operator_permissions(PROJECT_OPERATOR_PERMISSION_PAUSE).is_ok());
         assert!(validate_project_operator_permissions(PROJECT_OPERATOR_PERMISSION_MASK).is_ok());
@@ -5190,38 +5221,61 @@ mod tests {
         assert!(
             validate_project_operator_permissions(PROJECT_OPERATOR_PERMISSION_MASK | 4).is_err()
         );
+        assert!(validate_project_operator_expiry(now, now + 60).is_ok());
+        assert!(validate_project_operator_expiry(now, now).is_err());
+        assert!(validate_project_operator_expiry(
+            now,
+            now + MAX_PROJECT_OPERATOR_PERMISSION_SECONDS + 1
+        )
+        .is_err());
 
         let project = Pubkey::new_unique();
         let operator = Pubkey::new_unique();
-        let mut record =
-            project_operator_record(project, operator, PROJECT_OPERATOR_PERMISSION_STATUS);
+        let mut record = project_operator_record(
+            project,
+            operator,
+            PROJECT_OPERATOR_PERMISSION_STATUS,
+            now + 60,
+        );
 
         assert!(validate_project_operator(
             &record,
             project,
             operator,
-            PROJECT_OPERATOR_PERMISSION_STATUS
+            PROJECT_OPERATOR_PERMISSION_STATUS,
+            now,
         )
         .is_ok());
         assert!(validate_project_operator(
             &record,
             project,
             operator,
-            PROJECT_OPERATOR_PERMISSION_PAUSE
+            PROJECT_OPERATOR_PERMISSION_PAUSE,
+            now,
         )
         .is_err());
         assert!(validate_project_operator(
             &record,
             Pubkey::new_unique(),
             operator,
-            PROJECT_OPERATOR_PERMISSION_STATUS
+            PROJECT_OPERATOR_PERMISSION_STATUS,
+            now,
         )
         .is_err());
         assert!(validate_project_operator(
             &record,
             project,
             Pubkey::new_unique(),
-            PROJECT_OPERATOR_PERMISSION_STATUS
+            PROJECT_OPERATOR_PERMISSION_STATUS,
+            now,
+        )
+        .is_err());
+        assert!(validate_project_operator(
+            &record,
+            project,
+            operator,
+            PROJECT_OPERATOR_PERMISSION_STATUS,
+            now + 60,
         )
         .is_err());
 
@@ -5230,7 +5284,8 @@ mod tests {
             &record,
             project,
             operator,
-            PROJECT_OPERATOR_PERMISSION_STATUS
+            PROJECT_OPERATOR_PERMISSION_STATUS,
+            now,
         )
         .is_err());
     }
@@ -5677,6 +5732,7 @@ mod tests {
         project: Pubkey,
         operator: Pubkey,
         permissions: u16,
+        expires_at: i64,
     ) -> ProjectOperatorRecord {
         ProjectOperatorRecord {
             project,
@@ -5685,6 +5741,7 @@ mod tests {
             permissions,
             active: true,
             granted_at: 1_000,
+            expires_at,
             revoked_at: 0,
             bump: 255,
         }

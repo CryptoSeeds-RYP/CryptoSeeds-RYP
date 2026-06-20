@@ -35,7 +35,7 @@ Protocol, project, and reward authority rotation is two-step on-chain:
 
 `ProtocolConfig` stores a separate project authority and pending project authority. Project registry, project lifecycle updates, project pause, project cancellation, and project refund accounting use this project authority instead of the main protocol authority.
 
-Project operator records are derived per project and operator wallet. The project authority can grant or revoke limited permissions such as status updates or participation pause toggles. Operators cannot move funds, alter treasury/reward routing, change fee parameters, cancel projects, record refund accounting, or take over project authority.
+Project operator records are derived per project and operator wallet. The project authority can grant or revoke limited permissions such as status updates or participation pause toggles. Operator grants are time-bounded and must be renewed deliberately. Operators cannot move funds, alter treasury/reward routing, change fee parameters, cancel projects, record refund accounting, or take over project authority.
 
 `RewardConfig` has its own pending authority field so reward administration can be rotated deliberately after the protocol authority accepts. This avoids a silent one-step authority swap and reduces accidental lockout risk.
 
