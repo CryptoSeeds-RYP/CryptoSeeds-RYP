@@ -41,7 +41,17 @@ Reward vaults should never be presented as user custody accounts.
 
 7. Attach vault configs.
 8. Export draft JSON for review.
-9. Only after review, prepare devnet instructions.
+9. Export the claim Merkle packet for the reviewed epoch id.
+10. Pass the exported `claimMerkleRoot` into `draft_reward_epoch`.
+11. Only after review, prepare devnet instructions.
+
+Claim proof export:
+
+```bash
+npm run rewards:claim-merkle -- <reward-epoch-draft.json> <epoch-id>
+```
+
+The export contains the epoch `claimMerkleRoot`, each wallet leaf, and each wallet proof. The root must match the value stored in `RewardEpoch.claim_merkle_root`; otherwise proof-backed claim-record creation will fail on-chain.
 
 ## MVP Safety Rules
 
@@ -159,12 +169,15 @@ Frontend read-only model:
 
 - `src/solana/rewardAccountInspection.ts`
 - `src/solana/rewardAccountInspection.test.ts`
+- `src/solana/rewardMerkleClaims.ts`
+- `src/solana/rewardMerkleClaims.test.ts`
 - `src/solana/protocolAccountLayouts.json`
 - `src/views/AdminView.tsx`
 - `src/solana/rewardClaimBatchPlan.ts`
 
 The Admin Dashboard can derive and decode reward config, vault state, and epoch accounts for inspection. It does not expose reward setup, claim, payout, or vault-movement transaction builders.
 Reward account decoders verify Anchor account discriminators before reading account fields.
+The Merkle claim exporter builds deterministic proof packets from reviewed holder epochs. It is proof-only and does not sign, broadcast, create records, or transfer tokens.
 The localnet Anchor smoke script uses the same layout manifest when parsing live reward accounts.
 The smoke result includes an `adminRewardInspection` report that mirrors the Admin Dashboard's read-only inspection posture against live localnet accounts.
 The reward claim batch planner converts a reviewed holder epoch into preview-only claim-record and wallet-claim transaction plans. It does not sign, broadcast, create claim records, or expose payout execution in the Admin Dashboard.

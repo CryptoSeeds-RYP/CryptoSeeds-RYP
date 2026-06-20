@@ -6,6 +6,7 @@ import {
   buildClaimRewardTokensTransactionPlan,
   buildCloseGovernanceProposalTransactionPlan,
   buildCreateGovernanceProposalTransactionPlan,
+  buildCreateRewardClaimRecordFromProofTransactionPlan,
   buildCreateRewardClaimRecordTransactionPlan,
   buildCreateSeedBotPermissionTransactionPlan,
   buildProjectParticipationTransactionPlan,
@@ -138,6 +139,43 @@ describe("protocol transaction plan", () => {
       rewardSourceVault,
     );
     expect(rolloverClaim.instructions[0].dataHex).toBe("bad5cb11c7fba2e101");
+  });
+
+  it("builds wallet proof-backed reward claim record plans", () => {
+    const plan = buildCreateRewardClaimRecordFromProofTransactionPlan({
+      deliveryCostAmountBaseUnits: 0n,
+      epochId: 3n,
+      grossAllocationAmountBaseUnits: 200n,
+      leafIndex: 1n,
+      netClaimAmountBaseUnits: 0n,
+      ownerAddress,
+      proof: ["ab".repeat(32)],
+      rewardRole: "STAKER_REWARD",
+      rolledForwardAmountBaseUnits: 200n,
+    });
+
+    expect(plan.action).toBe("CREATE_REWARD_CLAIM_RECORD_FROM_PROOF");
+    expect(plan.feePayer).toBe(ownerAddress);
+    expect(plan.instructions[0].instructionName).toBe("create_reward_claim_record_from_proof");
+    expect(plan.instructions[0].accounts.map((account) => account.anchorName)).toEqual(
+      PROTOCOL_INSTRUCTION_SPECS.create_reward_claim_record_from_proof.accounts.map((account) => account.name),
+    );
+    expect(plan.instructions[0].dataHex).toBe(
+      `3260ecd7ed5d2463030000000000000001c80000000000000000000000000000000000000000000000c800000000000000010000000000000001000000${"ab".repeat(32)}`,
+    );
+    expect(() =>
+      buildCreateRewardClaimRecordFromProofTransactionPlan({
+        deliveryCostAmountBaseUnits: 0n,
+        epochId: 3n,
+        grossAllocationAmountBaseUnits: 200n,
+        leafIndex: 0n,
+        netClaimAmountBaseUnits: 0n,
+        ownerAddress,
+        proof: Array.from({ length: 33 }, () => "ab".repeat(32)),
+        rewardRole: "STAKER_REWARD",
+        rolledForwardAmountBaseUnits: 200n,
+      }),
+    ).toThrow("cannot exceed 32 nodes");
   });
 
   it("builds platform fee route plans into reviewed reward vaults", () => {

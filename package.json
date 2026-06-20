@@ -28,11 +28,13 @@
     "wsl:setup": "powershell -ExecutionPolicy Bypass -File scripts/setup-wsl-solana.ps1",
     "copy:audit": "node scripts/audit-copy-guardrails.mjs",
     "ops:check": "node scripts/check-ops-readiness.mjs",
+    "rewards:claim-merkle": "node scripts/prepare-reward-claim-merkle.mjs",
     "rewards:epoch:draft": "node scripts/prepare-holder-reward-epoch.mjs docs/operations/holder-reward-epoch.example.json",
     "token:check": "node scripts/check-ryp-mint.mjs",
     "visual:audit": "node scripts/audit-visual-assets.mjs"
   },
   "dependencies": {
+    "@noble/hashes": "^1.8.0",
     "@solana/wallet-adapter-base": "^0.9.27",
     "@solana/wallet-adapter-react": "^0.15.39",
     "@solana/wallet-adapter-react-ui": "^0.9.39",

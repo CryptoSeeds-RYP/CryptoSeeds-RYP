@@ -18,6 +18,7 @@ const requiredScripts = [
   "protocol:idl:check",
   "protocol:admin:fixture:check",
   "protocol:smoke:localnet:wsl",
+  "rewards:claim-merkle",
   "rewards:epoch:draft",
   "ops:check",
 ];

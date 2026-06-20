@@ -10,19 +10,19 @@
   "minimumNetPayoutBaseUnits": "20000",
   "entries": [
     {
-      "walletAddress": "CanopyHolder111111111111111111111111111111",
+      "walletAddress": "2L8cm6Vu5ebSfHnzu8F4fuSVY49Kp5dpsdApV5Rkkgpn",
       "rypBalanceBaseUnits": "100000000000"
     },
     {
-      "walletAddress": "SproutHolder111111111111111111111111111111",
+      "walletAddress": "7aqVX7jLDuNenVj4ehsmsmKkDNdf4zFWTm7XauCxCm2i",
       "rypBalanceBaseUnits": "20000000000"
     },
     {
-      "walletAddress": "SeedHolder11111111111111111111111111111111",
+      "walletAddress": "7yQjhR55g9tEpwtu8n1AqsSFjxZPHMA67ADPhZyL2m4s",
       "rypBalanceBaseUnits": "5000000000"
     },
     {
-      "walletAddress": "Treasury1111111111111111111111111111111111",
+      "walletAddress": "Ad7JtmEcbbzBevGuv8ZW9iEYNqBJrHaBK6q8tPSEHp1i",
       "rypBalanceBaseUnits": "150000000000",
       "excluded": true,
       "exclusionReason": "Treasury wallet excluded from holder rewards."
@@ -34,7 +34,7 @@
       "label": "Holder Reward Vault",
       "role": "HOLDER_REWARD",
       "rewardMint": "CFPzKkPYqpyfNJp3WDB4dykMemfhwYrV9cgNUy7nsoPD",
-      "address": "HolderRewardVault1111111111111111111111111",
+      "address": "7FqWmxN6xDbBBiKcJ1i62uL6AdyeaA5vWeQNiwxnUEHa",
       "custodyModel": "PROGRAM_CONTROLLED",
       "status": "PENDING_VERIFICATION",
       "receivesUserFunds": false,
@@ -45,7 +45,7 @@
       "label": "Staker Reward Vault",
       "role": "STAKER_REWARD",
       "rewardMint": "CFPzKkPYqpyfNJp3WDB4dykMemfhwYrV9cgNUy7nsoPD",
-      "address": "StakerRewardVault1111111111111111111111111",
+      "address": "A8T9YzcWUNp3527PxFRowGNLXNLruZJRxLZsT9JKCLTi",
       "custodyModel": "PROGRAM_CONTROLLED",
       "status": "PENDING_VERIFICATION",
       "receivesUserFunds": false,
@@ -56,7 +56,7 @@
       "label": "Independent Treasury Vault",
       "role": "INDEPENDENT_TREASURY",
       "rewardMint": "CFPzKkPYqpyfNJp3WDB4dykMemfhwYrV9cgNUy7nsoPD",
-      "address": "IndependentTreasuryVault11111111111111111111",
+      "address": "9e8Mqy7Y86oSRCyh9LfwfY364Tvkaa5h5RHr8ZFcG9tm",
       "custodyModel": "TREASURY_CONTROLLED",
       "status": "PENDING_VERIFICATION",
       "receivesUserFunds": false,
@@ -67,7 +67,7 @@
       "label": "Delivery Cost Reserve",
       "role": "DELIVERY_COST_RESERVE",
       "rewardMint": "CFPzKkPYqpyfNJp3WDB4dykMemfhwYrV9cgNUy7nsoPD",
-      "address": "DeliveryCostReserve111111111111111111111111",
+      "address": "9s5o1WQzecri6vZ3hViK8SkpUcfkcphoqi9SWUaiG4J",
       "custodyModel": "PROGRAM_CONTROLLED",
       "status": "PENDING_VERIFICATION",
       "receivesUserFunds": false,
@@ -78,7 +78,7 @@
       "label": "Rollover Vault",
       "role": "ROLLOVER",
       "rewardMint": "CFPzKkPYqpyfNJp3WDB4dykMemfhwYrV9cgNUy7nsoPD",
-      "address": "RolloverVault111111111111111111111111111",
+      "address": "HiY1b9iqxad4Am51fgLn9zjswmWc1SN4qmwGHDiVhGre",
       "custodyModel": "PROGRAM_CONTROLLED",
       "status": "PENDING_VERIFICATION",
       "receivesUserFunds": false,

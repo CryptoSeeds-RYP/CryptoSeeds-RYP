@@ -91,9 +91,11 @@ export type ProjectLifecycleStatus =
 
 export const PROTOCOL_INSTRUCTION_SPECS = protocolInstructionSpecsJson as Record<string, ProtocolInstructionSpec>;
 const U16_MAX = 2n ** 16n - 1n;
+const U32_MAX = 2n ** 32n - 1n;
 const U64_MAX = 2n ** 64n - 1n;
 const I64_MIN = -(2n ** 63n);
 const I64_MAX = 2n ** 63n - 1n;
+export const MAX_REWARD_MERKLE_PROOF_NODES = 32;
 
 const REWARD_ROLE_VARIANTS: Record<RewardClaimRole, number> = {
   HOLDER_REWARD: 0,
@@ -181,6 +183,18 @@ export type CreateRewardClaimRecordPlanInput = {
   deliveryCostAmountBaseUnits: bigint | number | string;
   netClaimAmountBaseUnits: bigint | number | string;
   rolledForwardAmountBaseUnits: bigint | number | string;
+};
+
+export type CreateRewardClaimRecordFromProofPlanInput = {
+  ownerAddress: string;
+  epochId: bigint | number | string;
+  rewardRole: RewardClaimRole;
+  grossAllocationAmountBaseUnits: bigint | number | string;
+  deliveryCostAmountBaseUnits: bigint | number | string;
+  netClaimAmountBaseUnits: bigint | number | string;
+  rolledForwardAmountBaseUnits: bigint | number | string;
+  leafIndex: bigint | number | string;
+  proof: Array<string | Uint8Array | number[]>;
 };
 
 export type RoutePlatformFeePlanInput = {
@@ -374,6 +388,56 @@ export function buildCreateRewardClaimRecordTransactionPlan({
     warnings: [
       "Admin-only reward record creation; the epoch must already be reviewed on-chain.",
       "Claim records are role-keyed so holder and staker buckets cannot overwrite each other.",
+    ],
+  });
+}
+
+export function buildCreateRewardClaimRecordFromProofTransactionPlan({
+  deliveryCostAmountBaseUnits,
+  epochId,
+  grossAllocationAmountBaseUnits,
+  leafIndex,
+  netClaimAmountBaseUnits,
+  ownerAddress,
+  proof,
+  rewardRole,
+  rolledForwardAmountBaseUnits,
+}: CreateRewardClaimRecordFromProofPlanInput): PreparedSolanaTransactionPlan {
+  const epoch = toU64(epochId);
+  const owner = new PublicKey(ownerAddress);
+  const proofHex = proofVecHex(proof);
+  const addresses = {
+    ...deriveProtocolAddresses(ownerAddress),
+    claimRecord: deriveRewardClaimRecordAddress({ epochId: epoch, rewardRole, walletAddress: ownerAddress }),
+    owner: owner.toBase58(),
+    rewardEpoch: deriveRewardEpochAddress(epoch),
+  };
+  const spec = instructionSpec("create_reward_claim_record_from_proof");
+  const instruction = instructionPlan({
+    accounts: accountsFromSpec(spec, addresses),
+    argDataHex: [
+      u64LeHex(epoch),
+      rewardRoleVariantHex(rewardRole),
+      u64LeHex(toU64(grossAllocationAmountBaseUnits)),
+      u64LeHex(toU64(deliveryCostAmountBaseUnits)),
+      u64LeHex(toU64(netClaimAmountBaseUnits)),
+      u64LeHex(toU64(rolledForwardAmountBaseUnits)),
+      u64LeHex(toU64(leafIndex)),
+      proofHex,
+    ].join(""),
+    discriminatorHex: spec.discriminatorHex,
+    instructionName: "create_reward_claim_record_from_proof",
+    programId: addresses.programId,
+  });
+
+  return transactionPlan({
+    action: "CREATE_REWARD_CLAIM_RECORD_FROM_PROOF",
+    addresses,
+    feePayer: addresses.owner,
+    instruction,
+    warnings: [
+      "Wallet-created reward record path; the epoch must already be reviewed and contain the matching Merkle root.",
+      "The wallet signs the record creation itself; no admin key, backend key, or custody route is used.",
     ],
   });
 }
@@ -1174,6 +1238,31 @@ function fixedHashHex(hash: string | Uint8Array | number[]) {
   return bytesToHex(bytes);
 }
 
+function fixedBytes32Hex(bytesLike: string | Uint8Array | number[], label: string) {
+  if (typeof bytesLike === "string") {
+    const normalized = bytesLike.replace(/^0x/i, "").trim();
+    if (!/^[0-9a-fA-F]{64}$/.test(normalized)) {
+      throw new Error(`${label} must be exactly 32 bytes encoded as 64 hex characters`);
+    }
+    return normalized.toLowerCase();
+  }
+
+  const bytes = bytesLike instanceof Uint8Array ? bytesLike : Uint8Array.from(bytesLike);
+  if (bytes.length !== 32) {
+    throw new Error(`${label} must be exactly 32 bytes`);
+  }
+  return bytesToHex(bytes);
+}
+
+function proofVecHex(proof: Array<string | Uint8Array | number[]>) {
+  if (proof.length > MAX_REWARD_MERKLE_PROOF_NODES) {
+    throw new Error(`Reward Merkle proof cannot exceed ${MAX_REWARD_MERKLE_PROOF_NODES} nodes`);
+  }
+  return `${u32LeHex(proof.length)}${proof
+    .map((node, index) => fixedBytes32Hex(node, `Reward Merkle proof node ${index}`))
+    .join("")}`;
+}
+
 function rewardRoleVariantHex(rewardRole: RewardClaimRole) {
   const variant = REWARD_ROLE_VARIANTS[rewardRole];
   if (variant === undefined) {
@@ -1202,6 +1291,18 @@ function u8Hex(value: number) {
 function u16LeHex(value: number) {
   assertU16(value);
   return bytesToHex(new Uint8Array([value & 0xff, (value >> 8) & 0xff]));
+}
+
+function u32LeHex(value: number) {
+  if (!Number.isInteger(value) || value < 0 || BigInt(value) > U32_MAX) {
+    throw new Error("u32 value is out of range");
+  }
+  return bytesToHex(new Uint8Array([
+    value & 0xff,
+    (value >> 8) & 0xff,
+    (value >> 16) & 0xff,
+    (value >> 24) & 0xff,
+  ]));
 }
 
 function u64LeBytes(value: bigint) {
