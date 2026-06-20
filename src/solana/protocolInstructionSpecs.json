@@ -113,6 +113,155 @@
       }
     ]
   },
+  "grant_project_operator": {
+    "discriminatorHex": "1dce004acb669928",
+    "args": [
+      "_project_id",
+      "operator",
+      "permissions"
+    ],
+    "accounts": [
+      {
+        "name": "authority",
+        "label": "authority",
+        "role": "authority",
+        "signer": true,
+        "writable": true
+      },
+      {
+        "name": "config",
+        "label": "config",
+        "role": "config",
+        "signer": false,
+        "writable": false
+      },
+      {
+        "name": "project",
+        "label": "project",
+        "role": "project",
+        "signer": false,
+        "writable": false
+      },
+      {
+        "name": "operator_record",
+        "label": "operator record",
+        "role": "operator record",
+        "signer": false,
+        "writable": true
+      },
+      {
+        "name": "system_program",
+        "label": "system program",
+        "role": "system program",
+        "signer": false,
+        "writable": false
+      }
+    ]
+  },
+  "operator_set_project_pause": {
+    "discriminatorHex": "28c2fd03db3d2c1e",
+    "args": [
+      "_project_id",
+      "paused"
+    ],
+    "accounts": [
+      {
+        "name": "operator",
+        "label": "operator",
+        "role": "operator",
+        "signer": true,
+        "writable": false
+      },
+      {
+        "name": "project",
+        "label": "project",
+        "role": "project",
+        "signer": false,
+        "writable": true
+      },
+      {
+        "name": "operator_record",
+        "label": "operator record",
+        "role": "operator record",
+        "signer": false,
+        "writable": false
+      }
+    ]
+  },
+  "operator_update_project_status": {
+    "discriminatorHex": "f709b629419ed37f",
+    "args": [
+      "_project_id",
+      "status"
+    ],
+    "accounts": [
+      {
+        "name": "operator",
+        "label": "operator",
+        "role": "operator",
+        "signer": true,
+        "writable": false
+      },
+      {
+        "name": "governance_proposal_account",
+        "label": "governance proposal",
+        "role": "governance proposal",
+        "signer": false,
+        "writable": false
+      },
+      {
+        "name": "project",
+        "label": "project",
+        "role": "project",
+        "signer": false,
+        "writable": true
+      },
+      {
+        "name": "operator_record",
+        "label": "operator record",
+        "role": "operator record",
+        "signer": false,
+        "writable": false
+      }
+    ]
+  },
+  "revoke_project_operator": {
+    "discriminatorHex": "873ef785e1dfcd19",
+    "args": [
+      "_project_id",
+      "_operator"
+    ],
+    "accounts": [
+      {
+        "name": "authority",
+        "label": "authority",
+        "role": "authority",
+        "signer": true,
+        "writable": false
+      },
+      {
+        "name": "config",
+        "label": "config",
+        "role": "config",
+        "signer": false,
+        "writable": false
+      },
+      {
+        "name": "project",
+        "label": "project",
+        "role": "project",
+        "signer": false,
+        "writable": false
+      },
+      {
+        "name": "operator_record",
+        "label": "operator record",
+        "role": "operator record",
+        "signer": false,
+        "writable": true
+      }
+    ]
+  },
   "expire_reward_epoch_claims": {
     "discriminatorHex": "b450565ce6f8ad7e",
     "args": [

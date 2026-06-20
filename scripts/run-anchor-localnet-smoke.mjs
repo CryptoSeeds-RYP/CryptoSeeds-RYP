@@ -32,6 +32,9 @@ const PROJECT_MAX_WALLET_PARTICIPATION_AMOUNT = 600n;
 const PROJECT_MAX_TOTAL_PARTICIPATION_AMOUNT = 1_000n;
 const PROJECT_PARTICIPATION_START_TS = 0n;
 const PROJECT_PARTICIPATION_END_TS = 4_102_444_800n;
+const PROJECT_OPERATOR_PERMISSION_STATUS = 1;
+const PROJECT_OPERATOR_PERMISSION_PAUSE = 2;
+const PROJECT_OPERATOR_PERMISSION_MASK = PROJECT_OPERATOR_PERMISSION_STATUS | PROJECT_OPERATOR_PERMISSION_PAUSE;
 const SEEDBOT_MAX_TRADE_AMOUNT = 500n;
 const SEEDBOT_MAX_DAILY_VOLUME_AMOUNT = 1_500n;
 const SEEDBOT_MAX_DAILY_TRADES = 3;
@@ -198,6 +201,7 @@ async function runSmoke(connection) {
   const intruder = Keypair.generate();
   const newAuthority = Keypair.generate();
   const projectAuthority = Keypair.generate();
+  const projectOperator = Keypair.generate();
   const mint = Keypair.generate();
   log("funding authority and owner wallets");
   await fund(connection, authority.publicKey, 10);
@@ -205,6 +209,7 @@ async function runSmoke(connection) {
   await fund(connection, intruder.publicKey, 10);
   await fund(connection, newAuthority.publicKey, 10);
   await fund(connection, projectAuthority.publicKey, 10);
+  await fund(connection, projectOperator.publicKey, 10);
 
   const [config] = PublicKey.findProgramAddressSync([Buffer.from("config")], programId);
   const [rewardConfig] = PublicKey.findProgramAddressSync([Buffer.from("reward-config")], programId);
@@ -499,6 +504,7 @@ async function runSmoke(connection) {
   const projectId = 21n;
   const project = deriveProjectAddress(projectId);
   const projectParticipation = deriveProjectParticipationAddress({ project, wallet: owner.publicKey });
+  const projectOperatorRecord = deriveProjectOperatorAddress({ operator: projectOperator.publicKey, project });
   log("calling register_project for governance-vote draft project");
   await registerProject(connection, {
     authority: projectAuthority,
@@ -545,6 +551,85 @@ async function runSmoke(connection) {
   await setProjectPause(connection, { authority: projectAuthority, config, paused: false, project, projectId });
   const unpausedProject = parseProjectRecord(await getAccountData(connection, project));
   assertEqual("project pause flag cleared", unpausedProject.participationPaused, false);
+
+  log("calling grant_project_operator for draft project");
+  await grantProjectOperator(connection, {
+    authority: projectAuthority,
+    config,
+    operator: projectOperator.publicKey,
+    operatorRecord: projectOperatorRecord,
+    permissions: PROJECT_OPERATOR_PERMISSION_MASK,
+    project,
+    projectId,
+  });
+  const grantedOperator = parseProjectOperatorRecord(await getAccountData(connection, projectOperatorRecord));
+  assertPublicKey("project operator record project", grantedOperator.project, project);
+  assertPublicKey("project operator record operator", grantedOperator.operator, projectOperator.publicKey);
+  assertPublicKey("project operator record authority", grantedOperator.authority, projectAuthority.publicKey);
+  assertEqual("project operator permissions", grantedOperator.permissions, PROJECT_OPERATOR_PERMISSION_MASK);
+  assertEqual("project operator active", grantedOperator.active, true);
+  assertEqual("project operator granted timestamp", grantedOperator.grantedAt > 0n, true);
+  assertEqual("project operator revoked timestamp inactive", grantedOperator.revokedAt, 0n);
+
+  log("calling operator_set_project_pause for draft project");
+  await operatorSetProjectPause(connection, {
+    operator: projectOperator,
+    operatorRecord: projectOperatorRecord,
+    paused: true,
+    project,
+    projectId,
+  });
+  const operatorPausedProject = parseProjectRecord(await getAccountData(connection, project));
+  assertEqual("operator project pause flag set", operatorPausedProject.participationPaused, true);
+  await operatorSetProjectPause(connection, {
+    operator: projectOperator,
+    operatorRecord: projectOperatorRecord,
+    paused: false,
+    project,
+    projectId,
+  });
+  const operatorUnpausedProject = parseProjectRecord(await getAccountData(connection, project));
+  assertEqual("operator project pause flag cleared", operatorUnpausedProject.participationPaused, false);
+
+  await expectFailure(
+    "operator_update_project_status rejects unauthorized status",
+    () =>
+      operatorUpdateProjectStatus(connection, {
+        governanceProposal: draftProposal,
+        operator: projectOperator,
+        operatorRecord: projectOperatorRecord,
+        project,
+        projectId,
+        statusVariant: 10,
+      }),
+    "custom program error",
+  );
+
+  log("calling revoke_project_operator for draft project");
+  await revokeProjectOperator(connection, {
+    authority: projectAuthority,
+    config,
+    operator: projectOperator.publicKey,
+    operatorRecord: projectOperatorRecord,
+    project,
+    projectId,
+  });
+  const revokedOperator = parseProjectOperatorRecord(await getAccountData(connection, projectOperatorRecord));
+  assertEqual("project operator inactive after revoke", revokedOperator.active, false);
+  assertEqual("project operator revoked timestamp set", revokedOperator.revokedAt > 0n, true);
+
+  await expectFailure(
+    "operator_set_project_pause rejects revoked operator",
+    () =>
+      operatorSetProjectPause(connection, {
+        operator: projectOperator,
+        operatorRecord: projectOperatorRecord,
+        paused: true,
+        project,
+        projectId,
+      }),
+    "custom program error",
+  );
 
   await expectFailure(
     "update_project_status rejects open project before approved governance",
@@ -954,6 +1039,11 @@ async function runSmoke(connection) {
 	      "project_participation_bounds_accounting",
 	      "reject_non_authority_project_pause",
 	      "project_pause_toggle",
+	      "grant_project_operator",
+	      "operator_project_pause_toggle",
+	      "reject_operator_project_status_transition",
+	      "revoke_project_operator",
+	      "reject_revoked_project_operator",
 	      "reject_project_status_open_before_approved_governance",
 	      "reject_participation_before_project_open",
 	      "reject_project_refund_pool_above_participation",
@@ -2078,6 +2168,92 @@ async function setProjectPause(connection, { authority, config, paused, project,
   await sendAndConfirm(connection, new Transaction().add(instruction), [authority]);
 }
 
+async function grantProjectOperator(
+  connection,
+  { authority, config, operator, operatorRecord, permissions, project, projectId },
+) {
+  const data = Buffer.alloc(8 + 8 + 32 + 2);
+  discriminator("grant_project_operator").copy(data, 0);
+  data.writeBigUInt64LE(projectId, 8);
+  operator.toBuffer().copy(data, 16);
+  data.writeUInt16LE(permissions, 48);
+  const instruction = new TransactionInstruction({
+    programId,
+    keys: [
+      accountMeta(authority.publicKey, true, true),
+      accountMeta(config, false, false),
+      accountMeta(project, false, false),
+      accountMeta(operatorRecord, false, true),
+      accountMeta(SystemProgram.programId, false, false),
+    ],
+    data,
+  });
+
+  await sendAndConfirm(connection, new Transaction().add(instruction), [authority]);
+}
+
+async function revokeProjectOperator(
+  connection,
+  { authority, config, operator, operatorRecord, project, projectId },
+) {
+  const data = Buffer.alloc(8 + 8 + 32);
+  discriminator("revoke_project_operator").copy(data, 0);
+  data.writeBigUInt64LE(projectId, 8);
+  operator.toBuffer().copy(data, 16);
+  const instruction = new TransactionInstruction({
+    programId,
+    keys: [
+      accountMeta(authority.publicKey, true, false),
+      accountMeta(config, false, false),
+      accountMeta(project, false, false),
+      accountMeta(operatorRecord, false, true),
+    ],
+    data,
+  });
+
+  await sendAndConfirm(connection, new Transaction().add(instruction), [authority]);
+}
+
+async function operatorUpdateProjectStatus(
+  connection,
+  { governanceProposal, operator, operatorRecord, project, projectId, statusVariant },
+) {
+  const data = Buffer.alloc(8 + 8 + 1);
+  discriminator("operator_update_project_status").copy(data, 0);
+  data.writeBigUInt64LE(projectId, 8);
+  data.writeUInt8(statusVariant, 16);
+  const instruction = new TransactionInstruction({
+    programId,
+    keys: [
+      accountMeta(operator.publicKey, true, false),
+      accountMeta(governanceProposal, false, false),
+      accountMeta(project, false, true),
+      accountMeta(operatorRecord, false, false),
+    ],
+    data,
+  });
+
+  await sendAndConfirm(connection, new Transaction().add(instruction), [operator]);
+}
+
+async function operatorSetProjectPause(connection, { operator, operatorRecord, paused, project, projectId }) {
+  const data = Buffer.alloc(8 + 8 + 1);
+  discriminator("operator_set_project_pause").copy(data, 0);
+  data.writeBigUInt64LE(projectId, 8);
+  data.writeUInt8(paused ? 1 : 0, 16);
+  const instruction = new TransactionInstruction({
+    programId,
+    keys: [
+      accountMeta(operator.publicKey, true, false),
+      accountMeta(project, false, true),
+      accountMeta(operatorRecord, false, false),
+    ],
+    data,
+  });
+
+  await sendAndConfirm(connection, new Transaction().add(instruction), [operator]);
+}
+
 async function cancelProject(connection, { authority, config, project, projectId, refundPoolAmount }) {
   const data = Buffer.alloc(8 + 8 + 32 + 8);
   discriminator("cancel_project").copy(data, 0);
@@ -2300,6 +2476,13 @@ function deriveProjectAddress(projectId) {
 function deriveProjectParticipationAddress({ project, wallet }) {
   return PublicKey.findProgramAddressSync(
     [Buffer.from("project-participation"), project.toBuffer(), wallet.toBuffer()],
+    programId,
+  )[0];
+}
+
+function deriveProjectOperatorAddress({ project, operator }) {
+  return PublicKey.findProgramAddressSync(
+    [Buffer.from("project-operator"), project.toBuffer(), operator.toBuffer()],
     programId,
   )[0];
 }
@@ -2737,6 +2920,22 @@ function parseProjectParticipationRecord(data) {
     participationAmount: data.readBigUInt64LE(offset.participation_amount),
     joinedAt: data.readBigInt64LE(offset.joined_at),
     status: data.readUInt8(offset.status),
+    bump: data.readUInt8(offset.bump),
+  };
+}
+
+function parseProjectOperatorRecord(data) {
+  assertRewardAccountLayout(data, "ProjectOperatorRecord");
+  const offset = rewardAccountOffsets.ProjectOperatorRecord;
+
+  return {
+    project: new PublicKey(data.subarray(offset.project, offset.project + 32)),
+    operator: new PublicKey(data.subarray(offset.operator, offset.operator + 32)),
+    authority: new PublicKey(data.subarray(offset.authority, offset.authority + 32)),
+    permissions: data.readUInt16LE(offset.permissions),
+    active: data.readUInt8(offset.active) === 1,
+    grantedAt: data.readBigInt64LE(offset.granted_at),
+    revokedAt: data.readBigInt64LE(offset.revoked_at),
     bump: data.readUInt8(offset.bump),
   };
 }

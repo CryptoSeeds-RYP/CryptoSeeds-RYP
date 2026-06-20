@@ -18,7 +18,7 @@ The current local machine has two verification paths:
 - Frontend/IDL drift checks through `npm run protocol:idl:check`.
 - WSL local validator smoke checks through `npm run protocol:smoke:localnet:wsl`.
 
-The WSL route is the primary local path for Anchor builds. The localnet smoke check preloads the compiled SBF program with `solana-test-validator --bpf-program`, creates a test RYP-like mint, checks invalid config and unauthorized action rejections, initializes config, stakes, verifies voting-delay/top-up/partial-unstake behavior, verifies pause enforcement, and unstakes. Full public deployment verification still needs a synced devnet/mainnet program id and key-management review.
+The WSL route is the primary local path for Anchor builds. The localnet smoke check preloads the compiled SBF program with `solana-test-validator --bpf-program`, creates a test RYP-like mint, checks invalid config and unauthorized action rejections, initializes config, stakes, verifies project authority and operator delegation, verifies voting-delay/top-up/partial-unstake behavior, verifies pause enforcement, and unstakes. Full public deployment verification still needs a synced devnet/mainnet program id and key-management review.
 
 ## First Program
 
@@ -54,6 +54,8 @@ Current scope:
 - Register project records with ProjectApproval governance binding, per-wallet caps, total allocation caps, and participation windows
 - Update project lifecycle status with ProjectApproval governance binding
 - Toggle project-level participation pause without changing lifecycle status
+- Grant and revoke project-scoped operator records with explicit status/pause permissions
+- Let active project operators perform limited status/pause actions without fund movement or global authority
 - Record project participation by wallet with per-wallet and project-level allocation accounting
 - Record project cancellation and external refund accounting without custody or token movement
 - Create/revoke bounded SeedBot permission records
@@ -61,7 +63,7 @@ Current scope:
 - Emergency pause
 - Emit protocol events
 
-Current localnet security coverage includes rejected duplicate tier thresholds, reward config initialization, rejected invalid reward splits, rejected blank reward metadata, reward vault registration and verification, wallet-approved platform fee routing into holder/staker/treasury vaults, rejected pending-vault reward epochs, rejected reward metadata mismatch, rejected non-authority reward verification, rejected unbalanced reward epochs, balanced reward epoch drafts, reviewed reward epochs, holder reward token claims, staker rollover claims, reward epoch expiry accounting, duplicate reward claim rejection, governance proposal window/minimum-vote storage, rejected early governance close, deterministic governance proposal close, blocked voting without active voting rights, project authority transfer and acceptance, rejected stale project authority, rejected public project registration before approved governance, rejected invalid project participation bounds, rejected invalid project participation windows, draft project registration against an open ProjectApproval proposal, project min/max/wallet-cap participation accounting, rejected non-authority project pause, project pause toggling, rejected public project status update before approved governance, rejected participation before project-open status, rejected project refund pools above recorded participation, project cancellation accounting, rejected invalid project refund accounting, SeedBot permission creation/revocation/renewal, owner-signed SeedBot usage accounting, rejected SeedBot daily-cap breaches, rejected below-Seed staking, Golden Key receipt issue/revoke lifecycle, rejected early voting-right activation, rejected mismatched-owner unstaking, rejected oversized unstaking, Seed-to-Sprout top-up state preservation, Sprout-to-Seed partial unstake state preservation, rejected non-authority pause attempts, pause enforcement for stake, unstake, and voting activation paths, and two-step protocol/reward authority rotation with stale-authority rejection.
+Current localnet security coverage includes rejected duplicate tier thresholds, reward config initialization, rejected invalid reward splits, rejected blank reward metadata, reward vault registration and verification, wallet-approved platform fee routing into holder/staker/treasury vaults, rejected pending-vault reward epochs, rejected reward metadata mismatch, rejected non-authority reward verification, rejected unbalanced reward epochs, balanced reward epoch drafts, reviewed reward epochs, holder reward token claims, staker rollover claims, reward epoch expiry accounting, duplicate reward claim rejection, governance proposal window/minimum-vote storage, rejected early governance close, deterministic governance proposal close, blocked voting without active voting rights, project authority transfer and acceptance, rejected stale project authority, rejected public project registration before approved governance, rejected invalid project participation bounds, rejected invalid project participation windows, draft project registration against an open ProjectApproval proposal, project min/max/wallet-cap participation accounting, rejected non-authority project pause, project pause toggling, project operator grants, operator project pause toggling, rejected operator-only unsafe status transitions, project operator revocation, rejected revoked-operator actions, rejected public project status update before approved governance, rejected participation before project-open status, rejected project refund pools above recorded participation, project cancellation accounting, rejected invalid project refund accounting, SeedBot permission creation/revocation/renewal, owner-signed SeedBot usage accounting, rejected SeedBot daily-cap breaches, rejected below-Seed staking, Golden Key receipt issue/revoke lifecycle, rejected early voting-right activation, rejected mismatched-owner unstaking, rejected oversized unstaking, Seed-to-Sprout top-up state preservation, Sprout-to-Seed partial unstake state preservation, rejected non-authority pause attempts, pause enforcement for stake, unstake, and voting activation paths, and two-step protocol/reward authority rotation with stale-authority rejection.
 
 Current Rust unit coverage also includes reward split totals, platform fee split/remainder math, reward cadence bounds, reward epoch accounting balance, and verified-vault requirements for epoch drafts.
 
@@ -71,7 +73,7 @@ Client preparation now has a TypeScript planning layer at `src/solana/protocolTr
 - Derives the per-wallet stake position PDA from `stake-position + wallet`
 - Derives the owner RYP associated token account
 - Derives the protocol RYP vault associated token account owned by the config PDA
-- Builds Anchor instruction data for staking, reward claims, platform fee routing, governance voting/proposals with explicit voting windows and minimum votes, project authority rotation, project registry/status updates with ProjectApproval account binding, project pause controls, project cancellation/refund accounting, project participation with wallet caps, allocation caps, and participation windows, SeedBot permissions, and fee config updates
+- Builds Anchor instruction data for staking, reward claims, platform fee routing, governance voting/proposals with explicit voting windows and minimum votes, project authority rotation, project operator grants/revocations, project registry/status updates with ProjectApproval account binding, project pause controls, project cancellation/refund accounting, project participation with wallet caps, allocation caps, and participation windows, SeedBot permissions, and fee config updates
 - Builds owner-signed SeedBot usage-record instruction previews for later guarded execution composition
 - Exposes account order, signer/writable flags, instruction discriminator, and raw data hex for wallet-preview surfaces
 - Rejects prepared token amounts outside Solana's u64 SPL token amount bounds before instruction data is encoded
@@ -128,6 +130,7 @@ For the first build, a single `cryptoseeds_protocol` program is acceptable while
 - No unlimited delegated trading authority
 - Use explicit pause controls
 - Keep authority paths visible
+- Keep delegated operator records project-scoped, permission-scoped, revocable, and unable to move funds
 - Emit events for staking and voting-right changes
 - Use checked arithmetic
 - Store token thresholds in base units

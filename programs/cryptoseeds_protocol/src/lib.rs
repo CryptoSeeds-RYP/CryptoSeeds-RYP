@@ -17,6 +17,7 @@ pub const GOVERNANCE_PROPOSAL_SEED: &[u8] = b"governance-proposal";
 pub const GOVERNANCE_VOTE_SEED: &[u8] = b"governance-vote";
 pub const PROJECT_RECORD_SEED: &[u8] = b"project-record";
 pub const PROJECT_PARTICIPATION_SEED: &[u8] = b"project-participation";
+pub const PROJECT_OPERATOR_SEED: &[u8] = b"project-operator";
 pub const SEEDBOT_PERMISSION_SEED: &[u8] = b"seedbot-permission";
 pub const VOTING_RIGHTS_DELAY_SECONDS: i64 = 14 * 24 * 60 * 60;
 pub const MAX_REWARD_EPOCH_CADENCE_SECONDS: i64 = 366 * 24 * 60 * 60;
@@ -31,6 +32,10 @@ pub const MAX_GOVERNANCE_VOTING_WINDOW_SECONDS: i64 = 90 * 24 * 60 * 60;
 pub const MAX_GOVERNANCE_MINIMUM_VOTES: u64 = 1_000_000;
 pub const BPS_DENOMINATOR: u16 = 10_000;
 pub const VOTING_RIGHTS_LEVEL_TWO_VOTE_COUNT: u32 = 100;
+pub const PROJECT_OPERATOR_PERMISSION_STATUS: u16 = 1;
+pub const PROJECT_OPERATOR_PERMISSION_PAUSE: u16 = 2;
+pub const PROJECT_OPERATOR_PERMISSION_MASK: u16 =
+    PROJECT_OPERATOR_PERMISSION_STATUS | PROJECT_OPERATOR_PERMISSION_PAUSE;
 
 #[program]
 pub mod cryptoseeds_protocol {
@@ -1437,6 +1442,61 @@ pub mod cryptoseeds_protocol {
         Ok(())
     }
 
+    pub fn grant_project_operator(
+        ctx: Context<GrantProjectOperator>,
+        _project_id: u64,
+        operator: Pubkey,
+        permissions: u16,
+    ) -> Result<()> {
+        validate_project_authority(&ctx.accounts.config, &ctx.accounts.authority.key())?;
+        validate_project_operator_permissions(permissions)?;
+        require!(
+            operator != Pubkey::default() && operator != ctx.accounts.authority.key(),
+            CryptoSeedsError::InvalidProjectOperator
+        );
+
+        let clock = Clock::get()?;
+        let operator_record = &mut ctx.accounts.operator_record;
+        operator_record.project = ctx.accounts.project.key();
+        operator_record.operator = operator;
+        operator_record.authority = ctx.accounts.authority.key();
+        operator_record.permissions = permissions;
+        operator_record.active = true;
+        operator_record.granted_at = clock.unix_timestamp;
+        operator_record.revoked_at = 0;
+        operator_record.bump = ctx.bumps.operator_record;
+
+        emit!(ProjectOperatorGranted {
+            project: operator_record.project,
+            operator,
+            permissions,
+        });
+
+        Ok(())
+    }
+
+    pub fn revoke_project_operator(
+        ctx: Context<RevokeProjectOperator>,
+        _project_id: u64,
+        _operator: Pubkey,
+    ) -> Result<()> {
+        validate_project_authority(&ctx.accounts.config, &ctx.accounts.authority.key())?;
+        require!(
+            ctx.accounts.operator_record.active,
+            CryptoSeedsError::ProjectOperatorInactive
+        );
+
+        ctx.accounts.operator_record.active = false;
+        ctx.accounts.operator_record.revoked_at = Clock::get()?.unix_timestamp;
+
+        emit!(ProjectOperatorRevoked {
+            project: ctx.accounts.operator_record.project,
+            operator: ctx.accounts.operator_record.operator,
+        });
+
+        Ok(())
+    }
+
     pub fn update_project_status(
         ctx: Context<UpdateProjectStatus>,
         _project_id: u64,
@@ -1463,12 +1523,65 @@ pub mod cryptoseeds_protocol {
         Ok(())
     }
 
+    pub fn operator_update_project_status(
+        ctx: Context<OperatorUpdateProjectStatus>,
+        _project_id: u64,
+        status: ProjectStatus,
+    ) -> Result<()> {
+        validate_project_operator(
+            &ctx.accounts.operator_record,
+            ctx.accounts.project.key(),
+            ctx.accounts.operator.key(),
+            PROJECT_OPERATOR_PERMISSION_STATUS,
+        )?;
+        validate_operator_project_status(status)?;
+        require_keys_eq!(
+            ctx.accounts.project.governance_proposal,
+            ctx.accounts.governance_proposal_account.key(),
+            CryptoSeedsError::InvalidProjectGovernanceProposal
+        );
+        validate_project_status_against_governance(
+            &ctx.accounts.governance_proposal_account,
+            status,
+        )?;
+
+        ctx.accounts.project.status = status;
+
+        emit!(ProjectStatusUpdated {
+            project: ctx.accounts.project.key(),
+            status,
+        });
+
+        Ok(())
+    }
+
     pub fn set_project_pause(
         ctx: Context<SetProjectPause>,
         _project_id: u64,
         paused: bool,
     ) -> Result<()> {
         validate_project_authority(&ctx.accounts.config, &ctx.accounts.authority.key())?;
+        ctx.accounts.project.participation_paused = paused;
+
+        emit!(ProjectPauseUpdated {
+            project: ctx.accounts.project.key(),
+            paused,
+        });
+
+        Ok(())
+    }
+
+    pub fn operator_set_project_pause(
+        ctx: Context<OperatorSetProjectPause>,
+        _project_id: u64,
+        paused: bool,
+    ) -> Result<()> {
+        validate_project_operator(
+            &ctx.accounts.operator_record,
+            ctx.accounts.project.key(),
+            ctx.accounts.operator.key(),
+            PROJECT_OPERATOR_PERMISSION_PAUSE,
+        )?;
         ctx.accounts.project.participation_paused = paused;
 
         emit!(ProjectPauseUpdated {
@@ -2439,6 +2552,48 @@ pub struct RegisterProject<'info> {
 }
 
 #[derive(Accounts)]
+#[instruction(project_id: u64, operator: Pubkey)]
+pub struct GrantProjectOperator<'info> {
+    #[account(mut)]
+    pub authority: Signer<'info>,
+    #[account(seeds = [CONFIG_SEED], bump = config.bump)]
+    pub config: Account<'info, ProtocolConfig>,
+    #[account(
+        seeds = [PROJECT_RECORD_SEED, project_id.to_le_bytes().as_ref()],
+        bump = project.bump
+    )]
+    pub project: Account<'info, ProjectRecord>,
+    #[account(
+        init,
+        payer = authority,
+        space = 8 + ProjectOperatorRecord::INIT_SPACE,
+        seeds = [PROJECT_OPERATOR_SEED, project.key().as_ref(), operator.as_ref()],
+        bump
+    )]
+    pub operator_record: Account<'info, ProjectOperatorRecord>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+#[instruction(project_id: u64, operator: Pubkey)]
+pub struct RevokeProjectOperator<'info> {
+    pub authority: Signer<'info>,
+    #[account(seeds = [CONFIG_SEED], bump = config.bump)]
+    pub config: Account<'info, ProtocolConfig>,
+    #[account(
+        seeds = [PROJECT_RECORD_SEED, project_id.to_le_bytes().as_ref()],
+        bump = project.bump
+    )]
+    pub project: Account<'info, ProjectRecord>,
+    #[account(
+        mut,
+        seeds = [PROJECT_OPERATOR_SEED, project.key().as_ref(), operator.as_ref()],
+        bump = operator_record.bump
+    )]
+    pub operator_record: Account<'info, ProjectOperatorRecord>,
+}
+
+#[derive(Accounts)]
 #[instruction(project_id: u64)]
 pub struct UpdateProjectStatus<'info> {
     pub authority: Signer<'info>,
@@ -2455,6 +2610,24 @@ pub struct UpdateProjectStatus<'info> {
 
 #[derive(Accounts)]
 #[instruction(project_id: u64)]
+pub struct OperatorUpdateProjectStatus<'info> {
+    pub operator: Signer<'info>,
+    pub governance_proposal_account: Account<'info, GovernanceProposal>,
+    #[account(
+        mut,
+        seeds = [PROJECT_RECORD_SEED, project_id.to_le_bytes().as_ref()],
+        bump = project.bump
+    )]
+    pub project: Account<'info, ProjectRecord>,
+    #[account(
+        seeds = [PROJECT_OPERATOR_SEED, project.key().as_ref(), operator.key().as_ref()],
+        bump = operator_record.bump
+    )]
+    pub operator_record: Account<'info, ProjectOperatorRecord>,
+}
+
+#[derive(Accounts)]
+#[instruction(project_id: u64)]
 pub struct SetProjectPause<'info> {
     pub authority: Signer<'info>,
     #[account(seeds = [CONFIG_SEED], bump = config.bump)]
@@ -2465,6 +2638,23 @@ pub struct SetProjectPause<'info> {
         bump = project.bump
     )]
     pub project: Account<'info, ProjectRecord>,
+}
+
+#[derive(Accounts)]
+#[instruction(project_id: u64)]
+pub struct OperatorSetProjectPause<'info> {
+    pub operator: Signer<'info>,
+    #[account(
+        mut,
+        seeds = [PROJECT_RECORD_SEED, project_id.to_le_bytes().as_ref()],
+        bump = project.bump
+    )]
+    pub project: Account<'info, ProjectRecord>,
+    #[account(
+        seeds = [PROJECT_OPERATOR_SEED, project.key().as_ref(), operator.key().as_ref()],
+        bump = operator_record.bump
+    )]
+    pub operator_record: Account<'info, ProjectOperatorRecord>,
 }
 
 #[derive(Accounts)]
@@ -2776,6 +2966,19 @@ pub struct ProjectParticipationRecord {
     pub disclosure_hash: [u8; 32],
     pub joined_at: i64,
     pub status: ProjectParticipationStatus,
+    pub bump: u8,
+}
+
+#[account]
+#[derive(InitSpace)]
+pub struct ProjectOperatorRecord {
+    pub project: Pubkey,
+    pub operator: Pubkey,
+    pub authority: Pubkey,
+    pub permissions: u16,
+    pub active: bool,
+    pub granted_at: i64,
+    pub revoked_at: i64,
     pub bump: u8,
 }
 
@@ -3221,6 +3424,19 @@ pub struct ProjectRegistered {
 }
 
 #[event]
+pub struct ProjectOperatorGranted {
+    pub project: Pubkey,
+    pub operator: Pubkey,
+    pub permissions: u16,
+}
+
+#[event]
+pub struct ProjectOperatorRevoked {
+    pub project: Pubkey,
+    pub operator: Pubkey,
+}
+
+#[event]
 pub struct ProjectStatusUpdated {
     pub project: Pubkey,
     pub status: ProjectStatus,
@@ -3413,6 +3629,14 @@ pub enum CryptoSeedsError {
     ProjectParticipationCapExceeded,
     #[msg("Project status transition is invalid.")]
     InvalidProjectStatusTransition,
+    #[msg("Project operator is invalid.")]
+    InvalidProjectOperator,
+    #[msg("Project operator permissions are invalid.")]
+    InvalidProjectOperatorPermissions,
+    #[msg("Project operator record is inactive.")]
+    ProjectOperatorInactive,
+    #[msg("Project operator does not have permission for this action.")]
+    ProjectOperatorPermissionDenied,
     #[msg("Project refund accounting exceeds the recorded refund pool.")]
     ProjectRefundExceedsPool,
     #[msg("Project must be cancelled before refund accounting is recorded.")]
@@ -3472,6 +3696,58 @@ fn validate_project_authority(config: &ProtocolConfig, authority: &Pubkey) -> Re
         config.project_authority,
         *authority,
         CryptoSeedsError::Unauthorized
+    );
+    Ok(())
+}
+
+fn validate_project_operator_permissions(permissions: u16) -> Result<()> {
+    require!(
+        permissions > 0 && permissions & !PROJECT_OPERATOR_PERMISSION_MASK == 0,
+        CryptoSeedsError::InvalidProjectOperatorPermissions
+    );
+    Ok(())
+}
+
+fn validate_project_operator(
+    operator_record: &ProjectOperatorRecord,
+    project: Pubkey,
+    operator: Pubkey,
+    required_permission: u16,
+) -> Result<()> {
+    require_keys_eq!(
+        operator_record.project,
+        project,
+        CryptoSeedsError::InvalidProjectOperator
+    );
+    require_keys_eq!(
+        operator_record.operator,
+        operator,
+        CryptoSeedsError::InvalidProjectOperator
+    );
+    require!(
+        operator_record.active,
+        CryptoSeedsError::ProjectOperatorInactive
+    );
+    require!(
+        operator_record.permissions & required_permission == required_permission,
+        CryptoSeedsError::ProjectOperatorPermissionDenied
+    );
+    Ok(())
+}
+
+fn validate_operator_project_status(status: ProjectStatus) -> Result<()> {
+    require!(
+        matches!(
+            status,
+            ProjectStatus::Approved
+                | ProjectStatus::Open
+                | ProjectStatus::Active
+                | ProjectStatus::MilestoneReached
+                | ProjectStatus::HarvestAvailable
+                | ProjectStatus::Completed
+                | ProjectStatus::Paused
+        ),
+        CryptoSeedsError::InvalidProjectStatusTransition
     );
     Ok(())
 }
@@ -4906,6 +5182,70 @@ mod tests {
     }
 
     #[test]
+    fn validates_project_operator_permissions_and_records() {
+        assert!(validate_project_operator_permissions(PROJECT_OPERATOR_PERMISSION_STATUS).is_ok());
+        assert!(validate_project_operator_permissions(PROJECT_OPERATOR_PERMISSION_PAUSE).is_ok());
+        assert!(validate_project_operator_permissions(PROJECT_OPERATOR_PERMISSION_MASK).is_ok());
+        assert!(validate_project_operator_permissions(0).is_err());
+        assert!(
+            validate_project_operator_permissions(PROJECT_OPERATOR_PERMISSION_MASK | 4).is_err()
+        );
+
+        let project = Pubkey::new_unique();
+        let operator = Pubkey::new_unique();
+        let mut record =
+            project_operator_record(project, operator, PROJECT_OPERATOR_PERMISSION_STATUS);
+
+        assert!(validate_project_operator(
+            &record,
+            project,
+            operator,
+            PROJECT_OPERATOR_PERMISSION_STATUS
+        )
+        .is_ok());
+        assert!(validate_project_operator(
+            &record,
+            project,
+            operator,
+            PROJECT_OPERATOR_PERMISSION_PAUSE
+        )
+        .is_err());
+        assert!(validate_project_operator(
+            &record,
+            Pubkey::new_unique(),
+            operator,
+            PROJECT_OPERATOR_PERMISSION_STATUS
+        )
+        .is_err());
+        assert!(validate_project_operator(
+            &record,
+            project,
+            Pubkey::new_unique(),
+            PROJECT_OPERATOR_PERMISSION_STATUS
+        )
+        .is_err());
+
+        record.active = false;
+        assert!(validate_project_operator(
+            &record,
+            project,
+            operator,
+            PROJECT_OPERATOR_PERMISSION_STATUS
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn limits_operator_status_transitions() {
+        assert!(validate_operator_project_status(ProjectStatus::Open).is_ok());
+        assert!(validate_operator_project_status(ProjectStatus::MilestoneReached).is_ok());
+        assert!(validate_operator_project_status(ProjectStatus::Completed).is_ok());
+        assert!(validate_operator_project_status(ProjectStatus::Cancelled).is_err());
+        assert!(validate_operator_project_status(ProjectStatus::Rejected).is_err());
+        assert!(validate_operator_project_status(ProjectStatus::GovernanceVote).is_err());
+    }
+
+    #[test]
     fn validates_seedbot_permission_bounds() {
         let now = 1_000;
         assert!(
@@ -5330,6 +5670,23 @@ mod tests {
             pending_authority: Pubkey::default(),
             project_authority: authority,
             pending_project_authority: Pubkey::default(),
+        }
+    }
+
+    fn project_operator_record(
+        project: Pubkey,
+        operator: Pubkey,
+        permissions: u16,
+    ) -> ProjectOperatorRecord {
+        ProjectOperatorRecord {
+            project,
+            operator,
+            authority: Pubkey::new_unique(),
+            permissions,
+            active: true,
+            granted_at: 1_000,
+            revoked_at: 0,
+            bump: 255,
         }
     }
 

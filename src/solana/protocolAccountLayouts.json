@@ -299,6 +299,60 @@
       }
     ]
   },
+  "ProjectOperatorRecord": {
+    "discriminatorHex": "03ab08c7eeb49be6",
+    "minimumLength": 124,
+    "fields": [
+      {
+        "name": "project",
+        "type": "pubkey",
+        "offset": 8,
+        "size": 32
+      },
+      {
+        "name": "operator",
+        "type": "pubkey",
+        "offset": 40,
+        "size": 32
+      },
+      {
+        "name": "authority",
+        "type": "pubkey",
+        "offset": 72,
+        "size": 32
+      },
+      {
+        "name": "permissions",
+        "type": "u16",
+        "offset": 104,
+        "size": 2
+      },
+      {
+        "name": "active",
+        "type": "bool",
+        "offset": 106,
+        "size": 1
+      },
+      {
+        "name": "granted_at",
+        "type": "i64",
+        "offset": 107,
+        "size": 8
+      },
+      {
+        "name": "revoked_at",
+        "type": "i64",
+        "offset": 115,
+        "size": 8
+      },
+      {
+        "name": "bump",
+        "type": "u8",
+        "offset": 123,
+        "size": 1
+      }
+    ]
+  },
   "ProtocolConfig": {
     "discriminatorHex": "cf5bfa1c98b3d7d1",
     "minimumLength": 262,

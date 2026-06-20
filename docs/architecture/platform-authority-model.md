@@ -20,7 +20,8 @@ CryptoSeeds should operate as a self-custodial platform and interface layer. Use
 | Emergency pause | Localnet admin authority | Multisig authority with public incident log |
 | Fee parameters | Configurable | Multisig plus timelock before non-emergency changes |
 | Project registry | Separate project authority | Operator disclosure, document hashes, risk labels, governance approval |
-| Project pause/cancellation/refund accounting | Separate project authority | Multisig plus incident log before public use |
+| Project operator delegation | Project-scoped operator records | Permission-scoped, revocable operators with public disclosure |
+| Project pause/cancellation/refund accounting | Separate project authority; limited pause/status operator records | Multisig plus incident log before public use |
 | Treasury wallets | Disclosure required | Independent multisig wallets with labels and reporting cadence |
 | SeedBot permissions | Disabled | Revocable permission registry before guarded automation |
 
@@ -33,6 +34,8 @@ Protocol, project, and reward authority rotation is two-step on-chain:
 3. The program clears the pending authority after acceptance.
 
 `ProtocolConfig` stores a separate project authority and pending project authority. Project registry, project lifecycle updates, project pause, project cancellation, and project refund accounting use this project authority instead of the main protocol authority.
+
+Project operator records are derived per project and operator wallet. The project authority can grant or revoke limited permissions such as status updates or participation pause toggles. Operators cannot move funds, alter treasury/reward routing, change fee parameters, cancel projects, record refund accounting, or take over project authority.
 
 `RewardConfig` has its own pending authority field so reward administration can be rotated deliberately after the protocol authority accepts. This avoids a silent one-step authority swap and reduces accidental lockout risk.
 

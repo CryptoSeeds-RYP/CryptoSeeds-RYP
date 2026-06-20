@@ -20,6 +20,7 @@ export const GOVERNANCE_PROPOSAL_SEED = "governance-proposal";
 export const GOVERNANCE_VOTE_SEED = "governance-vote";
 export const PROJECT_RECORD_SEED = "project-record";
 export const PROJECT_PARTICIPATION_SEED = "project-participation";
+export const PROJECT_OPERATOR_SEED = "project-operator";
 export const SEEDBOT_PERMISSION_SEED = "seedbot-permission";
 export const SPL_TOKEN_PROGRAM_ID = new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
 export const ASSOCIATED_TOKEN_PROGRAM_ID = new PublicKey("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL");
@@ -47,6 +48,8 @@ type ProtocolAddressBook = ReturnType<typeof deriveProtocolAddresses> &
     holderRewardVaultState?: string;
     independentTreasuryVault?: string;
     independentTreasuryVaultState?: string;
+    operator?: string;
+    operatorRecord?: string;
     ownerRewardAccount?: string;
     participation?: string;
     payer?: string;
@@ -99,6 +102,9 @@ const U64_MAX = 2n ** 64n - 1n;
 const I64_MIN = -(2n ** 63n);
 const I64_MAX = 2n ** 63n - 1n;
 export const MAX_REWARD_MERKLE_PROOF_NODES = 32;
+export const PROJECT_OPERATOR_PERMISSION_STATUS = 1;
+export const PROJECT_OPERATOR_PERMISSION_PAUSE = 2;
+export const PROJECT_OPERATOR_PERMISSION_MASK = PROJECT_OPERATOR_PERMISSION_STATUS | PROJECT_OPERATOR_PERMISSION_PAUSE;
 
 const REWARD_ROLE_VARIANTS: Record<RewardClaimRole, number> = {
   HOLDER_REWARD: 0,
@@ -260,6 +266,19 @@ export type RegisterProjectPlanInput = {
   participationEndsAtUnix: bigint | number | string;
 };
 
+export type GrantProjectOperatorPlanInput = {
+  authorityAddress: string;
+  projectId: bigint | number | string;
+  operatorAddress: string;
+  permissions: number;
+};
+
+export type RevokeProjectOperatorPlanInput = {
+  authorityAddress: string;
+  projectId: bigint | number | string;
+  operatorAddress: string;
+};
+
 export type UpdateProjectStatusPlanInput = {
   authorityAddress: string;
   projectId: bigint | number | string;
@@ -267,8 +286,21 @@ export type UpdateProjectStatusPlanInput = {
   status: ProjectLifecycleStatus;
 };
 
+export type OperatorUpdateProjectStatusPlanInput = {
+  operatorAddress: string;
+  projectId: bigint | number | string;
+  governanceProposalAddress: string;
+  status: ProjectLifecycleStatus;
+};
+
 export type SetProjectPausePlanInput = {
   authorityAddress: string;
+  projectId: bigint | number | string;
+  paused: boolean;
+};
+
+export type OperatorSetProjectPausePlanInput = {
+  operatorAddress: string;
   projectId: bigint | number | string;
   paused: boolean;
 };
@@ -866,6 +898,73 @@ export function buildRegisterProjectTransactionPlan({
   });
 }
 
+export function buildGrantProjectOperatorTransactionPlan({
+  authorityAddress,
+  operatorAddress,
+  permissions,
+  projectId,
+}: GrantProjectOperatorPlanInput): PreparedSolanaTransactionPlan {
+  assertProjectOperatorPermissions(permissions);
+  const project = toU64(projectId);
+  const operator = new PublicKey(operatorAddress);
+  const addresses = {
+    ...deriveProtocolAddresses(authorityAddress),
+    authority: new PublicKey(authorityAddress).toBase58(),
+    operatorRecord: deriveProjectOperatorAddress({ operatorAddress, projectId: project }),
+    project: deriveProjectRecordAddress(project),
+  };
+  const spec = instructionSpec("grant_project_operator");
+  const instruction = instructionPlan({
+    accounts: accountsFromSpec(spec, addresses),
+    argDataHex: [u64LeHex(project), pubkeyHex(operator), u16LeHex(permissions)].join(""),
+    discriminatorHex: spec.discriminatorHex,
+    instructionName: "grant_project_operator",
+    programId: addresses.programId,
+  });
+
+  return transactionPlan({
+    action: "GRANT_PROJECT_OPERATOR",
+    addresses,
+    feePayer: addresses.authority,
+    instruction,
+    warnings: [
+      "Project operator grants are project-scoped and do not transfer global project authority.",
+      "Operators can only use the explicitly granted status and/or pause permissions.",
+    ],
+  });
+}
+
+export function buildRevokeProjectOperatorTransactionPlan({
+  authorityAddress,
+  operatorAddress,
+  projectId,
+}: RevokeProjectOperatorPlanInput): PreparedSolanaTransactionPlan {
+  const project = toU64(projectId);
+  const operator = new PublicKey(operatorAddress);
+  const addresses = {
+    ...deriveProtocolAddresses(authorityAddress),
+    authority: new PublicKey(authorityAddress).toBase58(),
+    operatorRecord: deriveProjectOperatorAddress({ operatorAddress, projectId: project }),
+    project: deriveProjectRecordAddress(project),
+  };
+  const spec = instructionSpec("revoke_project_operator");
+  const instruction = instructionPlan({
+    accounts: accountsFromSpec(spec, addresses),
+    argDataHex: [u64LeHex(project), pubkeyHex(operator)].join(""),
+    discriminatorHex: spec.discriminatorHex,
+    instructionName: "revoke_project_operator",
+    programId: addresses.programId,
+  });
+
+  return transactionPlan({
+    action: "REVOKE_PROJECT_OPERATOR",
+    addresses,
+    feePayer: addresses.authority,
+    instruction,
+    warnings: ["Project operator revocation disables the project-scoped operator record."],
+  });
+}
+
 export function buildUpdateProjectStatusTransactionPlan({
   authorityAddress,
   governanceProposalAddress,
@@ -901,6 +1000,42 @@ export function buildUpdateProjectStatusTransactionPlan({
   });
 }
 
+export function buildOperatorUpdateProjectStatusTransactionPlan({
+  governanceProposalAddress,
+  operatorAddress,
+  projectId,
+  status,
+}: OperatorUpdateProjectStatusPlanInput): PreparedSolanaTransactionPlan {
+  const project = toU64(projectId);
+  const governanceProposal = new PublicKey(governanceProposalAddress);
+  const addresses = {
+    ...deriveProtocolAddresses(operatorAddress),
+    governanceProposalAccount: governanceProposal.toBase58(),
+    operator: new PublicKey(operatorAddress).toBase58(),
+    operatorRecord: deriveProjectOperatorAddress({ operatorAddress, projectId: project }),
+    project: deriveProjectRecordAddress(project),
+  };
+  const spec = instructionSpec("operator_update_project_status");
+  const instruction = instructionPlan({
+    accounts: accountsFromSpec(spec, addresses),
+    argDataHex: `${u64LeHex(project)}${enumVariantHex(status, PROJECT_STATUS_VARIANTS)}`,
+    discriminatorHex: spec.discriminatorHex,
+    instructionName: "operator_update_project_status",
+    programId: addresses.programId,
+  });
+
+  return transactionPlan({
+    action: "OPERATOR_UPDATE_PROJECT_STATUS",
+    addresses,
+    feePayer: addresses.operator,
+    instruction,
+    warnings: [
+      "Project operators can only use this path when their project-scoped record has status permission.",
+      "Cancellation and rejection remain outside the operator status path.",
+    ],
+  });
+}
+
 export function buildSetProjectPauseTransactionPlan({
   authorityAddress,
   paused,
@@ -929,6 +1064,39 @@ export function buildSetProjectPauseTransactionPlan({
     warnings: [
       "Admin-only project participation pause control.",
       "This blocks new project participation without changing lifecycle status or moving funds.",
+    ],
+  });
+}
+
+export function buildOperatorSetProjectPauseTransactionPlan({
+  operatorAddress,
+  paused,
+  projectId,
+}: OperatorSetProjectPausePlanInput): PreparedSolanaTransactionPlan {
+  const project = toU64(projectId);
+  const addresses = {
+    ...deriveProtocolAddresses(operatorAddress),
+    operator: new PublicKey(operatorAddress).toBase58(),
+    operatorRecord: deriveProjectOperatorAddress({ operatorAddress, projectId: project }),
+    project: deriveProjectRecordAddress(project),
+  };
+  const spec = instructionSpec("operator_set_project_pause");
+  const instruction = instructionPlan({
+    accounts: accountsFromSpec(spec, addresses),
+    argDataHex: `${u64LeHex(project)}${paused ? "01" : "00"}`,
+    discriminatorHex: spec.discriminatorHex,
+    instructionName: "operator_set_project_pause",
+    programId: addresses.programId,
+  });
+
+  return transactionPlan({
+    action: "OPERATOR_SET_PROJECT_PAUSE",
+    addresses,
+    feePayer: addresses.operator,
+    instruction,
+    warnings: [
+      "Project operators can only use this path when their project-scoped record has pause permission.",
+      "This does not move funds or change global project authority.",
     ],
   });
 }
@@ -1315,6 +1483,23 @@ export function deriveProjectParticipationAddress({
   return address.toBase58();
 }
 
+export function deriveProjectOperatorAddress({
+  operatorAddress,
+  projectId,
+}: {
+  operatorAddress: string;
+  projectId: bigint | number | string;
+}) {
+  const programId = new PublicKey(appConfig.protocolProgramId);
+  const project = new PublicKey(deriveProjectRecordAddress(projectId));
+  const operator = new PublicKey(operatorAddress);
+  const [address] = PublicKey.findProgramAddressSync(
+    [textSeed(PROJECT_OPERATOR_SEED), project.toBuffer(), operator.toBuffer()],
+    programId,
+  );
+  return address.toBase58();
+}
+
 export function deriveSeedBotPermissionAddress(ownerAddress: string) {
   const programId = new PublicKey(appConfig.protocolProgramId);
   const owner = new PublicKey(ownerAddress);
@@ -1446,6 +1631,7 @@ function derivedAccountReferences(addresses: ProtocolAddressBook): TransactionAc
     ["vote_record", "Governance vote record"],
     ["project", "Project record"],
     ["participation", "Project participation"],
+    ["operator_record", "Project operator"],
     ["permission", "SeedBot permission"],
   ] as const) {
     const address = addressForProtocolAccountIfPresent(addresses, anchorName);
@@ -1485,6 +1671,10 @@ function addressForProtocolAccountIfPresent(addresses: ProtocolAddressBook, name
       return addresses.independentTreasuryVaultState;
     case "owner":
       return addresses.owner;
+    case "operator":
+      return addresses.operator;
+    case "operator_record":
+      return addresses.operatorRecord;
     case "owner_reward_account":
       return addresses.ownerRewardAccount ?? addresses.ownerRypAccount;
     case "owner_ryp_account":
@@ -1703,6 +1893,13 @@ function toIntegerBigInt(value: bigint | number | string, label: string) {
 function assertU16(value: number) {
   if (!Number.isInteger(value) || value < 0 || BigInt(value) > U16_MAX) {
     throw new Error("Value exceeds Solana u16 bounds");
+  }
+}
+
+function assertProjectOperatorPermissions(permissions: number) {
+  assertU16(permissions);
+  if (permissions <= 0 || (permissions & ~PROJECT_OPERATOR_PERMISSION_MASK) !== 0) {
+    throw new Error("Project operator permissions are invalid");
   }
 }
 

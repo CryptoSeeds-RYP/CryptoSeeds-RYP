@@ -12,9 +12,13 @@ import {
   buildCreateRewardClaimRecordTransactionPlan,
   buildCreateSeedBotPermissionTransactionPlan,
   buildExpireRewardEpochClaimsTransactionPlan,
+  buildGrantProjectOperatorTransactionPlan,
+  buildOperatorSetProjectPauseTransactionPlan,
+  buildOperatorUpdateProjectStatusTransactionPlan,
   buildProjectParticipationTransactionPlan,
   buildRegisterProjectTransactionPlan,
   buildRecordProjectRefundTransactionPlan,
+  buildRevokeProjectOperatorTransactionPlan,
   buildRecordSeedBotUsageTransactionPlan,
   buildRevokeSeedBotPermissionTransactionPlan,
   buildRoutePlatformFeeTransactionPlan,
@@ -26,8 +30,11 @@ import {
   buildUpdateProjectStatusTransactionPlan,
   buildUpdateSeedBotPermissionTransactionPlan,
   deriveProtocolAddresses,
+  deriveProjectOperatorAddress,
   deriveRewardClaimRecordAddress,
   parseRypAmountToBaseUnits,
+  PROJECT_OPERATOR_PERMISSION_PAUSE,
+  PROJECT_OPERATOR_PERMISSION_STATUS,
   PROTOCOL_INSTRUCTION_SPECS,
 } from "./protocolTransactionPlan";
 import { appConfig } from "../config/env";
@@ -278,6 +285,7 @@ describe("protocol transaction plan", () => {
     const receivingAccount = "So11111111111111111111111111111111111111112";
     const governanceProposalAddress = "11111111111111111111111111111111";
     const newProjectAuthorityAddress = "So11111111111111111111111111111111111111112";
+    const operatorAddress = "SysvarC1ock11111111111111111111111111111111";
     const transferProjectAuthority = buildTransferProjectAuthorityTransactionPlan({
       authorityAddress: ownerAddress,
       newAuthorityAddress: newProjectAuthorityAddress,
@@ -309,6 +317,30 @@ describe("protocol transaction plan", () => {
     const pauseProject = buildSetProjectPauseTransactionPlan({
       authorityAddress: ownerAddress,
       paused: true,
+      projectId: 9n,
+    });
+    const operatorPermissions = PROJECT_OPERATOR_PERMISSION_STATUS | PROJECT_OPERATOR_PERMISSION_PAUSE;
+    const operatorRecord = deriveProjectOperatorAddress({ operatorAddress, projectId: 9n });
+    const grantOperator = buildGrantProjectOperatorTransactionPlan({
+      authorityAddress: ownerAddress,
+      operatorAddress,
+      permissions: operatorPermissions,
+      projectId: 9n,
+    });
+    const operatorUpdateStatus = buildOperatorUpdateProjectStatusTransactionPlan({
+      governanceProposalAddress,
+      operatorAddress,
+      projectId: 9n,
+      status: "PAUSED",
+    });
+    const operatorPauseProject = buildOperatorSetProjectPauseTransactionPlan({
+      operatorAddress,
+      paused: true,
+      projectId: 9n,
+    });
+    const revokeOperator = buildRevokeProjectOperatorTransactionPlan({
+      authorityAddress: ownerAddress,
+      operatorAddress,
       projectId: 9n,
     });
     const cancelProject = buildCancelProjectTransactionPlan({
@@ -362,6 +394,39 @@ describe("protocol transaction plan", () => {
     expect(pauseProject.instructions[0].accounts.map((account) => account.anchorName)).toEqual(
       PROTOCOL_INSTRUCTION_SPECS.set_project_pause.accounts.map((account) => account.name),
     );
+    expect(grantOperator.action).toBe("GRANT_PROJECT_OPERATOR");
+    expect(grantOperator.instructions[0].dataHex).toMatch(/^1dce004acb6699280900000000000000/);
+    expect(grantOperator.instructions[0].dataHex.endsWith("0300")).toBe(true);
+    expect(grantOperator.instructions[0].accounts.map((account) => account.anchorName)).toEqual(
+      PROTOCOL_INSTRUCTION_SPECS.grant_project_operator.accounts.map((account) => account.name),
+    );
+    expect(grantOperator.instructions[0].accounts.find((account) => account.anchorName === "operator_record")?.address).toBe(
+      operatorRecord,
+    );
+    expect(operatorUpdateStatus.action).toBe("OPERATOR_UPDATE_PROJECT_STATUS");
+    expect(operatorUpdateStatus.feePayer).toBe(operatorAddress);
+    expect(operatorUpdateStatus.instructions[0].dataHex).toBe("f709b629419ed37f090000000000000009");
+    expect(operatorUpdateStatus.instructions[0].accounts.map((account) => account.anchorName)).toEqual(
+      PROTOCOL_INSTRUCTION_SPECS.operator_update_project_status.accounts.map((account) => account.name),
+    );
+    expect(operatorPauseProject.action).toBe("OPERATOR_SET_PROJECT_PAUSE");
+    expect(operatorPauseProject.instructions[0].dataHex).toBe("28c2fd03db3d2c1e090000000000000001");
+    expect(operatorPauseProject.instructions[0].accounts.map((account) => account.anchorName)).toEqual(
+      PROTOCOL_INSTRUCTION_SPECS.operator_set_project_pause.accounts.map((account) => account.name),
+    );
+    expect(revokeOperator.action).toBe("REVOKE_PROJECT_OPERATOR");
+    expect(revokeOperator.instructions[0].dataHex).toMatch(/^873ef785e1dfcd190900000000000000/);
+    expect(revokeOperator.instructions[0].accounts.map((account) => account.anchorName)).toEqual(
+      PROTOCOL_INSTRUCTION_SPECS.revoke_project_operator.accounts.map((account) => account.name),
+    );
+    expect(() =>
+      buildGrantProjectOperatorTransactionPlan({
+        authorityAddress: ownerAddress,
+        operatorAddress,
+        permissions: operatorPermissions | 4,
+        projectId: 9n,
+      }),
+    ).toThrow("Project operator permissions are invalid");
     expect(cancelProject.action).toBe("CANCEL_PROJECT");
     expect(cancelProject.instructions[0].dataHex).toBe(
       `68950388a0030d840900000000000000${"aa".repeat(32)}2003000000000000`,
