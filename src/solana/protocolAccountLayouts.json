@@ -439,7 +439,7 @@
   },
   "RewardEpoch": {
     "discriminatorHex": "d6676a610e04219c",
-    "minimumLength": 219,
+    "minimumLength": 243,
     "fields": [
       {
         "name": "reward_config",
@@ -514,33 +514,51 @@
         "size": 8
       },
       {
+        "name": "claim_expires_at",
+        "type": "i64",
+        "offset": 152,
+        "size": 8
+      },
+      {
+        "name": "expired_unclaimed_net_amount",
+        "type": "u64",
+        "offset": 160,
+        "size": 8
+      },
+      {
+        "name": "expired_recorded_at",
+        "type": "i64",
+        "offset": 168,
+        "size": 8
+      },
+      {
         "name": "exclusion_list_hash",
         "type": "array:u8:32",
-        "offset": 152,
+        "offset": 176,
         "size": 32
       },
       {
         "name": "claim_merkle_root",
         "type": "array:u8:32",
-        "offset": 184,
+        "offset": 208,
         "size": 32
       },
       {
         "name": "status",
         "type": "defined:RewardEpochStatus",
-        "offset": 216,
+        "offset": 240,
         "size": 1
       },
       {
         "name": "execution_blocked",
         "type": "bool",
-        "offset": 217,
+        "offset": 241,
         "size": 1
       },
       {
         "name": "bump",
         "type": "u8",
-        "offset": 218,
+        "offset": 242,
         "size": 1
       }
     ]

@@ -159,6 +159,9 @@ describe("reward account inspection", () => {
     view(data).setBigUint64(offset.recorded_gross_allocation_amount, 900n, true);
     view(data).setBigUint64(offset.recorded_net_claim_amount, 700n, true);
     view(data).setBigUint64(offset.claimed_net_amount, 700n, true);
+    view(data).setBigInt64(offset.claim_expires_at, 1_831_622_410n, true);
+    view(data).setBigUint64(offset.expired_unclaimed_net_amount, 0n, true);
+    view(data).setBigInt64(offset.expired_recorded_at, 0n, true);
     data.fill(9, offset.exclusion_list_hash, offset.exclusion_list_hash + 32);
     data.fill(8, offset.claim_merkle_root, offset.claim_merkle_root + 32);
     data[offset.status] = 0;
@@ -172,7 +175,10 @@ describe("reward account inspection", () => {
       executionBlocked: true,
       exclusionListHash: "09".repeat(32),
       claimMerkleRoot: "08".repeat(32),
+      claimExpiresAt: "1831622410",
       claimedNetAmount: "700",
+      expiredRecordedAt: "0",
+      expiredUnclaimedNetAmount: "0",
       recordedGrossAllocationAmount: "900",
       recordedNetClaimAmount: "700",
       reservedDeliveryCostAmount: "100",
@@ -291,7 +297,7 @@ describe("reward account inspection", () => {
     expect(blockers).toContain("draft-only");
     expect(blockers).toContain("is not verified");
     expect(blockers).toContain("must not be marked as receiving user funds");
-    expect(blockers).toContain("drafted/blocked or reviewed/read-only");
+    expect(blockers).toContain("drafted/blocked, reviewed/read-only");
     expect(blockers).toContain("accounting does not balance");
   });
 
@@ -306,8 +312,24 @@ describe("reward account inspection", () => {
     });
 
     expect(validateRewardAccountInspection(inspection).blockers).toContain(
-      "Reward epoch must be drafted/blocked or reviewed/read-only with bounded claim totals.",
+      "Reward epoch must be drafted/blocked, reviewed/read-only, or expired/blocked with bounded claim totals.",
     );
+  });
+
+  it("allows expired reward inspections when unclaimed accounting is bounded", () => {
+    const inspection = buildDecodedInspection({
+      epoch: {
+        status: "EXPIRED",
+        executionBlocked: true,
+        expiredRecordedAt: "1831622411",
+        expiredUnclaimedNetAmount: "0",
+      },
+    });
+
+    const validated = validateRewardAccountInspection(inspection);
+
+    expect(validated.blockers).toEqual([]);
+    expect(validated.warnings.join(" ")).toContain("claim window is expired");
   });
 
   it("validates SeedBot permission lifecycle states", () => {
@@ -412,6 +434,9 @@ function buildDecodedInspection(
       recordedGrossAllocationAmount: "900",
       recordedNetClaimAmount: "700",
       claimedNetAmount: "700",
+      claimExpiresAt: "1831622410",
+      expiredUnclaimedNetAmount: "0",
+      expiredRecordedAt: "0",
       exclusionListHash: "09".repeat(32),
       claimMerkleRoot: "08".repeat(32),
       status: "DRAFTED",

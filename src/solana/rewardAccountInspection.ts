@@ -65,7 +65,7 @@ export type RewardVaultVerificationStatus =
   | "DISABLED"
   | "UNKNOWN";
 
-export type RewardEpochStatus = "DRAFTED" | "REVIEWED" | "CANCELLED" | "UNKNOWN";
+export type RewardEpochStatus = "DRAFTED" | "REVIEWED" | "CANCELLED" | "EXPIRED" | "UNKNOWN";
 export type RewardAccountReadStatus = "PREVIEW_ONLY" | "MISSING" | "DECODED" | "DECODE_ERROR";
 export type StakeTierName = "NONE" | "SEED" | "SPROUT" | "SAPLING" | "TREE" | "FRUIT" | "UNKNOWN";
 export type SeedBotPermissionLifecycleStatus =
@@ -127,6 +127,9 @@ export type RewardEpochAccount = {
   recordedGrossAllocationAmount: string;
   recordedNetClaimAmount: string;
   claimedNetAmount: string;
+  claimExpiresAt: string;
+  expiredUnclaimedNetAmount: string;
+  expiredRecordedAt: string;
   exclusionListHash: string;
   claimMerkleRoot: string;
   status: RewardEpochStatus;
@@ -445,8 +448,16 @@ export function validateRewardAccountInspection(inspection: RewardAccountInspect
       !inspection.epoch.executionBlocked &&
       inspection.executionMode === "READ_ONLY" &&
       rewardEpochClaimTotalsAreBounded(inspection.epoch);
-    if (!safeDraftInspection && !safeReviewedInspection) {
-      blockers.push("Reward epoch must be drafted/blocked or reviewed/read-only with bounded claim totals.");
+    const safeExpiredInspection =
+      inspection.epoch.status === "EXPIRED" &&
+      inspection.epoch.executionBlocked &&
+      inspection.executionMode === "READ_ONLY" &&
+      rewardEpochClaimTotalsAreBounded(inspection.epoch);
+    if (!safeDraftInspection && !safeReviewedInspection && !safeExpiredInspection) {
+      blockers.push("Reward epoch must be drafted/blocked, reviewed/read-only, or expired/blocked with bounded claim totals.");
+    }
+    if (safeExpiredInspection) {
+      warnings.push("Reward epoch claim window is expired; unclaimed net rewards are marked for future redistribution accounting.");
     }
     if (!rewardEpochAccountingBalances(inspection.epoch)) {
       blockers.push("Reward epoch accounting does not balance.");
@@ -595,6 +606,9 @@ export function decodeRewardEpochAccount(data: Uint8Array): RewardEpochAccount {
     recordedGrossAllocationAmount: readU64(data, offset.recorded_gross_allocation_amount).toString(),
     recordedNetClaimAmount: readU64(data, offset.recorded_net_claim_amount).toString(),
     claimedNetAmount: readU64(data, offset.claimed_net_amount).toString(),
+    claimExpiresAt: readI64(data, offset.claim_expires_at).toString(),
+    expiredUnclaimedNetAmount: readU64(data, offset.expired_unclaimed_net_amount).toString(),
+    expiredRecordedAt: readI64(data, offset.expired_recorded_at).toString(),
     exclusionListHash: bytesToHex(data.subarray(offset.exclusion_list_hash, offset.exclusion_list_hash + 32)),
     claimMerkleRoot: bytesToHex(data.subarray(offset.claim_merkle_root, offset.claim_merkle_root + 32)),
     status: epochStatusFromVariant(data[offset.status]),
@@ -679,6 +693,7 @@ function epochStatusFromVariant(variant: number): RewardEpochStatus {
   if (variant === 0) return "DRAFTED";
   if (variant === 1) return "REVIEWED";
   if (variant === 2) return "CANCELLED";
+  if (variant === 3) return "EXPIRED";
   return "UNKNOWN";
 }
 
@@ -724,8 +739,14 @@ function rewardEpochClaimTotalsAreBounded(epoch: RewardEpochAccount) {
     const recordedGross = BigInt(epoch.recordedGrossAllocationAmount);
     const recordedNet = BigInt(epoch.recordedNetClaimAmount);
     const claimedNet = BigInt(epoch.claimedNetAmount);
+    const expiredUnclaimed = BigInt(epoch.expiredUnclaimedNetAmount);
 
-    return recordedGross <= rewardPool && recordedNet <= distributed && claimedNet <= recordedNet;
+    return (
+      recordedGross <= rewardPool &&
+      recordedNet <= distributed &&
+      claimedNet <= recordedNet &&
+      expiredUnclaimed <= distributed - claimedNet
+    );
   } catch {
     return false;
   }

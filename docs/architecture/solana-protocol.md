@@ -45,6 +45,7 @@ Current scope:
 - Route wallet-approved platform fees into verified holder/staker/treasury vaults
 - Draft balanced, execution-blocked reward epochs
 - Review/cancel reward epochs
+- Expire reward epoch claims and record unclaimed net rewards
 - Create role-keyed reward claim records
 - Claim reviewed reward tokens from verified program-controlled reward vaults
 - Create/close governance proposals
@@ -56,7 +57,7 @@ Current scope:
 - Emergency pause
 - Emit protocol events
 
-Current localnet security coverage includes rejected duplicate tier thresholds, reward config initialization, rejected invalid reward splits, rejected blank reward metadata, reward vault registration and verification, wallet-approved platform fee routing into holder/staker/treasury vaults, rejected pending-vault reward epochs, rejected reward metadata mismatch, rejected non-authority reward verification, rejected unbalanced reward epochs, balanced reward epoch drafts, reviewed reward epochs, holder reward token claims, staker rollover claims, duplicate reward claim rejection, governance proposal close, blocked voting without active voting rights, project registration/participation, SeedBot permission creation/revocation/renewal, owner-signed SeedBot usage accounting, rejected SeedBot daily-cap breaches, rejected below-Seed staking, Golden Key receipt issue/revoke lifecycle, rejected early voting-right activation, rejected mismatched-owner unstaking, rejected oversized unstaking, Seed-to-Sprout top-up state preservation, Sprout-to-Seed partial unstake state preservation, rejected non-authority pause attempts, pause enforcement for stake, unstake, and voting activation paths, and two-step protocol/reward authority rotation with stale-authority rejection.
+Current localnet security coverage includes rejected duplicate tier thresholds, reward config initialization, rejected invalid reward splits, rejected blank reward metadata, reward vault registration and verification, wallet-approved platform fee routing into holder/staker/treasury vaults, rejected pending-vault reward epochs, rejected reward metadata mismatch, rejected non-authority reward verification, rejected unbalanced reward epochs, balanced reward epoch drafts, reviewed reward epochs, holder reward token claims, staker rollover claims, reward epoch expiry accounting, duplicate reward claim rejection, governance proposal close, blocked voting without active voting rights, project registration/participation, SeedBot permission creation/revocation/renewal, owner-signed SeedBot usage accounting, rejected SeedBot daily-cap breaches, rejected below-Seed staking, Golden Key receipt issue/revoke lifecycle, rejected early voting-right activation, rejected mismatched-owner unstaking, rejected oversized unstaking, Seed-to-Sprout top-up state preservation, Sprout-to-Seed partial unstake state preservation, rejected non-authority pause attempts, pause enforcement for stake, unstake, and voting activation paths, and two-step protocol/reward authority rotation with stale-authority rejection.
 
 Current Rust unit coverage also includes reward split totals, platform fee split/remainder math, reward cadence bounds, reward epoch accounting balance, and verified-vault requirements for epoch drafts.
 
@@ -99,7 +100,7 @@ These should be added after the staking core is reviewed:
 - Actual Golden Key NFT mint/burn/return logic
 - Voting Rights NFT minting and dynamic metadata
 - Voting Rights receipt rendering and metadata sync
-- Reward accrual, expiration, and 1-year unclaimed redistribution
+- Reward accrual and expired-unclaimed redistribution movement
 - Treasury distribution
 - Airdrop eligibility
 - Actual SeedBot DEX execution composition

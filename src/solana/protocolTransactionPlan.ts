@@ -174,6 +174,11 @@ export type ClaimRewardTokensPlanInput = ClaimRewardRecordPlanInput & {
   rewardSourceVaultAddress: string;
 };
 
+export type ExpireRewardEpochClaimsPlanInput = {
+  authorityAddress: string;
+  epochId: bigint | number | string;
+};
+
 export type CreateRewardClaimRecordPlanInput = {
   authorityAddress: string;
   epochId: bigint | number | string;
@@ -511,6 +516,37 @@ export function buildClaimRewardTokensTransactionPlan({
     warnings: [
       "Transfers only from a verified program-controlled reward vault.",
       "The wallet still signs explicitly; no backend key or custody route is used.",
+    ],
+  });
+}
+
+export function buildExpireRewardEpochClaimsTransactionPlan({
+  authorityAddress,
+  epochId,
+}: ExpireRewardEpochClaimsPlanInput): PreparedSolanaTransactionPlan {
+  const epoch = toU64(epochId);
+  const addresses = {
+    ...deriveProtocolAddresses(authorityAddress),
+    authority: new PublicKey(authorityAddress).toBase58(),
+    rewardEpoch: deriveRewardEpochAddress(epoch),
+  };
+  const spec = instructionSpec("expire_reward_epoch_claims");
+  const instruction = instructionPlan({
+    accounts: accountsFromSpec(spec, addresses),
+    argDataHex: u64LeHex(epoch),
+    discriminatorHex: spec.discriminatorHex,
+    instructionName: "expire_reward_epoch_claims",
+    programId: addresses.programId,
+  });
+
+  return transactionPlan({
+    action: "EXPIRE_REWARD_EPOCH_CLAIMS",
+    addresses,
+    feePayer: addresses.authority,
+    instruction,
+    warnings: [
+      "Marks an expired reward epoch as execution-blocked and records unclaimed net rewards for future redistribution accounting.",
+      "This does not move tokens; redistribution still requires a separately reviewed route.",
     ],
   });
 }

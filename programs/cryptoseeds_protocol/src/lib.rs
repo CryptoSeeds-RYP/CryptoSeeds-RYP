@@ -25,6 +25,7 @@ pub const SEEDBOT_USAGE_WINDOW_SECONDS: i64 = 24 * 60 * 60;
 pub const MAX_SEEDBOT_DAILY_TRADES: u16 = 50;
 pub const MAX_SEEDBOT_SLIPPAGE_BPS: u16 = 500;
 pub const MAX_REWARD_MERKLE_PROOF_NODES: usize = 32;
+pub const MAX_REWARD_CLAIM_WINDOW_SECONDS: i64 = 366 * 24 * 60 * 60;
 pub const BPS_DENOMINATOR: u16 = 10_000;
 pub const VOTING_RIGHTS_LEVEL_TWO_VOTE_COUNT: u32 = 100;
 
@@ -545,6 +546,7 @@ pub mod cryptoseeds_protocol {
         ctx: Context<DraftRewardEpoch>,
         epoch_id: u64,
         snapshot_taken_at: i64,
+        claim_window_seconds: i64,
         reward_pool_amount: u64,
         distributed_net_amount: u64,
         reserved_delivery_cost_amount: u64,
@@ -573,6 +575,8 @@ pub mod cryptoseeds_protocol {
             rolled_forward_amount,
         )?;
         let clock = Clock::get()?;
+        let claim_expires_at =
+            calculate_reward_claim_expiry(clock.unix_timestamp, claim_window_seconds)?;
         validate_reward_snapshot_timing(
             snapshot_taken_at,
             clock.unix_timestamp,
@@ -625,6 +629,9 @@ pub mod cryptoseeds_protocol {
         reward_epoch.recorded_gross_allocation_amount = 0;
         reward_epoch.recorded_net_claim_amount = 0;
         reward_epoch.claimed_net_amount = 0;
+        reward_epoch.claim_expires_at = claim_expires_at;
+        reward_epoch.expired_unclaimed_net_amount = 0;
+        reward_epoch.expired_recorded_at = 0;
         reward_epoch.exclusion_list_hash = exclusion_list_hash;
         reward_epoch.claim_merkle_root = claim_merkle_root;
         reward_epoch.status = RewardEpochStatus::Drafted;
@@ -647,6 +654,7 @@ pub mod cryptoseeds_protocol {
             distributed_net_amount,
             reserved_delivery_cost_amount,
             rolled_forward_amount,
+            claim_expires_at,
             exclusion_list_hash,
             claim_merkle_root,
             execution_blocked: true,
@@ -789,6 +797,7 @@ pub mod cryptoseeds_protocol {
             reward_config: reward_epoch.reward_config,
             epoch_id: reward_epoch.epoch_id,
             claim_merkle_root: reward_epoch.claim_merkle_root,
+            claim_expires_at: reward_epoch.claim_expires_at,
             execution_blocked: reward_epoch.execution_blocked,
         });
 
@@ -822,6 +831,37 @@ pub mod cryptoseeds_protocol {
         Ok(())
     }
 
+    pub fn expire_reward_epoch_claims(
+        ctx: Context<ExpireRewardEpochClaims>,
+        _epoch_id: u64,
+    ) -> Result<()> {
+        validate_reward_authority(
+            &ctx.accounts.config,
+            &ctx.accounts.reward_config,
+            ctx.accounts.config.key(),
+            &ctx.accounts.authority.key(),
+        )?;
+        validate_reward_epoch_matches_config(
+            &ctx.accounts.reward_epoch,
+            ctx.accounts.reward_config.key(),
+            ctx.accounts.reward_config.ryp_mint,
+        )?;
+
+        let expired_at = Clock::get()?.unix_timestamp;
+        let expired_unclaimed_net_amount =
+            expire_reward_epoch_claims_at(&mut ctx.accounts.reward_epoch, expired_at)?;
+
+        emit!(RewardEpochClaimsExpired {
+            reward_config: ctx.accounts.reward_epoch.reward_config,
+            epoch_id: ctx.accounts.reward_epoch.epoch_id,
+            expired_at,
+            expired_unclaimed_net_amount,
+            claimed_net_amount: ctx.accounts.reward_epoch.claimed_net_amount,
+        });
+
+        Ok(())
+    }
+
     pub fn create_reward_claim_record(
         ctx: Context<CreateRewardClaimRecord>,
         _epoch_id: u64,
@@ -844,7 +884,10 @@ pub mod cryptoseeds_protocol {
             ctx.accounts.reward_config.ryp_mint,
         )?;
         validate_reward_claim_role(reward_role)?;
-        validate_reward_epoch_claimable(&ctx.accounts.reward_epoch)?;
+        validate_reward_epoch_claimable_at(
+            &ctx.accounts.reward_epoch,
+            Clock::get()?.unix_timestamp,
+        )?;
         validate_reward_claim_accounting(
             gross_allocation_amount,
             delivery_cost_amount,
@@ -900,7 +943,10 @@ pub mod cryptoseeds_protocol {
         proof: Vec<[u8; 32]>,
     ) -> Result<()> {
         validate_reward_claim_role(reward_role)?;
-        validate_reward_epoch_claimable(&ctx.accounts.reward_epoch)?;
+        validate_reward_epoch_claimable_at(
+            &ctx.accounts.reward_epoch,
+            Clock::get()?.unix_timestamp,
+        )?;
         require_keys_eq!(
             ctx.accounts.reward_epoch.reward_config,
             ctx.accounts.reward_config.key(),
@@ -979,7 +1025,10 @@ pub mod cryptoseeds_protocol {
         reward_role: RewardVaultRole,
     ) -> Result<()> {
         validate_reward_claim_role(reward_role)?;
-        validate_reward_epoch_claimable(&ctx.accounts.reward_epoch)?;
+        validate_reward_epoch_claimable_at(
+            &ctx.accounts.reward_epoch,
+            Clock::get()?.unix_timestamp,
+        )?;
         require_keys_eq!(
             ctx.accounts.claim_record.wallet,
             ctx.accounts.owner.key(),
@@ -1029,7 +1078,10 @@ pub mod cryptoseeds_protocol {
         reward_role: RewardVaultRole,
     ) -> Result<()> {
         validate_reward_claim_role(reward_role)?;
-        validate_reward_epoch_claimable(&ctx.accounts.reward_epoch)?;
+        validate_reward_epoch_claimable_at(
+            &ctx.accounts.reward_epoch,
+            Clock::get()?.unix_timestamp,
+        )?;
         validate_reward_vault_for_token_claim(
             &ctx.accounts.reward_vault_state,
             ctx.accounts.reward_config.key(),
@@ -1962,6 +2014,26 @@ pub struct CancelRewardEpoch<'info> {
 }
 
 #[derive(Accounts)]
+#[instruction(epoch_id: u64)]
+pub struct ExpireRewardEpochClaims<'info> {
+    pub authority: Signer<'info>,
+    #[account(seeds = [CONFIG_SEED], bump = config.bump)]
+    pub config: Account<'info, ProtocolConfig>,
+    #[account(seeds = [REWARD_CONFIG_SEED], bump = reward_config.bump)]
+    pub reward_config: Account<'info, RewardConfig>,
+    #[account(
+        mut,
+        seeds = [
+            REWARD_EPOCH_SEED,
+            reward_config.key().as_ref(),
+            epoch_id.to_le_bytes().as_ref()
+        ],
+        bump = reward_epoch.bump
+    )]
+    pub reward_epoch: Account<'info, RewardEpoch>,
+}
+
+#[derive(Accounts)]
 #[instruction(epoch_id: u64, reward_role: RewardVaultRole, wallet: Pubkey)]
 pub struct CreateRewardClaimRecord<'info> {
     #[account(mut)]
@@ -2378,6 +2450,9 @@ pub struct RewardEpoch {
     pub recorded_gross_allocation_amount: u64,
     pub recorded_net_claim_amount: u64,
     pub claimed_net_amount: u64,
+    pub claim_expires_at: i64,
+    pub expired_unclaimed_net_amount: u64,
+    pub expired_recorded_at: i64,
     pub exclusion_list_hash: [u8; 32],
     pub claim_merkle_root: [u8; 32],
     pub status: RewardEpochStatus,
@@ -2638,6 +2713,7 @@ pub enum RewardEpochStatus {
     Drafted,
     Reviewed,
     Cancelled,
+    Expired,
 }
 
 #[event]
@@ -2748,6 +2824,7 @@ pub struct RewardEpochDrafted {
     pub distributed_net_amount: u64,
     pub reserved_delivery_cost_amount: u64,
     pub rolled_forward_amount: u64,
+    pub claim_expires_at: i64,
     pub exclusion_list_hash: [u8; 32],
     pub claim_merkle_root: [u8; 32],
     pub execution_blocked: bool,
@@ -2791,6 +2868,7 @@ pub struct RewardEpochReviewed {
     pub reward_config: Pubkey,
     pub epoch_id: u64,
     pub claim_merkle_root: [u8; 32],
+    pub claim_expires_at: i64,
     pub execution_blocked: bool,
 }
 
@@ -2799,6 +2877,15 @@ pub struct RewardEpochCancelled {
     pub reward_config: Pubkey,
     pub epoch_id: u64,
     pub execution_blocked: bool,
+}
+
+#[event]
+pub struct RewardEpochClaimsExpired {
+    pub reward_config: Pubkey,
+    pub epoch_id: u64,
+    pub expired_at: i64,
+    pub expired_unclaimed_net_amount: u64,
+    pub claimed_net_amount: u64,
 }
 
 #[event]
@@ -2996,6 +3083,10 @@ pub enum CryptoSeedsError {
     RewardMerkleRootMissing,
     #[msg("Reward Merkle proof is invalid.")]
     InvalidRewardMerkleProof,
+    #[msg("Reward claim window is invalid.")]
+    InvalidRewardClaimWindow,
+    #[msg("Reward claim window has expired.")]
+    RewardClaimWindowExpired,
     #[msg("Governance proposal is not open for voting.")]
     GovernanceProposalClosed,
     #[msg("The metadata hash is invalid.")]
@@ -3177,6 +3268,15 @@ fn validate_reward_snapshot_timing(
     Ok(())
 }
 
+fn calculate_reward_claim_expiry(now: i64, claim_window_seconds: i64) -> Result<i64> {
+    require!(
+        claim_window_seconds > 0 && claim_window_seconds <= MAX_REWARD_CLAIM_WINDOW_SECONDS,
+        CryptoSeedsError::InvalidRewardClaimWindow
+    );
+    now.checked_add(claim_window_seconds)
+        .ok_or(CryptoSeedsError::MathOverflow.into())
+}
+
 fn validate_reward_vault_for_epoch(
     vault_state: &RewardVaultState,
     reward_config: Pubkey,
@@ -3333,7 +3433,7 @@ fn validate_reward_epoch_cancellable(reward_epoch: &RewardEpoch) -> Result<()> {
     Ok(())
 }
 
-fn validate_reward_epoch_claimable(reward_epoch: &RewardEpoch) -> Result<()> {
+fn validate_reward_epoch_claimable_at(reward_epoch: &RewardEpoch, now: i64) -> Result<()> {
     require!(
         reward_epoch.status == RewardEpochStatus::Reviewed,
         CryptoSeedsError::InvalidRewardEpochStatus
@@ -3342,8 +3442,38 @@ fn validate_reward_epoch_claimable(reward_epoch: &RewardEpoch) -> Result<()> {
         !reward_epoch.execution_blocked,
         CryptoSeedsError::RewardExecutionNotApproved
     );
+    require!(
+        reward_epoch.claim_expires_at > now,
+        CryptoSeedsError::RewardClaimWindowExpired
+    );
 
     Ok(())
+}
+
+fn expire_reward_epoch_claims_at(reward_epoch: &mut RewardEpoch, expired_at: i64) -> Result<u64> {
+    require!(
+        reward_epoch.status == RewardEpochStatus::Reviewed,
+        CryptoSeedsError::InvalidRewardEpochStatus
+    );
+    require!(
+        expired_at >= reward_epoch.claim_expires_at,
+        CryptoSeedsError::RewardClaimWindowExpired
+    );
+    require!(
+        reward_epoch.distributed_net_amount >= reward_epoch.claimed_net_amount,
+        CryptoSeedsError::InvalidRewardClaim
+    );
+
+    let expired_unclaimed_net_amount = reward_epoch
+        .distributed_net_amount
+        .checked_sub(reward_epoch.claimed_net_amount)
+        .ok_or(CryptoSeedsError::MathOverflow)?;
+    reward_epoch.expired_unclaimed_net_amount = expired_unclaimed_net_amount;
+    reward_epoch.expired_recorded_at = expired_at;
+    reward_epoch.status = RewardEpochStatus::Expired;
+    reward_epoch.execution_blocked = true;
+
+    Ok(expired_unclaimed_net_amount)
 }
 
 fn validate_reward_claim_accounting(
@@ -3791,6 +3921,19 @@ mod tests {
     }
 
     #[test]
+    fn validates_reward_claim_window_bounds() {
+        let now = 1_800_000_000;
+
+        assert_eq!(
+            calculate_reward_claim_expiry(now, MAX_REWARD_CLAIM_WINDOW_SECONDS).unwrap(),
+            now + MAX_REWARD_CLAIM_WINDOW_SECONDS
+        );
+        assert!(calculate_reward_claim_expiry(now, 0).is_err());
+        assert!(calculate_reward_claim_expiry(now, MAX_REWARD_CLAIM_WINDOW_SECONDS + 1).is_err());
+        assert!(calculate_reward_claim_expiry(i64::MAX, 1).is_err());
+    }
+
+    #[test]
     fn requires_verified_reward_vaults_for_epoch_drafts() {
         let reward_config = Pubkey::new_unique();
         let reward_mint = Pubkey::new_unique();
@@ -3962,6 +4105,36 @@ mod tests {
         let mut claimed = reward_epoch(1_000, 700);
         claimed.claimed_net_amount = 1;
         assert!(validate_reward_epoch_cancellable(&claimed).is_err());
+    }
+
+    #[test]
+    fn reward_epoch_claimability_respects_expiry() {
+        let mut epoch = reward_epoch(1_000, 700);
+        epoch.claim_expires_at = 1_800_100_000;
+
+        assert!(validate_reward_epoch_claimable_at(&epoch, 1_800_099_999).is_ok());
+        assert!(validate_reward_epoch_claimable_at(&epoch, 1_800_100_000).is_err());
+
+        epoch.status = RewardEpochStatus::Expired;
+        assert!(validate_reward_epoch_claimable_at(&epoch, 1_800_099_999).is_err());
+    }
+
+    #[test]
+    fn expires_reward_epoch_claims_for_redistribution_accounting() {
+        let mut epoch = reward_epoch(1_000, 700);
+        epoch.claim_expires_at = 1_800_100_000;
+        epoch.claimed_net_amount = 250;
+
+        assert!(expire_reward_epoch_claims_at(&mut epoch, 1_800_099_999).is_err());
+        let expired_unclaimed = expire_reward_epoch_claims_at(&mut epoch, 1_800_100_000)
+            .expect("expired epoch accounting");
+
+        assert_eq!(expired_unclaimed, 450);
+        assert_eq!(epoch.expired_unclaimed_net_amount, 450);
+        assert_eq!(epoch.expired_recorded_at, 1_800_100_000);
+        assert!(matches!(epoch.status, RewardEpochStatus::Expired));
+        assert!(epoch.execution_blocked);
+        assert!(expire_reward_epoch_claims_at(&mut epoch, 1_800_100_001).is_err());
     }
 
     #[test]
@@ -4292,6 +4465,9 @@ mod tests {
             recorded_gross_allocation_amount: 0,
             recorded_net_claim_amount: 0,
             claimed_net_amount: 0,
+            claim_expires_at: 1_831_622_410,
+            expired_unclaimed_net_amount: 0,
+            expired_recorded_at: 0,
             exclusion_list_hash: [9; 32],
             claim_merkle_root: [0; 32],
             status: RewardEpochStatus::Reviewed,

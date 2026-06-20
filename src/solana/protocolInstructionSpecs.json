@@ -62,6 +62,42 @@
       }
     ]
   },
+  "expire_reward_epoch_claims": {
+    "discriminatorHex": "b450565ce6f8ad7e",
+    "args": [
+      "_epoch_id"
+    ],
+    "accounts": [
+      {
+        "name": "authority",
+        "label": "authority",
+        "role": "authority",
+        "signer": true,
+        "writable": false
+      },
+      {
+        "name": "config",
+        "label": "config",
+        "role": "config",
+        "signer": false,
+        "writable": false
+      },
+      {
+        "name": "reward_config",
+        "label": "reward config",
+        "role": "reward config",
+        "signer": false,
+        "writable": false
+      },
+      {
+        "name": "reward_epoch",
+        "label": "reward epoch",
+        "role": "reward epoch",
+        "signer": false,
+        "writable": true
+      }
+    ]
+  },
   "cast_governance_vote": {
     "discriminatorHex": "9d64dbf71b2dbc29",
     "args": [
@@ -520,6 +556,7 @@
     "args": [
       "epoch_id",
       "snapshot_taken_at",
+      "claim_window_seconds",
       "reward_pool_amount",
       "distributed_net_amount",
       "reserved_delivery_cost_amount",

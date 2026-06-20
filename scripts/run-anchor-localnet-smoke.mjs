@@ -31,6 +31,7 @@ const SEEDBOT_MAX_TRADE_AMOUNT = 500n;
 const SEEDBOT_MAX_DAILY_VOLUME_AMOUNT = 1_500n;
 const SEEDBOT_MAX_DAILY_TRADES = 3;
 const SEEDBOT_MAX_SLIPPAGE_BPS = 100;
+const REWARD_CLAIM_WINDOW_SECONDS = 366n * 24n * 60n * 60n;
 const PLATFORM_FEE_ROUTE_SPLIT = {
   holder: 10_002n,
   staker: 9_999n,
@@ -728,6 +729,7 @@ async function runSmoke(connection) {
 	      "claim_reward_tokens",
 	      "create_reward_claim_record_from_proof",
 	      "claim_reward_record_rollover",
+	      "expire_reward_epoch_claims",
 	      "reject_duplicate_reward_claim",
 	      "admin_reward_inspection_report",
 	      "reject_below_tier_stake",
@@ -954,6 +956,8 @@ async function runRewardSmoke(
   assertEqual("drafted reward epoch pool", draftedRewardEpoch.rewardPoolAmount, 1_000n);
   assertEqual("drafted reward epoch status", draftedRewardEpoch.status, 0);
   assertEqual("drafted reward epoch execution blocked", draftedRewardEpoch.executionBlocked, true);
+  assertEqual("drafted reward epoch claim expiry set", draftedRewardEpoch.claimExpiresAt > draftedRewardEpoch.createdAt, true);
+  assertEqual("drafted reward epoch expired unclaimed starts zero", draftedRewardEpoch.expiredUnclaimedNetAmount, 0n);
   assertEqual(
     "drafted reward epoch claim Merkle root",
     draftedRewardEpoch.claimMerkleRoot.toString("hex"),
@@ -1087,6 +1091,26 @@ async function runRewardSmoke(
   assertEqual("reward epoch recorded net claims", rewardEpochAfterClaims.recordedNetClaimAmount, 700n);
   assertEqual("reward epoch claimed net", rewardEpochAfterClaims.claimedNetAmount, 700n);
 
+  const expiringEpochId = 4n;
+  const expiringEpoch = deriveRewardEpochAddress({ epochId: expiringEpochId, rewardConfig });
+  log("calling draft_reward_epoch for short claim window");
+  await draftRewardEpoch(connection, {
+    authority,
+    claimWindowSeconds: 1n,
+    config,
+    epochId: expiringEpochId,
+    rewardConfig,
+    rewardEpoch: expiringEpoch,
+    rewardVaultStates,
+  });
+  await reviewRewardEpoch(connection, { authority, config, epochId: expiringEpochId, rewardConfig, rewardEpoch: expiringEpoch });
+  await waitForRewardEpochExpiry(connection, { authority, config, epochId: expiringEpochId, rewardConfig, rewardEpoch: expiringEpoch });
+  const expiredEpoch = parseRewardEpoch(await getAccountData(connection, expiringEpoch));
+  assertEqual("expired reward epoch status", expiredEpoch.status, 3);
+  assertEqual("expired reward epoch execution blocked", expiredEpoch.executionBlocked, true);
+  assertEqual("expired reward epoch unclaimed net", expiredEpoch.expiredUnclaimedNetAmount, 700n);
+  assertEqual("expired reward epoch recorded timestamp", expiredEpoch.expiredRecordedAt > 0n, true);
+
   await expectFailure(
     "verify_reward_vault rejects non-authority signer",
     () =>
@@ -1170,7 +1194,10 @@ async function buildAdminRewardInspectionReport(connection, { rewardConfig, rewa
         epochId: decodedRewardEpoch.epochId.toString(),
         executionBlocked: decodedRewardEpoch.executionBlocked,
         claimMerkleRoot: decodedRewardEpoch.claimMerkleRoot.toString("hex"),
+        claimExpiresAt: decodedRewardEpoch.claimExpiresAt.toString(),
         claimedNetAmount: decodedRewardEpoch.claimedNetAmount.toString(),
+        expiredRecordedAt: decodedRewardEpoch.expiredRecordedAt.toString(),
+        expiredUnclaimedNetAmount: decodedRewardEpoch.expiredUnclaimedNetAmount.toString(),
         recordedGrossAllocationAmount: decodedRewardEpoch.recordedGrossAllocationAmount.toString(),
         recordedNetClaimAmount: decodedRewardEpoch.recordedNetClaimAmount.toString(),
         reservedDeliveryCostAmount: decodedRewardEpoch.reservedDeliveryCostAmount.toString(),
@@ -1322,6 +1349,7 @@ async function draftRewardEpoch(
   connection,
   {
     authority,
+    claimWindowSeconds = REWARD_CLAIM_WINDOW_SECONDS,
     claimMerkleRoot = REWARD_METADATA_HASH,
     config,
     distributedNetAmount = 700n,
@@ -1337,16 +1365,17 @@ async function draftRewardEpoch(
   },
 ) {
   const effectiveSnapshotTakenAt = snapshotTakenAt ?? await recentRewardSnapshotTime(connection);
-  const data = Buffer.alloc(8 + 8 + 8 + 8 + 8 + 8 + 8 + 32 + 32);
+  const data = Buffer.alloc(8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 32 + 32);
   discriminator("draft_reward_epoch").copy(data, 0);
   data.writeBigUInt64LE(epochId, 8);
   data.writeBigInt64LE(effectiveSnapshotTakenAt, 16);
-  data.writeBigUInt64LE(rewardPoolAmount, 24);
-  data.writeBigUInt64LE(distributedNetAmount, 32);
-  data.writeBigUInt64LE(reservedDeliveryCostAmount, 40);
-  data.writeBigUInt64LE(rolledForwardAmount, 48);
-  exclusionListHash.copy(data, 56);
-  claimMerkleRoot.copy(data, 88);
+  data.writeBigInt64LE(claimWindowSeconds, 24);
+  data.writeBigUInt64LE(rewardPoolAmount, 32);
+  data.writeBigUInt64LE(distributedNetAmount, 40);
+  data.writeBigUInt64LE(reservedDeliveryCostAmount, 48);
+  data.writeBigUInt64LE(rolledForwardAmount, 56);
+  exclusionListHash.copy(data, 64);
+  claimMerkleRoot.copy(data, 96);
 
   const instruction = new TransactionInstruction({
     programId,
@@ -1384,6 +1413,39 @@ async function reviewRewardEpoch(connection, { authority, config, epochId, rewar
   });
 
   await sendAndConfirm(connection, new Transaction().add(instruction), [authority]);
+}
+
+async function expireRewardEpochClaims(connection, { authority, config, epochId, rewardConfig, rewardEpoch }) {
+  const data = Buffer.alloc(16);
+  discriminator("expire_reward_epoch_claims").copy(data, 0);
+  data.writeBigUInt64LE(epochId, 8);
+  const instruction = new TransactionInstruction({
+    programId,
+    keys: [
+      accountMeta(authority.publicKey, true, false),
+      accountMeta(config, false, false),
+      accountMeta(rewardConfig, false, false),
+      accountMeta(rewardEpoch, false, true),
+    ],
+    data,
+  });
+
+  await sendAndConfirm(connection, new Transaction().add(instruction), [authority]);
+}
+
+async function waitForRewardEpochExpiry(connection, args) {
+  let lastError;
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    try {
+      await expireRewardEpochClaims(connection, args);
+      return;
+    } catch (error) {
+      lastError = error;
+      await sleep(1_000);
+    }
+  }
+
+  throw lastError;
 }
 
 async function createRewardClaimRecord(
@@ -2214,6 +2276,9 @@ function parseRewardEpoch(data) {
     recordedGrossAllocationAmount: data.readBigUInt64LE(offset.recorded_gross_allocation_amount),
     recordedNetClaimAmount: data.readBigUInt64LE(offset.recorded_net_claim_amount),
     claimedNetAmount: data.readBigUInt64LE(offset.claimed_net_amount),
+    claimExpiresAt: data.readBigInt64LE(offset.claim_expires_at),
+    expiredUnclaimedNetAmount: data.readBigUInt64LE(offset.expired_unclaimed_net_amount),
+    expiredRecordedAt: data.readBigInt64LE(offset.expired_recorded_at),
     exclusionListHash: data.subarray(offset.exclusion_list_hash, offset.exclusion_list_hash + 32),
     claimMerkleRoot: data.subarray(offset.claim_merkle_root, offset.claim_merkle_root + 32),
     status: data.readUInt8(offset.status),
@@ -2342,6 +2407,7 @@ function rewardEpochStatusLabel(variant) {
   if (variant === 0) return "DRAFTED";
   if (variant === 1) return "REVIEWED";
   if (variant === 2) return "CANCELLED";
+  if (variant === 3) return "EXPIRED";
   return "UNKNOWN";
 }
 

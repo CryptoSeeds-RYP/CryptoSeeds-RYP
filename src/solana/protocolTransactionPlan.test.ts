@@ -9,6 +9,7 @@ import {
   buildCreateRewardClaimRecordFromProofTransactionPlan,
   buildCreateRewardClaimRecordTransactionPlan,
   buildCreateSeedBotPermissionTransactionPlan,
+  buildExpireRewardEpochClaimsTransactionPlan,
   buildProjectParticipationTransactionPlan,
   buildRegisterProjectTransactionPlan,
   buildRecordSeedBotUsageTransactionPlan,
@@ -128,6 +129,10 @@ describe("protocol transaction plan", () => {
       ownerAddress,
       rewardRole: "STAKER_REWARD",
     });
+    const expireEpoch = buildExpireRewardEpochClaimsTransactionPlan({
+      authorityAddress: ownerAddress,
+      epochId: 3n,
+    });
 
     expect(createRecord.action).toBe("CREATE_REWARD_CLAIM_RECORD");
     expect(createRecord.instructions[0].instructionName).toBe("create_reward_claim_record");
@@ -141,6 +146,11 @@ describe("protocol transaction plan", () => {
       rewardSourceVault,
     );
     expect(rolloverClaim.instructions[0].dataHex).toBe("bad5cb11c7fba2e101");
+    expect(expireEpoch.action).toBe("EXPIRE_REWARD_EPOCH_CLAIMS");
+    expect(expireEpoch.instructions[0].dataHex).toBe("b450565ce6f8ad7e0300000000000000");
+    expect(expireEpoch.instructions[0].accounts.map((account) => account.anchorName)).toEqual(
+      PROTOCOL_INSTRUCTION_SPECS.expire_reward_epoch_claims.accounts.map((account) => account.name),
+    );
   });
 
   it("builds wallet proof-backed reward claim record plans", () => {

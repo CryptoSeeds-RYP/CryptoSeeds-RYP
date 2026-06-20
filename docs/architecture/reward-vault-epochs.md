@@ -81,7 +81,7 @@ Anchor now includes the first reward-account scaffold:
 | --- | --- |
 | `RewardConfig` | Reward authority, mint, vault roles, epoch cadence, pause flags, routed fee total |
 | `RewardVaultState` | Role, mint, vault address, verification metadata hash, funded total |
-| `RewardEpoch` | Snapshot timestamp, pool amount, net payout total, delivery cost reserve, rollover total, exclusion hash, claim Merkle root, recorded claim totals, paid claim totals, review status |
+| `RewardEpoch` | Snapshot timestamp, pool amount, net payout total, delivery cost reserve, rollover total, claim expiry, expired-unclaimed accounting, exclusion hash, claim Merkle root, recorded claim totals, paid claim totals, review status |
 | `RewardClaimRecord` | Wallet, epoch, holder/staker role, claimed amount, delivery cost, rollover, claim state |
 | `RewardExclusionList` | Hash or registry pointer for excluded wallets |
 
@@ -96,6 +96,7 @@ Current reward instructions:
 | `draft_reward_epoch` | Creates a balanced, execution-blocked epoch draft | No funds |
 | `review_reward_epoch` | Marks a drafted epoch as reviewed and claim-record eligible | No funds |
 | `cancel_reward_epoch` | Cancels an epoch and keeps execution blocked | No funds |
+| `expire_reward_epoch_claims` | Marks an expired reviewed epoch as blocked and records unclaimed net rewards | No funds |
 | `create_reward_claim_record` | Creates a wallet-specific, role-keyed claim accounting record after review | No funds |
 | `create_reward_claim_record_from_proof` | Lets a wallet create its own holder/staker claim record from a reviewed Merkle proof | No funds |
 | `claim_reward_record` | Lets the wallet mark a zero-net rollover claim record as claimed | No funds |
@@ -113,6 +114,7 @@ The token-claim path is intentionally narrow:
 - the reward mint must match the reviewed epoch,
 - the wallet destination token account must be owned by the claiming wallet,
 - duplicate claims are rejected,
+- claims after the epoch claim window are rejected,
 - epoch-level recorded gross, recorded net, and claimed net totals prevent over-allocation and over-payment.
 
 The platform-fee route is also intentionally narrow:
@@ -138,6 +140,8 @@ The Anchor validation layer rejects:
 - zero reward pools,
 - unbalanced epoch accounting,
 - claim records before epoch review,
+- claims after the reviewed epoch claim window,
+- reward expiry before the claim window closes,
 - proof-backed claim records when the epoch has no claim Merkle root,
 - invalid or oversized reward Merkle proofs,
 - fee routes into unverified or mismatched reward vaults,
@@ -171,8 +175,9 @@ Protocol model:
 
 - `programs/cryptoseeds_protocol/src/lib.rs`
 
-The protocol model stores reward config, vault verification state, reviewed epochs, and wallet-level claim records. It keeps `execution_blocked = true` on drafted or cancelled epochs and flips it off only after `review_reward_epoch`.
+The protocol model stores reward config, vault verification state, reviewed epochs, and wallet-level claim records. It keeps `execution_blocked = true` on drafted, expired, or cancelled epochs and flips it off only after `review_reward_epoch`.
 Reviewed epochs can also store a `claim_merkle_root` so wallets can create their own holder/staker claim records from off-chain snapshot proofs without requiring the authority to initialize every record individually.
+Reviewed epochs carry a bounded claim window. After the window closes, `expire_reward_epoch_claims` records `expired_unclaimed_net_amount = distributed_net_amount - claimed_net_amount`, marks the epoch `Expired`, and blocks further claims. This is redistribution accounting only; later redistribution still needs a separately reviewed token movement route.
 
 Frontend read-only model:
 

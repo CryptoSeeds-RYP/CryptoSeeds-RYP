@@ -105,8 +105,14 @@ function validateFixture(fixture) {
       inspection.executionMode === "READ_ONLY" &&
       inspection.rewardExecutionExposed === false &&
       epochClaimTotalsAreBounded(epochDecoded);
-    if (!safeDraftInspection && !safeReviewedInspection) {
-      blockers.push("Reward epoch must be either drafted/blocked or reviewed/read-only with bounded claim totals.");
+    const safeExpiredInspection =
+      epochDecoded.status === "EXPIRED" &&
+      epochDecoded.executionBlocked === true &&
+      inspection.executionMode === "READ_ONLY" &&
+      inspection.rewardExecutionExposed === false &&
+      epochClaimTotalsAreBounded(epochDecoded);
+    if (!safeDraftInspection && !safeReviewedInspection && !safeExpiredInspection) {
+      blockers.push("Reward epoch must be drafted/blocked, reviewed/read-only, or expired/blocked with bounded claim totals.");
     }
     if (!epochAccountingBalances(epochDecoded)) blockers.push("Reward epoch accounting must balance.");
     if (env.VITE_REWARD_INSPECTION_EPOCH_ID !== epochDecoded.epochId) {
@@ -153,8 +159,14 @@ function epochClaimTotalsAreBounded(epoch) {
     const recordedGross = BigInt(epoch.recordedGrossAllocationAmount ?? 0);
     const recordedNet = BigInt(epoch.recordedNetClaimAmount ?? 0);
     const claimedNet = BigInt(epoch.claimedNetAmount ?? 0);
+    const expiredUnclaimedNet = BigInt(epoch.expiredUnclaimedNetAmount ?? 0);
 
-    return recordedGross <= rewardPool && recordedNet <= distributedNet && claimedNet <= recordedNet;
+    return (
+      recordedGross <= rewardPool &&
+      recordedNet <= distributedNet &&
+      claimedNet <= recordedNet &&
+      expiredUnclaimedNet <= distributedNet - claimedNet
+    );
   } catch {
     return false;
   }

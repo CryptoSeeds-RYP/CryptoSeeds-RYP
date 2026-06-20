@@ -9,7 +9,7 @@ Wallets can now create their own reviewed reward claim record by submitting a Me
 ## Protocol Changes
 
 - `RewardEpoch` now stores `claim_merkle_root`.
-- `draft_reward_epoch` accepts the reviewed claim root alongside the exclusion-list hash.
+- `draft_reward_epoch` accepts the reviewed claim root, claim window, and exclusion-list hash.
 - `create_reward_claim_record_from_proof` initializes a wallet-owned claim record after validating:
   - reviewed epoch state,
   - holder/staker role only,
