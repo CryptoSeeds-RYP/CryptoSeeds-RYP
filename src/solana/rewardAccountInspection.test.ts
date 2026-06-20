@@ -2,13 +2,18 @@ import { describe, expect, it } from "vitest";
 import { Keypair, PublicKey } from "@solana/web3.js";
 import {
   buildRewardAccountInspectionPreview,
+  buildSeedBotPermissionInspectionPreview,
   decodeRewardConfigAccount,
   decodeRewardEpochAccount,
   decodeRewardVaultStateAccount,
+  decodeSeedBotPermissionAccount,
+  deriveSeedBotPermissionInspectionAddress,
   deriveRewardAccountAddresses,
   REWARD_ACCOUNT_LAYOUTS,
   validateRewardAccountInspection,
+  validateSeedBotPermissionInspection,
   type RewardAccountInspection,
+  type SeedBotPermissionInspection,
 } from "./rewardAccountInspection";
 import { PLACEHOLDER_PROTOCOL_PROGRAM_ID } from "../config/env";
 
@@ -39,6 +44,23 @@ describe("reward account inspection", () => {
     expect(inspection.rewardConfigStatus).toBe("PREVIEW_ONLY");
     expect(inspection.vaults.every((vault) => vault.status === "PREVIEW_ONLY")).toBe(true);
     expect(inspection.warnings.join(" ")).toContain("No reward setup");
+  });
+
+  it("derives and previews read-only SeedBot permission inspection", () => {
+    const owner = Keypair.generate().publicKey.toBase58();
+    const addresses = deriveSeedBotPermissionInspectionAddress({
+      ownerAddress: owner,
+      programIdAddress: PLACEHOLDER_PROTOCOL_PROGRAM_ID,
+    });
+    const inspection = buildSeedBotPermissionInspectionPreview({
+      ownerAddress: owner,
+      programIdAddress: PLACEHOLDER_PROTOCOL_PROGRAM_ID,
+    });
+
+    expect(addresses.permissionAddress).toMatch(/^[1-9A-HJ-NP-Za-km-z]{32,44}$/);
+    expect(inspection.executionMode).toBe("READ_ONLY");
+    expect(inspection.lifecycleStatus).toBe("PREVIEW_ONLY");
+    expect(inspection.warnings.join(" ")).toContain("No SeedBot trade signing");
   });
 
   it("decodes RewardConfig account bytes", () => {
@@ -164,6 +186,48 @@ describe("reward account inspection", () => {
     });
   });
 
+  it("decodes SeedBotPermission account bytes", () => {
+    const owner = Keypair.generate().publicKey;
+    const position = Keypair.generate().publicKey;
+    const data = new Uint8Array(REWARD_ACCOUNT_LAYOUTS.SeedBotPermission.minimumLength);
+    const offset = Object.fromEntries(
+      REWARD_ACCOUNT_LAYOUTS.SeedBotPermission.fields.map((field) => [field.name, field.offset]),
+    ) as Record<string, number>;
+
+    writeDiscriminator(data, "SeedBotPermission");
+    writePubkey(data, offset.owner, owner);
+    writePubkey(data, offset.position, position);
+    data.fill(7, offset.permission_hash, offset.permission_hash + 32);
+    view(data).setBigInt64(offset.created_at, 1_800_000_000n, true);
+    view(data).setBigInt64(offset.expires_at, 1_800_086_400n, true);
+    view(data).setBigUint64(offset.max_trade_amount, 500n, true);
+    view(data).setBigUint64(offset.max_daily_volume_amount, 1_500n, true);
+    view(data).setUint16(offset.max_daily_trades, 3, true);
+    view(data).setUint16(offset.max_slippage_bps, 100, true);
+    data[offset.tier_at_creation] = 1;
+    view(data).setBigUint64(offset.staked_amount_at_creation, 5_000_000_000n, true);
+    view(data).setBigInt64(offset.staking_start_ts_at_creation, 1_799_999_000n, true);
+    data[offset.revoked] = 0;
+    data[offset.bump] = 252;
+
+    expect(decodeSeedBotPermissionAccount(data)).toEqual({
+      owner: owner.toBase58(),
+      position: position.toBase58(),
+      permissionHash: "07".repeat(32),
+      createdAt: "1800000000",
+      expiresAt: "1800086400",
+      maxTradeAmount: "500",
+      maxDailyVolumeAmount: "1500",
+      maxDailyTrades: 3,
+      maxSlippageBps: 100,
+      tierAtCreation: "SEED",
+      stakedAmountAtCreation: "5000000000",
+      stakingStartTsAtCreation: "1799999000",
+      revoked: false,
+      bump: 252,
+    });
+  });
+
   it("rejects reward accounts with the wrong Anchor discriminator", () => {
     const data = new Uint8Array(REWARD_ACCOUNT_LAYOUTS.RewardConfig.minimumLength);
 
@@ -232,6 +296,51 @@ describe("reward account inspection", () => {
     expect(validateRewardAccountInspection(inspection).blockers).toContain(
       "Reward epoch must be drafted/blocked or reviewed/read-only with bounded claim totals.",
     );
+  });
+
+  it("validates SeedBot permission lifecycle states", () => {
+    const active = buildDecodedSeedBotPermissionInspection();
+
+    expect(validateSeedBotPermissionInspection(active, { nowUnix: 1_800_000_001n })).toMatchObject({
+      blockers: [],
+      lifecycleStatus: "ACTIVE",
+    });
+
+    const revoked = validateSeedBotPermissionInspection(
+      buildDecodedSeedBotPermissionInspection({ decoded: { revoked: true } }),
+      { nowUnix: 1_800_000_001n },
+    );
+    expect(revoked.lifecycleStatus).toBe("REVOKED");
+    expect(revoked.warnings.join(" ")).toContain("revoked");
+
+    const expired = validateSeedBotPermissionInspection(
+      buildDecodedSeedBotPermissionInspection({ decoded: { expiresAt: "1800000000" } }),
+      { nowUnix: 1_800_000_001n },
+    );
+    expect(expired.lifecycleStatus).toBe("EXPIRED");
+    expect(expired.warnings.join(" ")).toContain("expired");
+  });
+
+  it("blocks unsafe SeedBot permission inspections", () => {
+    const inspection = buildDecodedSeedBotPermissionInspection({
+      decoded: {
+        maxDailyTrades: 0,
+        maxDailyVolumeAmount: "499",
+        maxSlippageBps: 501,
+        permissionHash: "00".repeat(32),
+        stakedAmountAtCreation: "0",
+        tierAtCreation: "NONE",
+      },
+    });
+
+    const blockers = validateSeedBotPermissionInspection(inspection, { nowUnix: 1_800_000_001n }).blockers.join(" ");
+
+    expect(blockers).toContain("hash must not be blank");
+    expect(blockers).toContain("active staking tier");
+    expect(blockers).toContain("stake snapshot");
+    expect(blockers).toContain("daily volume");
+    expect(blockers).toContain("daily trades");
+    expect(blockers).toContain("slippage");
   });
 });
 
@@ -309,6 +418,39 @@ function buildDecodedInspection(
         ...overrides.vault,
       },
     })),
+  };
+}
+
+function buildDecodedSeedBotPermissionInspection(
+  overrides: {
+    decoded?: Partial<NonNullable<SeedBotPermissionInspection["decoded"]>>;
+  } = {},
+): SeedBotPermissionInspection {
+  const owner = Keypair.generate().publicKey.toBase58();
+  const preview = buildSeedBotPermissionInspectionPreview({ ownerAddress: owner });
+
+  return {
+    ...preview,
+    decoded: {
+      owner,
+      position: Keypair.generate().publicKey.toBase58(),
+      permissionHash: "07".repeat(32),
+      createdAt: "1800000000",
+      expiresAt: "1800086400",
+      maxTradeAmount: "500",
+      maxDailyVolumeAmount: "1500",
+      maxDailyTrades: 3,
+      maxSlippageBps: 100,
+      tierAtCreation: "SEED",
+      stakedAmountAtCreation: "5000000000",
+      stakingStartTsAtCreation: "1799999000",
+      revoked: false,
+      bump: 252,
+      ...overrides.decoded,
+    },
+    lifecycleStatus: "ACTIVE",
+    message: "Account decoded from selected cluster.",
+    status: "DECODED",
   };
 }
 

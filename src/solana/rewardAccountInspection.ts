@@ -5,8 +5,11 @@ import protocolAccountLayoutsJson from "./protocolAccountLayouts.json";
 export const REWARD_CONFIG_SEED = "reward-config";
 export const REWARD_VAULT_STATE_SEED = "reward-vault";
 export const REWARD_EPOCH_SEED = "reward-epoch";
+export const SEEDBOT_PERMISSION_SEED = "seedbot-permission";
+export const MAX_SEEDBOT_DAILY_TRADES = 50;
+export const MAX_SEEDBOT_SLIPPAGE_BPS = 500;
 
-type RewardAccountLayoutName = "RewardConfig" | "RewardVaultState" | "RewardEpoch";
+type RewardAccountLayoutName = "RewardConfig" | "RewardVaultState" | "RewardEpoch" | "SeedBotPermission";
 
 type RewardAccountFieldLayout = {
   name: string;
@@ -64,6 +67,14 @@ export type RewardVaultVerificationStatus =
 
 export type RewardEpochStatus = "DRAFTED" | "REVIEWED" | "CANCELLED" | "UNKNOWN";
 export type RewardAccountReadStatus = "PREVIEW_ONLY" | "MISSING" | "DECODED" | "DECODE_ERROR";
+export type StakeTierName = "NONE" | "SEED" | "SPROUT" | "SAPLING" | "TREE" | "FRUIT" | "UNKNOWN";
+export type SeedBotPermissionLifecycleStatus =
+  | "PREVIEW_ONLY"
+  | "MISSING"
+  | "ACTIVE"
+  | "REVOKED"
+  | "EXPIRED"
+  | "DECODE_ERROR";
 
 export type RewardVaultRoleSpec = {
   role: Exclude<RewardVaultRole, "UNKNOWN">;
@@ -121,6 +132,36 @@ export type RewardEpochAccount = {
   status: RewardEpochStatus;
   executionBlocked: boolean;
   bump: number;
+};
+
+export type SeedBotPermissionAccount = {
+  owner: string;
+  position: string;
+  permissionHash: string;
+  createdAt: string;
+  expiresAt: string;
+  maxTradeAmount: string;
+  maxDailyVolumeAmount: string;
+  maxDailyTrades: number;
+  maxSlippageBps: number;
+  tierAtCreation: StakeTierName;
+  stakedAmountAtCreation: string;
+  stakingStartTsAtCreation: string;
+  revoked: boolean;
+  bump: number;
+};
+
+export type SeedBotPermissionInspection = {
+  programId: string;
+  ownerAddress: string;
+  permissionAddress: string;
+  status: RewardAccountReadStatus;
+  lifecycleStatus: SeedBotPermissionLifecycleStatus;
+  decoded?: SeedBotPermissionAccount;
+  message?: string;
+  executionMode: "READ_ONLY";
+  blockers: string[];
+  warnings: string[];
 };
 
 export type RewardVaultInspection = {
@@ -191,6 +232,27 @@ export function deriveRewardAccountAddresses({
   };
 }
 
+export function deriveSeedBotPermissionInspectionAddress({
+  ownerAddress,
+  programIdAddress = appConfig.protocolProgramId,
+}: {
+  ownerAddress: string;
+  programIdAddress?: string;
+}) {
+  const owner = new PublicKey(ownerAddress);
+  const programId = new PublicKey(programIdAddress);
+  const [permission] = PublicKey.findProgramAddressSync(
+    [textSeed(SEEDBOT_PERMISSION_SEED), owner.toBuffer()],
+    programId,
+  );
+
+  return {
+    ownerAddress: owner.toBase58(),
+    permissionAddress: permission.toBase58(),
+    programId: programId.toBase58(),
+  };
+}
+
 export function buildRewardAccountInspectionPreview({
   epochId = 0n,
   programIdAddress = appConfig.protocolProgramId,
@@ -222,6 +284,31 @@ export function buildRewardAccountInspectionPreview({
     warnings: [
       "Reward account inspection is read-only.",
       "No reward setup, claim, payout, or vault movement action is exposed in the Admin Dashboard.",
+      ...(placeholderProgram ? ["Protocol program id is still the local development placeholder."] : []),
+    ],
+  };
+}
+
+export function buildSeedBotPermissionInspectionPreview({
+  ownerAddress,
+  programIdAddress = appConfig.protocolProgramId,
+}: {
+  ownerAddress: string;
+  programIdAddress?: string;
+}): SeedBotPermissionInspection {
+  const addresses = deriveSeedBotPermissionInspectionAddress({ ownerAddress, programIdAddress });
+  const placeholderProgram = addresses.programId === PLACEHOLDER_PROTOCOL_PROGRAM_ID;
+
+  return {
+    ...addresses,
+    status: "PREVIEW_ONLY",
+    lifecycleStatus: "PREVIEW_ONLY",
+    message: "SeedBot permission account read has not been requested.",
+    executionMode: "READ_ONLY",
+    blockers: [],
+    warnings: [
+      "SeedBot permission inspection is read-only.",
+      "No SeedBot trade signing, custody, or broadcast action is exposed by this inspection.",
       ...(placeholderProgram ? ["Protocol program id is still the local development placeholder."] : []),
     ],
   };
@@ -259,6 +346,30 @@ export async function readRewardAccountInspection({
     epochMessage: epoch.message,
     epochStatus: epoch.status,
     vaults,
+  });
+}
+
+export async function readSeedBotPermissionInspection({
+  connection,
+  nowUnix,
+  ownerAddress,
+  programIdAddress = appConfig.protocolProgramId,
+}: {
+  connection: Connection;
+  nowUnix?: bigint | number | string;
+  ownerAddress: string;
+  programIdAddress?: string;
+}): Promise<SeedBotPermissionInspection> {
+  const preview = buildSeedBotPermissionInspectionPreview({ ownerAddress, programIdAddress });
+  const account = await connection.getAccountInfo(new PublicKey(preview.permissionAddress), "confirmed");
+  const decoded = decodeAccount(account?.data, decodeSeedBotPermissionAccount);
+
+  return validateSeedBotPermissionInspection({
+    ...preview,
+    decoded: decoded.decoded,
+    lifecycleStatus: seedBotLifecycleStatus(decoded.status, decoded.decoded, nowUnix),
+    message: decoded.message,
+    status: decoded.status,
   });
 }
 
@@ -345,6 +456,69 @@ export function validateRewardAccountInspection(inspection: RewardAccountInspect
   };
 }
 
+export function validateSeedBotPermissionInspection(
+  inspection: SeedBotPermissionInspection,
+  { nowUnix }: { nowUnix?: bigint | number | string } = {},
+): SeedBotPermissionInspection {
+  const blockers = [...inspection.blockers];
+  const warnings = [...inspection.warnings];
+  const lifecycleStatus =
+    inspection.status === "DECODED"
+      ? seedBotLifecycleStatus(inspection.status, inspection.decoded, nowUnix)
+      : inspection.lifecycleStatus;
+
+  if (inspection.executionMode !== "READ_ONLY") {
+    blockers.push("SeedBot permission inspection must remain read-only.");
+  }
+
+  if (inspection.status === "DECODED" && inspection.decoded) {
+    if (inspection.decoded.owner !== inspection.ownerAddress) {
+      blockers.push("SeedBot permission owner does not match the inspected wallet.");
+    }
+    if (inspection.decoded.permissionHash === "00".repeat(32)) {
+      blockers.push("SeedBot permission hash must not be blank.");
+    }
+    if (inspection.decoded.tierAtCreation === "NONE" || inspection.decoded.tierAtCreation === "UNKNOWN") {
+      blockers.push("SeedBot permission was not created from an active staking tier.");
+    }
+    if (BigInt(inspection.decoded.stakedAmountAtCreation) <= 0n) {
+      blockers.push("SeedBot permission stake snapshot must be greater than zero.");
+    }
+    if (BigInt(inspection.decoded.maxTradeAmount) <= 0n) {
+      blockers.push("SeedBot permission max trade amount must be greater than zero.");
+    }
+    if (BigInt(inspection.decoded.maxDailyVolumeAmount) < BigInt(inspection.decoded.maxTradeAmount)) {
+      blockers.push("SeedBot permission daily volume must be at least the max trade amount.");
+    }
+    if (
+      inspection.decoded.maxDailyTrades <= 0 ||
+      inspection.decoded.maxDailyTrades > MAX_SEEDBOT_DAILY_TRADES
+    ) {
+      blockers.push(`SeedBot permission daily trades must be between 1 and ${MAX_SEEDBOT_DAILY_TRADES}.`);
+    }
+    if (inspection.decoded.maxSlippageBps > MAX_SEEDBOT_SLIPPAGE_BPS) {
+      blockers.push(`SeedBot permission slippage must not exceed ${MAX_SEEDBOT_SLIPPAGE_BPS} bps.`);
+    }
+    if (lifecycleStatus === "REVOKED") {
+      warnings.push("SeedBot permission is revoked and cannot be used for guarded automation.");
+    }
+    if (lifecycleStatus === "EXPIRED") {
+      warnings.push("SeedBot permission is expired and must be renewed before guarded automation.");
+    }
+  } else if (inspection.status === "MISSING") {
+    warnings.push("No SeedBot permission exists for this wallet.");
+  } else if (inspection.status === "DECODE_ERROR") {
+    blockers.push("SeedBot permission account must decode before it can be inspected.");
+  }
+
+  return {
+    ...inspection,
+    blockers: uniqueMessages(blockers),
+    lifecycleStatus,
+    warnings: uniqueMessages(warnings),
+  };
+}
+
 export function decodeRewardConfigAccount(data: Uint8Array): RewardConfigAccount {
   assertAccountLayout(data, "RewardConfig");
   const offset = REWARD_ACCOUNT_FIELD_OFFSETS.RewardConfig;
@@ -411,6 +585,28 @@ export function decodeRewardEpochAccount(data: Uint8Array): RewardEpochAccount {
   };
 }
 
+export function decodeSeedBotPermissionAccount(data: Uint8Array): SeedBotPermissionAccount {
+  assertAccountLayout(data, "SeedBotPermission");
+  const offset = REWARD_ACCOUNT_FIELD_OFFSETS.SeedBotPermission;
+
+  return {
+    owner: readPubkey(data, offset.owner),
+    position: readPubkey(data, offset.position),
+    permissionHash: bytesToHex(data.subarray(offset.permission_hash, offset.permission_hash + 32)),
+    createdAt: readI64(data, offset.created_at).toString(),
+    expiresAt: readI64(data, offset.expires_at).toString(),
+    maxTradeAmount: readU64(data, offset.max_trade_amount).toString(),
+    maxDailyVolumeAmount: readU64(data, offset.max_daily_volume_amount).toString(),
+    maxDailyTrades: readU16(data, offset.max_daily_trades),
+    maxSlippageBps: readU16(data, offset.max_slippage_bps),
+    tierAtCreation: stakeTierFromVariant(data[offset.tier_at_creation]),
+    stakedAmountAtCreation: readU64(data, offset.staked_amount_at_creation).toString(),
+    stakingStartTsAtCreation: readI64(data, offset.staking_start_ts_at_creation).toString(),
+    revoked: readBool(data, offset.revoked),
+    bump: data[offset.bump],
+  };
+}
+
 function decodeAccount<T>(
   data: Uint8Array | undefined,
   decoder: (data: Uint8Array) => T,
@@ -460,6 +656,29 @@ function epochStatusFromVariant(variant: number): RewardEpochStatus {
   if (variant === 1) return "REVIEWED";
   if (variant === 2) return "CANCELLED";
   return "UNKNOWN";
+}
+
+function stakeTierFromVariant(variant: number): StakeTierName {
+  if (variant === 0) return "NONE";
+  if (variant === 1) return "SEED";
+  if (variant === 2) return "SPROUT";
+  if (variant === 3) return "SAPLING";
+  if (variant === 4) return "TREE";
+  if (variant === 5) return "FRUIT";
+  return "UNKNOWN";
+}
+
+function seedBotLifecycleStatus(
+  status: RewardAccountReadStatus,
+  decoded: SeedBotPermissionAccount | undefined,
+  nowUnix?: bigint | number | string,
+): SeedBotPermissionLifecycleStatus {
+  if (status === "PREVIEW_ONLY") return "PREVIEW_ONLY";
+  if (status === "MISSING") return "MISSING";
+  if (status === "DECODE_ERROR" || !decoded) return "DECODE_ERROR";
+  if (decoded.revoked) return "REVOKED";
+  if (nowUnix !== undefined && BigInt(decoded.expiresAt) <= BigInt(nowUnix)) return "EXPIRED";
+  return "ACTIVE";
 }
 
 function rewardEpochAccountingBalances(epoch: RewardEpochAccount) {
