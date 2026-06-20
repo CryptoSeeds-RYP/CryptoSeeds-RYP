@@ -45,7 +45,7 @@ describe("reward account inspection", () => {
     const authority = Keypair.generate().publicKey;
     const protocolConfig = Keypair.generate().publicKey;
     const rypMint = Keypair.generate().publicKey;
-    const data = new Uint8Array(131);
+    const data = new Uint8Array(139);
 
     writeDiscriminator(data, "RewardConfig");
     writePubkey(data, 8, authority);
@@ -58,9 +58,10 @@ describe("reward account inspection", () => {
     data[118] = 31;
     data[119] = 31;
     view(data).setBigUint64(120, 2n, true);
-    data[128] = 0;
-    data[129] = 1;
-    data[130] = 255;
+    view(data).setBigUint64(128, 30_000n, true);
+    data[136] = 0;
+    data[137] = 1;
+    data[138] = 255;
 
     expect(decodeRewardConfigAccount(data)).toEqual({
       authority: authority.toBase58(),
@@ -73,6 +74,7 @@ describe("reward account inspection", () => {
       registeredVaultRolesMask: 31,
       verifiedVaultRolesMask: 31,
       totalEpochDrafts: "2",
+      totalRoutedFeeAmount: "30000",
       paused: false,
       draftOnly: true,
       bump: 255,
@@ -83,7 +85,7 @@ describe("reward account inspection", () => {
     const rewardConfig = Keypair.generate().publicKey;
     const rewardMint = Keypair.generate().publicKey;
     const vaultAddress = Keypair.generate().publicKey;
-    const data = new Uint8Array(141);
+    const data = new Uint8Array(149);
 
     writeDiscriminator(data, "RewardVaultState");
     writePubkey(data, 8, rewardConfig);
@@ -93,12 +95,14 @@ describe("reward account inspection", () => {
     data[105] = 1;
     data[106] = 2;
     data.fill(7, 107, 139);
-    data[139] = 0;
-    data[140] = 254;
+    view(data).setBigUint64(139, 9_999n, true);
+    data[147] = 0;
+    data[148] = 254;
 
     expect(decodeRewardVaultStateAccount(data)).toMatchObject({
       custodyModel: "TREASURY_CONTROLLED",
       metadataHash: "07".repeat(32),
+      totalFundedAmount: "9999",
       receivesUserFunds: false,
       rewardConfig: rewardConfig.toBase58(),
       rewardMint: rewardMint.toBase58(),
@@ -153,7 +157,7 @@ describe("reward account inspection", () => {
   });
 
   it("rejects reward accounts with the wrong Anchor discriminator", () => {
-    const data = new Uint8Array(131);
+    const data = new Uint8Array(139);
 
     expect(() => decodeRewardConfigAccount(data)).toThrow("RewardConfig discriminator mismatch");
   });
@@ -250,6 +254,7 @@ function buildDecodedInspection(
       registeredVaultRolesMask: 31,
       verifiedVaultRolesMask: 31,
       totalEpochDrafts: "1",
+      totalRoutedFeeAmount: "30000",
       paused: false,
       draftOnly: true,
       bump: 255,
@@ -288,6 +293,7 @@ function buildDecodedInspection(
         custodyModel: vault.role === "INDEPENDENT_TREASURY" ? "TREASURY_CONTROLLED" : "PROGRAM_CONTROLLED",
         verificationStatus: "VERIFIED",
         metadataHash: "07".repeat(32),
+        totalFundedAmount: "0",
         receivesUserFunds: false,
         bump: 253,
         ...overrides.vault,

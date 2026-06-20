@@ -83,6 +83,7 @@ export type RewardConfigAccount = {
   registeredVaultRolesMask: number;
   verifiedVaultRolesMask: number;
   totalEpochDrafts: string;
+  totalRoutedFeeAmount: string;
   paused: boolean;
   draftOnly: boolean;
   bump: number;
@@ -96,6 +97,7 @@ export type RewardVaultStateAccount = {
   custodyModel: RewardVaultCustodyModel;
   verificationStatus: RewardVaultVerificationStatus;
   metadataHash: string;
+  totalFundedAmount: string;
   receivesUserFunds: boolean;
   bump: number;
 };
@@ -356,6 +358,7 @@ export function decodeRewardConfigAccount(data: Uint8Array): RewardConfigAccount
     registeredVaultRolesMask: data[offset.registered_vault_roles_mask],
     verifiedVaultRolesMask: data[offset.verified_vault_roles_mask],
     totalEpochDrafts: readU64(data, offset.total_epoch_drafts).toString(),
+    totalRoutedFeeAmount: readU64(data, offset.total_routed_fee_amount).toString(),
     paused: readBool(data, offset.paused),
     draftOnly: readBool(data, offset.draft_only),
     bump: data[offset.bump],
@@ -374,6 +377,7 @@ export function decodeRewardVaultStateAccount(data: Uint8Array): RewardVaultStat
     custodyModel: custodyModelFromVariant(data[offset.custody_model]),
     verificationStatus: verificationStatusFromVariant(data[offset.verification_status]),
     metadataHash: bytesToHex(data.subarray(offset.metadata_hash, offset.metadata_hash + 32)),
+    totalFundedAmount: readU64(data, offset.total_funded_amount).toString(),
     receivesUserFunds: readBool(data, offset.receives_user_funds),
     bump: data[offset.bump],
   };

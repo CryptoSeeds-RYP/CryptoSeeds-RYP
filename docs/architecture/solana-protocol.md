@@ -40,6 +40,7 @@ Current scope:
 - Unstake RYP
 - Initialize reward config for draft holder/staker/treasury epoch accounting
 - Register and verify reward vault state by role
+- Route wallet-approved platform fees into verified holder/staker/treasury vaults
 - Draft balanced, execution-blocked reward epochs
 - Review/cancel reward epochs
 - Create role-keyed reward claim records
@@ -52,9 +53,9 @@ Current scope:
 - Emergency pause
 - Emit protocol events
 
-Current localnet security coverage includes rejected duplicate tier thresholds, reward config initialization, rejected invalid reward splits, rejected blank reward metadata, reward vault registration and verification, rejected pending-vault reward epochs, rejected reward metadata mismatch, rejected non-authority reward verification, rejected unbalanced reward epochs, balanced reward epoch drafts, reviewed reward epochs, holder reward token claims, staker rollover claims, duplicate reward claim rejection, governance proposal close, blocked voting without active voting rights, project registration/participation, SeedBot permission creation/revocation, rejected below-Seed staking, rejected early voting-right activation, rejected mismatched-owner unstaking, rejected oversized unstaking, Seed-to-Sprout top-up state preservation, Sprout-to-Seed partial unstake state preservation, rejected non-authority pause attempts, and pause enforcement for stake, unstake, and voting activation paths.
+Current localnet security coverage includes rejected duplicate tier thresholds, reward config initialization, rejected invalid reward splits, rejected blank reward metadata, reward vault registration and verification, wallet-approved platform fee routing into holder/staker/treasury vaults, rejected pending-vault reward epochs, rejected reward metadata mismatch, rejected non-authority reward verification, rejected unbalanced reward epochs, balanced reward epoch drafts, reviewed reward epochs, holder reward token claims, staker rollover claims, duplicate reward claim rejection, governance proposal close, blocked voting without active voting rights, project registration/participation, SeedBot permission creation/revocation, rejected below-Seed staking, rejected early voting-right activation, rejected mismatched-owner unstaking, rejected oversized unstaking, Seed-to-Sprout top-up state preservation, Sprout-to-Seed partial unstake state preservation, rejected non-authority pause attempts, and pause enforcement for stake, unstake, and voting activation paths.
 
-Current Rust unit coverage also includes reward split totals, reward cadence bounds, reward epoch accounting balance, and verified-vault requirements for epoch drafts.
+Current Rust unit coverage also includes reward split totals, platform fee split/remainder math, reward cadence bounds, reward epoch accounting balance, and verified-vault requirements for epoch drafts.
 
 Client preparation now has a TypeScript planning layer at `src/solana/protocolTransactionPlan.ts`:
 
@@ -62,7 +63,7 @@ Client preparation now has a TypeScript planning layer at `src/solana/protocolTr
 - Derives the per-wallet stake position PDA from `stake-position + wallet`
 - Derives the owner RYP associated token account
 - Derives the protocol RYP vault associated token account owned by the config PDA
-- Builds Anchor instruction data for staking, reward claims, governance voting/proposals, project registry/participation, SeedBot permissions, and fee config updates
+- Builds Anchor instruction data for staking, reward claims, platform fee routing, governance voting/proposals, project registry/participation, SeedBot permissions, and fee config updates
 - Exposes account order, signer/writable flags, instruction discriminator, and raw data hex for wallet-preview surfaces
 - Rejects prepared token amounts outside Solana's u64 SPL token amount bounds before instruction data is encoded
 - Installs a browser `Buffer` shim at app startup so Solana wallet and transaction libraries can run in Vite without relying on Node globals
@@ -94,7 +95,6 @@ These should be added after the staking core is reviewed:
 - Actual Golden Key NFT mint/burn/return logic
 - Voting Rights NFT minting and dynamic metadata
 - Reward accrual, expiration, and 1-year unclaimed redistribution
-- Fee router holder/staker/treasury vault funding instructions
 - Treasury distribution
 - Airdrop eligibility
 - SeedBot permission renewal/update flow

@@ -60,8 +60,8 @@ Anchor now includes the first reward-account scaffold:
 
 | Account | Purpose |
 | --- | --- |
-| `RewardConfig` | Reward authority, mint, vault roles, epoch cadence, pause flags |
-| `RewardVaultState` | Role, mint, vault address, verification metadata hash |
+| `RewardConfig` | Reward authority, mint, vault roles, epoch cadence, pause flags, routed fee total |
+| `RewardVaultState` | Role, mint, vault address, verification metadata hash, funded total |
 | `RewardEpoch` | Snapshot timestamp, pool amount, net payout total, delivery cost reserve, rollover total, recorded claim totals, paid claim totals, review status |
 | `RewardClaimRecord` | Wallet, epoch, holder/staker role, claimed amount, delivery cost, rollover, claim state |
 | `RewardExclusionList` | Hash or registry pointer for excluded wallets |
@@ -73,6 +73,7 @@ Current reward instructions:
 | `initialize_reward_config` | Creates reward config and split/cadence policy | No funds |
 | `register_reward_vault` | Registers one role-specific vault state as pending verification | No funds |
 | `verify_reward_vault` | Marks a reviewed vault state as verified when metadata hash matches | No funds |
+| `route_platform_fee` | Routes a wallet-approved RYP platform fee into verified holder/staker/treasury vaults | Moves signer-approved fee tokens only |
 | `draft_reward_epoch` | Creates a balanced, execution-blocked epoch draft | No funds |
 | `review_reward_epoch` | Marks a drafted epoch as reviewed and claim-record eligible | No funds |
 | `cancel_reward_epoch` | Cancels an epoch and keeps execution blocked | No funds |
@@ -91,6 +92,17 @@ The token-claim path is intentionally narrow:
 - duplicate claims are rejected,
 - epoch-level recorded gross, recorded net, and claimed net totals prevent over-allocation and over-payment.
 
+The platform-fee route is also intentionally narrow:
+
+- the payer signs the RYP transfer,
+- the payer source account must be owned by the payer,
+- holder and staker destination vaults must be verified program-controlled reward vaults,
+- the independent treasury destination must match its verified vault state,
+- the split uses `RewardConfig` holder/staker/treasury bps,
+- holder and staker amounts are rounded down and any remainder stays in the treasury bucket,
+- `RewardConfig.total_routed_fee_amount` and each destination `RewardVaultState.total_funded_amount` are updated on-chain,
+- this does not create or enforce a global wallet-to-wallet transfer tax for the existing SPL token.
+
 Reward logic remains modular from staking until batching, exclusion-list execution, authority review, and public UI exposure are complete.
 
 ## Protocol Rejection Rules
@@ -103,6 +115,8 @@ The Anchor validation layer rejects:
 - zero reward pools,
 - unbalanced epoch accounting,
 - claim records before epoch review,
+- fee routes into unverified or mismatched reward vaults,
+- holder/staker fee routes into non-program-controlled vaults,
 - claim-record totals that exceed reviewed epoch totals,
 - token claims from non-program-controlled vaults,
 - wallet claims against treasury, delivery-cost, or rollover vault roles,

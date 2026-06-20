@@ -285,6 +285,7 @@ pub mod cryptoseeds_protocol {
         reward_config.registered_vault_roles_mask = 0;
         reward_config.verified_vault_roles_mask = 0;
         reward_config.total_epoch_drafts = 0;
+        reward_config.total_routed_fee_amount = 0;
         reward_config.paused = false;
         reward_config.draft_only = true;
         reward_config.bump = ctx.bumps.reward_config;
@@ -338,6 +339,7 @@ pub mod cryptoseeds_protocol {
         vault_state.custody_model = custody_model;
         vault_state.verification_status = RewardVaultVerificationStatus::PendingVerification;
         vault_state.metadata_hash = metadata_hash;
+        vault_state.total_funded_amount = 0;
         vault_state.receives_user_funds = false;
         vault_state.bump = ctx.bumps.reward_vault_state;
 
@@ -392,6 +394,116 @@ pub mod cryptoseeds_protocol {
             reward_config: ctx.accounts.reward_config.key(),
             role,
             vault_address: vault_state.vault_address,
+        });
+
+        Ok(())
+    }
+
+    pub fn route_platform_fee(ctx: Context<RoutePlatformFee>, fee_amount: u64) -> Result<()> {
+        require!(fee_amount > 0, CryptoSeedsError::InvalidAmount);
+        require!(
+            !ctx.accounts.config.paused,
+            CryptoSeedsError::ProtocolPaused
+        );
+        require!(
+            !ctx.accounts.reward_config.paused,
+            CryptoSeedsError::RewardConfigPaused
+        );
+        validate_reward_config_for_fee_route(
+            &ctx.accounts.config,
+            &ctx.accounts.reward_config,
+            ctx.accounts.config.key(),
+        )?;
+
+        let reward_config_key = ctx.accounts.reward_config.key();
+        let reward_mint = ctx.accounts.ryp_mint.key();
+        validate_reward_vault_for_fee_route(
+            &ctx.accounts.holder_reward_vault_state,
+            reward_config_key,
+            reward_mint,
+            RewardVaultRole::HolderReward,
+        )?;
+        validate_reward_vault_for_fee_route(
+            &ctx.accounts.staker_reward_vault_state,
+            reward_config_key,
+            reward_mint,
+            RewardVaultRole::StakerReward,
+        )?;
+        validate_reward_vault_for_fee_route(
+            &ctx.accounts.independent_treasury_vault_state,
+            reward_config_key,
+            reward_mint,
+            RewardVaultRole::IndependentTreasury,
+        )?;
+
+        let (holder_amount, staker_amount, treasury_amount) = calculate_fee_route_amounts(
+            fee_amount,
+            ctx.accounts.reward_config.holder_split_bps,
+            ctx.accounts.reward_config.staker_split_bps,
+        )?;
+
+        transfer_platform_fee_bucket(
+            ctx.accounts.payer_fee_account.to_account_info(),
+            ctx.accounts.ryp_mint.to_account_info(),
+            ctx.accounts.holder_reward_vault.to_account_info(),
+            ctx.accounts.payer.to_account_info(),
+            ctx.accounts.token_program.key(),
+            holder_amount,
+            ctx.accounts.ryp_mint.decimals,
+        )?;
+        transfer_platform_fee_bucket(
+            ctx.accounts.payer_fee_account.to_account_info(),
+            ctx.accounts.ryp_mint.to_account_info(),
+            ctx.accounts.staker_reward_vault.to_account_info(),
+            ctx.accounts.payer.to_account_info(),
+            ctx.accounts.token_program.key(),
+            staker_amount,
+            ctx.accounts.ryp_mint.decimals,
+        )?;
+        transfer_platform_fee_bucket(
+            ctx.accounts.payer_fee_account.to_account_info(),
+            ctx.accounts.ryp_mint.to_account_info(),
+            ctx.accounts.independent_treasury_vault.to_account_info(),
+            ctx.accounts.payer.to_account_info(),
+            ctx.accounts.token_program.key(),
+            treasury_amount,
+            ctx.accounts.ryp_mint.decimals,
+        )?;
+
+        ctx.accounts.reward_config.total_routed_fee_amount = ctx
+            .accounts
+            .reward_config
+            .total_routed_fee_amount
+            .checked_add(fee_amount)
+            .ok_or(CryptoSeedsError::MathOverflow)?;
+        ctx.accounts.holder_reward_vault_state.total_funded_amount = ctx
+            .accounts
+            .holder_reward_vault_state
+            .total_funded_amount
+            .checked_add(holder_amount)
+            .ok_or(CryptoSeedsError::MathOverflow)?;
+        ctx.accounts.staker_reward_vault_state.total_funded_amount = ctx
+            .accounts
+            .staker_reward_vault_state
+            .total_funded_amount
+            .checked_add(staker_amount)
+            .ok_or(CryptoSeedsError::MathOverflow)?;
+        ctx.accounts
+            .independent_treasury_vault_state
+            .total_funded_amount = ctx
+            .accounts
+            .independent_treasury_vault_state
+            .total_funded_amount
+            .checked_add(treasury_amount)
+            .ok_or(CryptoSeedsError::MathOverflow)?;
+
+        emit!(PlatformFeeRouted {
+            payer: ctx.accounts.payer.key(),
+            reward_config: reward_config_key,
+            fee_amount,
+            holder_amount,
+            staker_amount,
+            treasury_amount,
         });
 
         Ok(())
@@ -1244,6 +1356,72 @@ pub struct VerifyRewardVault<'info> {
 }
 
 #[derive(Accounts)]
+pub struct RoutePlatformFee<'info> {
+    #[account(mut)]
+    pub payer: Signer<'info>,
+    #[account(seeds = [CONFIG_SEED], bump = config.bump, has_one = ryp_mint)]
+    pub config: Account<'info, ProtocolConfig>,
+    #[account(mut, seeds = [REWARD_CONFIG_SEED], bump = reward_config.bump)]
+    pub reward_config: Box<Account<'info, RewardConfig>>,
+    #[account(
+        mut,
+        seeds = [
+            REWARD_VAULT_STATE_SEED,
+            reward_config.key().as_ref(),
+            RewardVaultRole::HolderReward.seed()
+        ],
+        bump = holder_reward_vault_state.bump
+    )]
+    pub holder_reward_vault_state: Box<Account<'info, RewardVaultState>>,
+    #[account(
+        mut,
+        seeds = [
+            REWARD_VAULT_STATE_SEED,
+            reward_config.key().as_ref(),
+            RewardVaultRole::StakerReward.seed()
+        ],
+        bump = staker_reward_vault_state.bump
+    )]
+    pub staker_reward_vault_state: Box<Account<'info, RewardVaultState>>,
+    #[account(
+        mut,
+        seeds = [
+            REWARD_VAULT_STATE_SEED,
+            reward_config.key().as_ref(),
+            RewardVaultRole::IndependentTreasury.seed()
+        ],
+        bump = independent_treasury_vault_state.bump
+    )]
+    pub independent_treasury_vault_state: Box<Account<'info, RewardVaultState>>,
+    #[account(
+        mut,
+        constraint = payer_fee_account.mint == ryp_mint.key() @ CryptoSeedsError::InvalidRewardVault,
+        constraint = payer_fee_account.owner == payer.key() @ CryptoSeedsError::Unauthorized
+    )]
+    pub payer_fee_account: Box<InterfaceAccount<'info, TokenAccount>>,
+    #[account(
+        mut,
+        constraint = holder_reward_vault.key() == holder_reward_vault_state.vault_address @ CryptoSeedsError::InvalidRewardVault,
+        constraint = holder_reward_vault.mint == ryp_mint.key() @ CryptoSeedsError::InvalidRewardVault
+    )]
+    pub holder_reward_vault: Box<InterfaceAccount<'info, TokenAccount>>,
+    #[account(
+        mut,
+        constraint = staker_reward_vault.key() == staker_reward_vault_state.vault_address @ CryptoSeedsError::InvalidRewardVault,
+        constraint = staker_reward_vault.mint == ryp_mint.key() @ CryptoSeedsError::InvalidRewardVault
+    )]
+    pub staker_reward_vault: Box<InterfaceAccount<'info, TokenAccount>>,
+    #[account(
+        mut,
+        constraint = independent_treasury_vault.key() == independent_treasury_vault_state.vault_address @ CryptoSeedsError::InvalidRewardVault,
+        constraint = independent_treasury_vault.mint == ryp_mint.key() @ CryptoSeedsError::InvalidRewardVault
+    )]
+    pub independent_treasury_vault: Box<InterfaceAccount<'info, TokenAccount>>,
+    pub ryp_mint: Box<InterfaceAccount<'info, Mint>>,
+    pub token_program: Interface<'info, TokenInterface>,
+}
+
+#[derive(Accounts)]
 #[instruction(epoch_id: u64)]
 pub struct DraftRewardEpoch<'info> {
     #[account(mut)]
@@ -1672,6 +1850,7 @@ pub struct RewardConfig {
     pub registered_vault_roles_mask: u8,
     pub verified_vault_roles_mask: u8,
     pub total_epoch_drafts: u64,
+    pub total_routed_fee_amount: u64,
     pub paused: bool,
     pub draft_only: bool,
     pub bump: u8,
@@ -1687,6 +1866,7 @@ pub struct RewardVaultState {
     pub custody_model: RewardVaultCustodyModel,
     pub verification_status: RewardVaultVerificationStatus,
     pub metadata_hash: [u8; 32],
+    pub total_funded_amount: u64,
     pub receives_user_funds: bool,
     pub bump: u8,
 }
@@ -2028,6 +2208,16 @@ pub struct RewardVaultVerified {
 }
 
 #[event]
+pub struct PlatformFeeRouted {
+    pub payer: Pubkey,
+    pub reward_config: Pubkey,
+    pub fee_amount: u64,
+    pub holder_amount: u64,
+    pub staker_amount: u64,
+    pub treasury_amount: u64,
+}
+
+#[event]
 pub struct RewardEpochDrafted {
     pub reward_config: Pubkey,
     pub epoch_id: u64,
@@ -2276,6 +2466,30 @@ fn validate_reward_authority(
     Ok(())
 }
 
+fn validate_reward_config_for_fee_route(
+    config: &ProtocolConfig,
+    reward_config: &RewardConfig,
+    config_key: Pubkey,
+) -> Result<()> {
+    require_keys_eq!(
+        reward_config.protocol_config,
+        config_key,
+        CryptoSeedsError::InvalidRewardVault
+    );
+    require_keys_eq!(
+        reward_config.ryp_mint,
+        config.ryp_mint,
+        CryptoSeedsError::InvalidRewardVault
+    );
+    validate_reward_split(
+        reward_config.holder_split_bps,
+        reward_config.staker_split_bps,
+        reward_config.treasury_split_bps,
+    )?;
+
+    Ok(())
+}
+
 fn validate_reward_cadence(epoch_cadence_seconds: i64) -> Result<()> {
     require!(
         epoch_cadence_seconds > 0 && epoch_cadence_seconds <= MAX_REWARD_EPOCH_CADENCE_SECONDS,
@@ -2389,6 +2603,35 @@ fn validate_reward_vault_for_epoch(
     Ok(())
 }
 
+fn validate_reward_vault_for_fee_route(
+    vault_state: &RewardVaultState,
+    reward_config: Pubkey,
+    reward_mint: Pubkey,
+    role: RewardVaultRole,
+) -> Result<()> {
+    require!(
+        matches!(
+            role,
+            RewardVaultRole::HolderReward
+                | RewardVaultRole::StakerReward
+                | RewardVaultRole::IndependentTreasury
+        ),
+        CryptoSeedsError::InvalidRewardVault
+    );
+    validate_reward_vault_for_epoch(vault_state, reward_config, reward_mint, role)?;
+    if matches!(
+        role,
+        RewardVaultRole::HolderReward | RewardVaultRole::StakerReward
+    ) {
+        require!(
+            vault_state.custody_model == RewardVaultCustodyModel::ProgramControlled,
+            CryptoSeedsError::InvalidRewardVaultCustody
+        );
+    }
+
+    Ok(())
+}
+
 fn validate_reward_epoch_status(
     actual: RewardEpochStatus,
     expected: RewardEpochStatus,
@@ -2474,6 +2717,55 @@ fn record_reward_claim_amounts(
     reward_epoch.recorded_net_claim_amount = recorded_net_claim_amount;
 
     Ok(())
+}
+
+fn calculate_fee_route_amounts(
+    fee_amount: u64,
+    holder_split_bps: u16,
+    staker_split_bps: u16,
+) -> Result<(u64, u64, u64)> {
+    require!(fee_amount > 0, CryptoSeedsError::InvalidAmount);
+
+    let holder_amount = calculate_bps_amount(fee_amount, holder_split_bps)?;
+    let staker_amount = calculate_bps_amount(fee_amount, staker_split_bps)?;
+    let treasury_amount = fee_amount
+        .checked_sub(holder_amount)
+        .and_then(|remaining| remaining.checked_sub(staker_amount))
+        .ok_or(CryptoSeedsError::MathOverflow)?;
+
+    Ok((holder_amount, staker_amount, treasury_amount))
+}
+
+fn calculate_bps_amount(amount: u64, bps: u16) -> Result<u64> {
+    let calculated = (amount as u128)
+        .checked_mul(bps as u128)
+        .ok_or(CryptoSeedsError::MathOverflow)?
+        .checked_div(BPS_DENOMINATOR as u128)
+        .ok_or(CryptoSeedsError::MathOverflow)?;
+    u64::try_from(calculated).map_err(|_| CryptoSeedsError::MathOverflow.into())
+}
+
+fn transfer_platform_fee_bucket<'info>(
+    from: AccountInfo<'info>,
+    mint: AccountInfo<'info>,
+    to: AccountInfo<'info>,
+    authority: AccountInfo<'info>,
+    token_program: Pubkey,
+    amount: u64,
+    decimals: u8,
+) -> Result<()> {
+    if amount == 0 {
+        return Ok(());
+    }
+
+    let cpi_accounts = TransferChecked {
+        from,
+        mint,
+        to,
+        authority,
+    };
+    let cpi_context = CpiContext::new(token_program, cpi_accounts);
+    transfer_checked(cpi_context, amount, decimals)
 }
 
 fn validate_reward_vault_for_token_claim(
@@ -2592,6 +2884,18 @@ mod tests {
         assert!(validate_reward_cadence(7 * 24 * 60 * 60).is_ok());
         assert!(validate_reward_cadence(0).is_err());
         assert!(validate_reward_cadence(MAX_REWARD_EPOCH_CADENCE_SECONDS + 1).is_err());
+    }
+
+    #[test]
+    fn calculates_fee_route_amounts_without_losing_remainder() {
+        let (holder, staker, treasury) =
+            calculate_fee_route_amounts(30_000, 3_334, 3_333).expect("valid split");
+
+        assert_eq!(holder, 10_002);
+        assert_eq!(staker, 9_999);
+        assert_eq!(treasury, 9_999);
+        assert_eq!(holder + staker + treasury, 30_000);
+        assert!(calculate_fee_route_amounts(0, 3_334, 3_333).is_err());
     }
 
     #[test]
@@ -2730,6 +3034,50 @@ mod tests {
     }
 
     #[test]
+    fn fee_route_requires_program_controlled_holder_and_staker_vaults() {
+        let reward_config = Pubkey::new_unique();
+        let reward_mint = Pubkey::new_unique();
+        let mut holder_vault_state = reward_vault_state(
+            reward_config,
+            reward_mint,
+            RewardVaultRole::HolderReward,
+            RewardVaultVerificationStatus::Verified,
+        );
+        let mut treasury_vault_state = reward_vault_state(
+            reward_config,
+            reward_mint,
+            RewardVaultRole::IndependentTreasury,
+            RewardVaultVerificationStatus::Verified,
+        );
+
+        assert!(validate_reward_vault_for_fee_route(
+            &holder_vault_state,
+            reward_config,
+            reward_mint,
+            RewardVaultRole::HolderReward,
+        )
+        .is_ok());
+
+        holder_vault_state.custody_model = RewardVaultCustodyModel::TreasuryControlled;
+        assert!(validate_reward_vault_for_fee_route(
+            &holder_vault_state,
+            reward_config,
+            reward_mint,
+            RewardVaultRole::HolderReward,
+        )
+        .is_err());
+
+        treasury_vault_state.custody_model = RewardVaultCustodyModel::TreasuryControlled;
+        assert!(validate_reward_vault_for_fee_route(
+            &treasury_vault_state,
+            reward_config,
+            reward_mint,
+            RewardVaultRole::IndependentTreasury,
+        )
+        .is_ok());
+    }
+
+    #[test]
     fn validates_metadata_hashes() {
         assert!(validate_metadata_hash(&[9; 32]).is_ok());
         assert!(validate_metadata_hash(&[0; 32]).is_err());
@@ -2768,6 +3116,7 @@ mod tests {
             custody_model: RewardVaultCustodyModel::ProgramControlled,
             verification_status,
             metadata_hash: [7; 32],
+            total_funded_amount: 0,
             receives_user_funds: false,
             bump: 255,
         }

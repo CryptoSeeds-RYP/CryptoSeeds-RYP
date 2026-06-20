@@ -42,18 +42,32 @@ type ProtocolAddressBook = ReturnType<typeof deriveProtocolAddresses> &
   Record<string, string | undefined> & {
     authority?: string;
     claimRecord?: string;
+    holderRewardVault?: string;
+    holderRewardVaultState?: string;
+    independentTreasuryVault?: string;
+    independentTreasuryVaultState?: string;
     ownerRewardAccount?: string;
     participation?: string;
+    payer?: string;
+    payerFeeAccount?: string;
     permission?: string;
     project?: string;
     proposal?: string;
     rewardEpoch?: string;
     rewardSourceVault?: string;
     rewardVaultState?: string;
+    stakerRewardVault?: string;
+    stakerRewardVaultState?: string;
     voteRecord?: string;
   };
 
 export type RewardClaimRole = "HOLDER_REWARD" | "STAKER_REWARD";
+export type RewardVaultRouteRole =
+  | "HOLDER_REWARD"
+  | "STAKER_REWARD"
+  | "INDEPENDENT_TREASURY"
+  | "DELIVERY_COST_RESERVE"
+  | "ROLLOVER";
 export type GovernanceProposalCategory =
   | "PROJECT_APPROVAL"
   | "TREASURY_ALLOCATION"
@@ -86,9 +100,12 @@ const REWARD_ROLE_VARIANTS: Record<RewardClaimRole, number> = {
   STAKER_REWARD: 1,
 };
 
-const REWARD_ROLE_SEEDS: Record<RewardClaimRole, string> = {
+const REWARD_VAULT_ROLE_SEEDS: Record<RewardVaultRouteRole, string> = {
   HOLDER_REWARD: "holder-reward",
   STAKER_REWARD: "staker-reward",
+  INDEPENDENT_TREASURY: "independent-treasury",
+  DELIVERY_COST_RESERVE: "delivery-cost-reserve",
+  ROLLOVER: "rollover",
 };
 
 const GOVERNANCE_CATEGORY_VARIANTS: Record<GovernanceProposalCategory, number> = {
@@ -164,6 +181,14 @@ export type CreateRewardClaimRecordPlanInput = {
   deliveryCostAmountBaseUnits: bigint | number | string;
   netClaimAmountBaseUnits: bigint | number | string;
   rolledForwardAmountBaseUnits: bigint | number | string;
+};
+
+export type RoutePlatformFeePlanInput = {
+  payerAddress: string;
+  feeAmountBaseUnits: bigint | number | string;
+  holderRewardVaultAddress: string;
+  stakerRewardVaultAddress: string;
+  treasuryVaultAddress: string;
 };
 
 export type GovernanceVotePlanInput = {
@@ -413,6 +438,52 @@ export function buildClaimRewardTokensTransactionPlan({
     warnings: [
       "Transfers only from a verified program-controlled reward vault.",
       "The wallet still signs explicitly; no backend key or custody route is used.",
+    ],
+  });
+}
+
+export function buildRoutePlatformFeeTransactionPlan({
+  feeAmountBaseUnits,
+  holderRewardVaultAddress,
+  payerAddress,
+  stakerRewardVaultAddress,
+  treasuryVaultAddress,
+}: RoutePlatformFeePlanInput): PreparedSolanaTransactionPlan {
+  const feeAmount = toU64(feeAmountBaseUnits);
+  const payer = new PublicKey(payerAddress);
+  const addresses = {
+    ...deriveProtocolAddresses(payerAddress),
+    holderRewardVault: new PublicKey(holderRewardVaultAddress).toBase58(),
+    holderRewardVaultState: deriveRewardVaultStateAddress("HOLDER_REWARD"),
+    independentTreasuryVault: new PublicKey(treasuryVaultAddress).toBase58(),
+    independentTreasuryVaultState: deriveRewardVaultStateAddress("INDEPENDENT_TREASURY"),
+    payer: payer.toBase58(),
+    payerFeeAccount: deriveAssociatedTokenAddress({
+      mint: new PublicKey(appConfig.rypMintAddress),
+      owner: payer,
+    }).toBase58(),
+    stakerRewardVault: new PublicKey(stakerRewardVaultAddress).toBase58(),
+    stakerRewardVaultState: deriveRewardVaultStateAddress("STAKER_REWARD"),
+  };
+  const spec = instructionSpec("route_platform_fee");
+  const instruction = instructionPlan({
+    accounts: accountsFromSpec(spec, addresses),
+    argDataHex: u64LeHex(feeAmount),
+    discriminatorHex: spec.discriminatorHex,
+    instructionName: "route_platform_fee",
+    programId: addresses.programId,
+  });
+
+  return transactionPlan({
+    action: "ROUTE_PLATFORM_FEE",
+    addresses,
+    amountBaseUnits: feeAmount.toString(),
+    feePayer: addresses.payer,
+    instruction,
+    warnings: [
+      "Routes a wallet-approved RYP platform fee into verified holder, staker, and treasury vaults.",
+      "Vault token accounts must match reviewed RewardVaultState records before signing.",
+      "This does not enforce a global wallet-to-wallet transfer tax on the existing SPL token.",
     ],
   });
 }
@@ -761,17 +832,17 @@ export function deriveRewardClaimRecordAddress({
   const rewardEpoch = new PublicKey(deriveRewardEpochAddress(epochId));
   const wallet = new PublicKey(walletAddress);
   const [address] = PublicKey.findProgramAddressSync(
-    [textSeed(REWARD_CLAIM_SEED), rewardEpoch.toBuffer(), textSeed(REWARD_ROLE_SEEDS[rewardRole]), wallet.toBuffer()],
+    [textSeed(REWARD_CLAIM_SEED), rewardEpoch.toBuffer(), textSeed(REWARD_VAULT_ROLE_SEEDS[rewardRole]), wallet.toBuffer()],
     programId,
   );
   return address.toBase58();
 }
 
-export function deriveRewardVaultStateAddress(rewardRole: RewardClaimRole) {
+export function deriveRewardVaultStateAddress(rewardRole: RewardVaultRouteRole) {
   const programId = new PublicKey(appConfig.protocolProgramId);
   const rewardConfig = new PublicKey(deriveProtocolAddresses(SystemProgram.programId.toBase58()).rewardConfig);
   const [address] = PublicKey.findProgramAddressSync(
-    [textSeed(REWARD_VAULT_STATE_SEED), rewardConfig.toBuffer(), textSeed(REWARD_ROLE_SEEDS[rewardRole])],
+    [textSeed(REWARD_VAULT_STATE_SEED), rewardConfig.toBuffer(), textSeed(REWARD_VAULT_ROLE_SEEDS[rewardRole])],
     programId,
   );
   return address.toBase58();
@@ -945,6 +1016,13 @@ function derivedAccountReferences(addresses: ProtocolAddressBook): TransactionAc
   ];
 
   for (const [anchorName, label] of [
+    ["holder_reward_vault_state", "Holder reward vault state"],
+    ["staker_reward_vault_state", "Staker reward vault state"],
+    ["independent_treasury_vault_state", "Independent treasury vault state"],
+    ["holder_reward_vault", "Holder reward vault"],
+    ["staker_reward_vault", "Staker reward vault"],
+    ["independent_treasury_vault", "Independent treasury vault"],
+    ["payer_fee_account", "Payer fee account"],
     ["reward_epoch", "Reward epoch"],
     ["claim_record", "Reward claim record"],
     ["proposal", "Governance proposal"],
@@ -978,6 +1056,14 @@ function addressForProtocolAccountIfPresent(addresses: ProtocolAddressBook, name
       return addresses.claimRecord;
     case "config":
       return addresses.config;
+    case "holder_reward_vault":
+      return addresses.holderRewardVault;
+    case "holder_reward_vault_state":
+      return addresses.holderRewardVaultState;
+    case "independent_treasury_vault":
+      return addresses.independentTreasuryVault;
+    case "independent_treasury_vault_state":
+      return addresses.independentTreasuryVaultState;
     case "owner":
       return addresses.owner;
     case "owner_reward_account":
@@ -986,6 +1072,10 @@ function addressForProtocolAccountIfPresent(addresses: ProtocolAddressBook, name
       return addresses.ownerRypAccount;
     case "participation":
       return addresses.participation;
+    case "payer":
+      return addresses.payer;
+    case "payer_fee_account":
+      return addresses.payerFeeAccount;
     case "permission":
       return addresses.permission;
     case "position":
@@ -1008,6 +1098,10 @@ function addressForProtocolAccountIfPresent(addresses: ProtocolAddressBook, name
       return addresses.rypMint;
     case "ryp_vault":
       return addresses.rypVault;
+    case "staker_reward_vault":
+      return addresses.stakerRewardVault;
+    case "staker_reward_vault_state":
+      return addresses.stakerRewardVaultState;
     case "system_program":
       return addresses.systemProgramId;
     case "token_program":

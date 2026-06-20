@@ -25,6 +25,12 @@ const SEED_STAKE_AMOUNT = 5_000_000_000n;
 const ADD_TO_SPROUT_AMOUNT = 15_000_000_000n;
 const SPROUT_STAKE_AMOUNT = 20_000_000_000n;
 const HOLDER_REWARD_CLAIM_AMOUNT = 700n;
+const PLATFORM_FEE_ROUTE_AMOUNT = 30_000n;
+const PLATFORM_FEE_ROUTE_SPLIT = {
+  holder: 10_002n,
+  staker: 9_999n,
+  treasury: 9_999n,
+};
 const VOTING_RIGHTS_DELAY_SECONDS = 14n * 24n * 60n * 60n;
 const REWARD_EPOCH_CADENCE_SECONDS = 7n * 24n * 60n * 60n;
 const REWARD_METADATA_HASH = Buffer.alloc(32, 7);
@@ -218,7 +224,7 @@ async function runSmoke(connection) {
     tokenAccount: intruderRypAccount,
   });
   await mintTo(connection, {
-    amount: SEED_STAKE_AMOUNT,
+    amount: SEED_STAKE_AMOUNT + PLATFORM_FEE_ROUTE_AMOUNT,
     authority,
     destination: ownerRypAccount,
     mint: mint.publicKey,
@@ -591,7 +597,8 @@ async function runSmoke(connection) {
       "register_reward_vaults",
       "reject_reward_epoch_before_vault_verification",
       "reject_reward_vault_metadata_mismatch",
-      "verify_reward_vaults",
+	      "verify_reward_vaults",
+	      "route_platform_fee",
       "reject_non_authority_reward_verify",
 	      "reject_unbalanced_reward_epoch",
 	      "draft_reward_epoch",
@@ -734,6 +741,35 @@ async function runRewardSmoke(
   const verifiedRewardConfig = parseRewardConfig(await getAccountData(connection, rewardConfig));
   assertEqual("reward config registered vault mask", verifiedRewardConfig.registeredVaultRolesMask, 31);
   assertEqual("reward config verified vault mask", verifiedRewardConfig.verifiedVaultRolesMask, 31);
+
+  log("calling route_platform_fee");
+  const ownerBalanceBeforeFeeRoute = await readTokenBalance(connection, ownerRypAccount);
+  await routePlatformFee(connection, {
+    config,
+    feeAmount: PLATFORM_FEE_ROUTE_AMOUNT,
+    holderRewardVault: rewardVaultAddresses.holder,
+    holderRewardVaultState: rewardVaultStates.holder,
+    mint,
+    payer: owner,
+    payerFeeAccount: ownerRypAccount,
+    rewardConfig,
+    stakerRewardVault: rewardVaultAddresses.staker,
+    stakerRewardVaultState: rewardVaultStates.staker,
+    treasuryVault: rewardVaultAddresses.treasury,
+    treasuryVaultState: rewardVaultStates.treasury,
+  });
+  const routedRewardConfig = parseRewardConfig(await getAccountData(connection, rewardConfig));
+  const routedHolderVaultState = parseRewardVaultState(await getAccountData(connection, rewardVaultStates.holder));
+  const routedStakerVaultState = parseRewardVaultState(await getAccountData(connection, rewardVaultStates.staker));
+  const routedTreasuryVaultState = parseRewardVaultState(await getAccountData(connection, rewardVaultStates.treasury));
+  assertEqual("owner balance after fee route", await readTokenBalance(connection, ownerRypAccount), ownerBalanceBeforeFeeRoute - PLATFORM_FEE_ROUTE_AMOUNT);
+  assertEqual("reward config routed fee total", routedRewardConfig.totalRoutedFeeAmount, PLATFORM_FEE_ROUTE_AMOUNT);
+  assertEqual("holder reward funded total", routedHolderVaultState.totalFundedAmount, PLATFORM_FEE_ROUTE_SPLIT.holder);
+  assertEqual("staker reward funded total", routedStakerVaultState.totalFundedAmount, PLATFORM_FEE_ROUTE_SPLIT.staker);
+  assertEqual("treasury funded total", routedTreasuryVaultState.totalFundedAmount, PLATFORM_FEE_ROUTE_SPLIT.treasury);
+  assertEqual("holder reward vault after fee route", await readTokenBalance(connection, rewardVaultAddresses.holder), HOLDER_REWARD_CLAIM_AMOUNT + PLATFORM_FEE_ROUTE_SPLIT.holder);
+  assertEqual("staker reward vault after fee route", await readTokenBalance(connection, rewardVaultAddresses.staker), PLATFORM_FEE_ROUTE_SPLIT.staker);
+  assertEqual("treasury vault after fee route", await readTokenBalance(connection, rewardVaultAddresses.treasury), PLATFORM_FEE_ROUTE_SPLIT.treasury);
 
   const unbalancedEpoch = deriveRewardEpochAddress({ epochId: 2n, rewardConfig });
   log("asserting unbalanced reward epochs are rejected");
@@ -943,6 +979,7 @@ async function buildAdminRewardInspectionReport(connection, { rewardConfig, rewa
       receivesUserFunds: decoded.receivesUserFunds,
       role: rewardVaultRoleLabel(decoded.role),
       status: "DECODED",
+      totalFundedAmount: decoded.totalFundedAmount.toString(),
       vaultAddress: decoded.vaultAddress.toBase58(),
       verificationStatus: rewardVaultVerificationStatusLabel(decoded.verificationStatus),
     });
@@ -972,6 +1009,7 @@ async function buildAdminRewardInspectionReport(connection, { rewardConfig, rewa
         registeredVaultRolesMask: decodedRewardConfig.registeredVaultRolesMask,
         stakerSplitBps: decodedRewardConfig.stakerSplitBps,
         treasurySplitBps: decodedRewardConfig.treasurySplitBps,
+        totalRoutedFeeAmount: decodedRewardConfig.totalRoutedFeeAmount.toString(),
         verifiedVaultRolesMask: decodedRewardConfig.verifiedVaultRolesMask,
       },
       status: "DECODED",
@@ -1085,6 +1123,49 @@ async function verifyRewardVault(
   });
 
   await sendAndConfirm(connection, new Transaction().add(instruction), [authority]);
+}
+
+async function routePlatformFee(
+  connection,
+  {
+    config,
+    feeAmount,
+    holderRewardVault,
+    holderRewardVaultState,
+    mint,
+    payer,
+    payerFeeAccount,
+    rewardConfig,
+    stakerRewardVault,
+    stakerRewardVaultState,
+    treasuryVault,
+    treasuryVaultState,
+  },
+) {
+  const data = Buffer.alloc(16);
+  discriminator("route_platform_fee").copy(data, 0);
+  data.writeBigUInt64LE(feeAmount, 8);
+
+  const instruction = new TransactionInstruction({
+    programId,
+    keys: [
+      accountMeta(payer.publicKey, true, true),
+      accountMeta(config, false, false),
+      accountMeta(rewardConfig, false, true),
+      accountMeta(holderRewardVaultState, false, true),
+      accountMeta(stakerRewardVaultState, false, true),
+      accountMeta(treasuryVaultState, false, true),
+      accountMeta(payerFeeAccount, false, true),
+      accountMeta(holderRewardVault, false, true),
+      accountMeta(stakerRewardVault, false, true),
+      accountMeta(treasuryVault, false, true),
+      accountMeta(mint, false, false),
+      accountMeta(TOKEN_PROGRAM_ID, false, false),
+    ],
+    data,
+  });
+
+  await sendAndConfirm(connection, new Transaction().add(instruction), [payer]);
 }
 
 async function draftRewardEpoch(
@@ -1750,6 +1831,7 @@ function parseRewardConfig(data) {
     registeredVaultRolesMask: data.readUInt8(offset.registered_vault_roles_mask),
     verifiedVaultRolesMask: data.readUInt8(offset.verified_vault_roles_mask),
     totalEpochDrafts: data.readBigUInt64LE(offset.total_epoch_drafts),
+    totalRoutedFeeAmount: data.readBigUInt64LE(offset.total_routed_fee_amount),
     paused: data.readUInt8(offset.paused) === 1,
     draftOnly: data.readUInt8(offset.draft_only) === 1,
     bump: data.readUInt8(offset.bump),
@@ -1768,6 +1850,7 @@ function parseRewardVaultState(data) {
     custodyModel: data.readUInt8(offset.custody_model),
     verificationStatus: data.readUInt8(offset.verification_status),
     metadataHash: data.subarray(offset.metadata_hash, offset.metadata_hash + 32),
+    totalFundedAmount: data.readBigUInt64LE(offset.total_funded_amount),
     receivesUserFunds: data.readUInt8(offset.receives_user_funds) === 1,
     bump: data.readUInt8(offset.bump),
   };

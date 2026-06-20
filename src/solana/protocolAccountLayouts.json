@@ -337,7 +337,7 @@
   },
   "RewardConfig": {
     "discriminatorHex": "a3ae6250e6774540",
-    "minimumLength": 131,
+    "minimumLength": 139,
     "fields": [
       {
         "name": "authority",
@@ -400,21 +400,27 @@
         "size": 8
       },
       {
+        "name": "total_routed_fee_amount",
+        "type": "u64",
+        "offset": 128,
+        "size": 8
+      },
+      {
         "name": "paused",
         "type": "bool",
-        "offset": 128,
+        "offset": 136,
         "size": 1
       },
       {
         "name": "draft_only",
         "type": "bool",
-        "offset": 129,
+        "offset": 137,
         "size": 1
       },
       {
         "name": "bump",
         "type": "u8",
-        "offset": 130,
+        "offset": 138,
         "size": 1
       }
     ]
@@ -523,7 +529,7 @@
   },
   "RewardVaultState": {
     "discriminatorHex": "35ee1cf0ec7c199a",
-    "minimumLength": 141,
+    "minimumLength": 149,
     "fields": [
       {
         "name": "reward_config",
@@ -568,15 +574,21 @@
         "size": 32
       },
       {
+        "name": "total_funded_amount",
+        "type": "u64",
+        "offset": 139,
+        "size": 8
+      },
+      {
         "name": "receives_user_funds",
         "type": "bool",
-        "offset": 139,
+        "offset": 147,
         "size": 1
       },
       {
         "name": "bump",
         "type": "u8",
-        "offset": 140,
+        "offset": 148,
         "size": 1
       }
     ]

@@ -11,6 +11,7 @@ import {
   buildProjectParticipationTransactionPlan,
   buildRegisterProjectTransactionPlan,
   buildRevokeSeedBotPermissionTransactionPlan,
+  buildRoutePlatformFeeTransactionPlan,
   buildStakeRypTransactionPlan,
   buildUnstakeRypTransactionPlan,
   buildUpdateFeeConfigTransactionPlan,
@@ -137,6 +138,37 @@ describe("protocol transaction plan", () => {
       rewardSourceVault,
     );
     expect(rolloverClaim.instructions[0].dataHex).toBe("bad5cb11c7fba2e101");
+  });
+
+  it("builds platform fee route plans into reviewed reward vaults", () => {
+    const holderRewardVault = "So11111111111111111111111111111111111111112";
+    const stakerRewardVault = "11111111111111111111111111111111";
+    const treasuryVault = "SysvarC1ock11111111111111111111111111111111";
+    const plan = buildRoutePlatformFeeTransactionPlan({
+      feeAmountBaseUnits: 30_000n,
+      holderRewardVaultAddress: holderRewardVault,
+      payerAddress: ownerAddress,
+      stakerRewardVaultAddress: stakerRewardVault,
+      treasuryVaultAddress: treasuryVault,
+    });
+
+    expect(plan.action).toBe("ROUTE_PLATFORM_FEE");
+    expect(plan.amountBaseUnits).toBe("30000");
+    expect(plan.feePayer).toBe(ownerAddress);
+    expect(plan.instructions[0].dataHex).toBe("a9cd82f56dd705813075000000000000");
+    expect(plan.instructions[0].accounts.map((account) => account.anchorName)).toEqual(
+      PROTOCOL_INSTRUCTION_SPECS.route_platform_fee.accounts.map((account) => account.name),
+    );
+    expect(plan.instructions[0].accounts.find((account) => account.anchorName === "holder_reward_vault")?.address).toBe(
+      holderRewardVault,
+    );
+    expect(plan.instructions[0].accounts.find((account) => account.anchorName === "staker_reward_vault")?.address).toBe(
+      stakerRewardVault,
+    );
+    expect(plan.instructions[0].accounts.find((account) => account.anchorName === "independent_treasury_vault")?.address).toBe(
+      treasuryVault,
+    );
+    expect(plan.warnings.join(" ")).toContain("does not enforce a global wallet-to-wallet transfer tax");
   });
 
   it("builds governance vote and project participation plans", () => {

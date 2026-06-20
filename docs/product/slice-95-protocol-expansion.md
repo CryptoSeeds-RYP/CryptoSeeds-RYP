@@ -11,6 +11,7 @@ This slice expands the CryptoSeeds Anchor program from staking plus reward draft
 - Reward epoch review and cancellation.
 - Wallet-level reward claim records.
 - Wallet claim marking for reviewed reward records.
+- Wallet-approved platform fee routing into verified holder/staker/treasury vaults.
 - Governance proposal records.
 - One-wallet vote records gated by active voting-right state.
 - Governance proposal close flow.
@@ -20,7 +21,7 @@ This slice expands the CryptoSeeds Anchor program from staking plus reward draft
 
 ## Safety Boundaries
 
-- No reward vault movement was added.
+- Reward vault movement remains limited to explicit wallet-approved fee routing and reviewed wallet reward claims.
 - No automated SeedBot execution was added.
 - Project participation records do not custody funds.
 - Governance voting still requires active voting rights.
@@ -30,8 +31,8 @@ This slice expands the CryptoSeeds Anchor program from staking plus reward draft
 ## Verification
 
 - Rust unit tests cover reward accounting, metadata hashes, tier access, project-open status, reward vault verification, fee reductions, reward cadence, reward split, and staking tier mapping.
-- `protocol:idl:check` now covers 23 instructions and 11 account layouts.
-- Localnet smoke now exercises reward review/claim records, governance proposal close, blocked voting without active rights, project registration/participation, SeedBot permission creation/revocation, and fee updates.
+- `protocol:idl:check` now covers 25 instructions and 11 account layouts.
+- Localnet smoke now exercises reward review/claim records, platform fee routing, governance proposal close, blocked voting without active rights, project registration/participation, SeedBot permission creation/revocation, and fee updates.
 - Devnet mint creation is scripted but externally blocked until the devnet authority wallet receives SOL.
 
 ## Remaining Protocol Work
@@ -40,5 +41,4 @@ This slice expands the CryptoSeeds Anchor program from staking plus reward draft
 - Deploy the expanded program to devnet.
 - Add successful governance voting path once local time-warp or test-only voting setup is available.
 - Add SeedBot permission renewal/update flow.
-- Add production fee-router funding instructions for holder/staker/treasury reward vaults.
 - Add public UI gates for reviewed project/governance actions after devnet deployment is stable.
