@@ -1119,6 +1119,7 @@
       "required_tier",
       "risk_level",
       "status",
+      "funding_model",
       "metadata_hash",
       "receiving_account",
       "governance_proposal",

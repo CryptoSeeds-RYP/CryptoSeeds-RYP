@@ -1373,6 +1373,7 @@ pub mod cryptoseeds_protocol {
         required_tier: StakeTier,
         risk_level: ProjectRiskLevel,
         status: ProjectStatus,
+        funding_model: ProjectFundingModel,
         metadata_hash: [u8; 32],
         receiving_account: Pubkey,
         governance_proposal: Pubkey,
@@ -1383,6 +1384,7 @@ pub mod cryptoseeds_protocol {
         participation_ends_at: i64,
     ) -> Result<()> {
         validate_project_authority(&ctx.accounts.config, &ctx.accounts.authority.key())?;
+        validate_project_funding_model(funding_model)?;
         validate_metadata_hash(&metadata_hash)?;
         validate_project_participation_bounds(
             min_participation_amount,
@@ -1411,6 +1413,7 @@ pub mod cryptoseeds_protocol {
         project.required_tier = required_tier;
         project.risk_level = risk_level;
         project.status = status;
+        project.funding_model = funding_model;
         project.metadata_hash = metadata_hash;
         project.receiving_account = receiving_account;
         project.governance_proposal = ctx.accounts.governance_proposal_account.key();
@@ -1436,6 +1439,7 @@ pub mod cryptoseeds_protocol {
             required_tier,
             risk_level,
             status,
+            funding_model,
             min_participation_amount,
             max_wallet_participation_amount,
             max_total_participation_amount,
@@ -3047,6 +3051,7 @@ pub struct ProjectRecord {
     pub required_tier: StakeTier,
     pub risk_level: ProjectRiskLevel,
     pub status: ProjectStatus,
+    pub funding_model: ProjectFundingModel,
     pub metadata_hash: [u8; 32],
     pub receiving_account: Pubkey,
     pub governance_proposal: Pubkey,
@@ -3224,6 +3229,13 @@ impl ProjectStatus {
             Self::Open | Self::Active | Self::MilestoneReached | Self::HarvestAvailable
         )
     }
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, InitSpace)]
+pub enum ProjectFundingModel {
+    RecordOnly,
+    DirectSettlement,
+    ProgramEscrow,
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, InitSpace)]
@@ -3540,6 +3552,7 @@ pub struct ProjectRegistered {
     pub required_tier: StakeTier,
     pub risk_level: ProjectRiskLevel,
     pub status: ProjectStatus,
+    pub funding_model: ProjectFundingModel,
     pub min_participation_amount: u64,
     pub max_wallet_participation_amount: u64,
     pub max_total_participation_amount: u64,
@@ -3767,6 +3780,8 @@ pub enum CryptoSeedsError {
     ProjectParticipationAboveWalletLimit,
     #[msg("Project participation exceeds the project allocation cap.")]
     ProjectParticipationCapExceeded,
+    #[msg("Project funding model is not enabled for this protocol version.")]
+    UnsupportedProjectFundingModel,
     #[msg("Project status transition is invalid.")]
     InvalidProjectStatusTransition,
     #[msg("Project operator is invalid.")]
@@ -4482,6 +4497,14 @@ fn validate_project_disclosure_revision_id(
     require!(
         revision_id > project.current_disclosure_revision_id,
         CryptoSeedsError::InvalidProjectDisclosureRevision
+    );
+    Ok(())
+}
+
+fn validate_project_funding_model(funding_model: ProjectFundingModel) -> Result<()> {
+    require!(
+        funding_model == ProjectFundingModel::RecordOnly,
+        CryptoSeedsError::UnsupportedProjectFundingModel
     );
     Ok(())
 }
@@ -5345,6 +5368,13 @@ mod tests {
     }
 
     #[test]
+    fn limits_project_funding_model_to_record_only_for_mvp() {
+        assert!(validate_project_funding_model(ProjectFundingModel::RecordOnly).is_ok());
+        assert!(validate_project_funding_model(ProjectFundingModel::DirectSettlement).is_err());
+        assert!(validate_project_funding_model(ProjectFundingModel::ProgramEscrow).is_err());
+    }
+
+    #[test]
     fn validates_new_authority_nominations() {
         let current_authority = Pubkey::new_unique();
         assert!(validate_new_authority(Pubkey::new_unique(), current_authority).is_ok());
@@ -5926,6 +5956,7 @@ mod tests {
             required_tier: StakeTier::Seed,
             risk_level: ProjectRiskLevel::Medium,
             status: ProjectStatus::Open,
+            funding_model: ProjectFundingModel::RecordOnly,
             metadata_hash: [7; 32],
             receiving_account: Pubkey::new_unique(),
             governance_proposal: Pubkey::new_unique(),

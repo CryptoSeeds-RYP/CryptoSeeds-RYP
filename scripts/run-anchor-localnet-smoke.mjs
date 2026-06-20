@@ -523,6 +523,7 @@ async function runSmoke(connection) {
   const registeredProject = parseProjectRecord(await getAccountData(connection, project));
   assertEqual("registered project required tier", registeredProject.requiredTier, 1);
   assertEqual("registered project status", registeredProject.status, 2);
+  assertEqual("registered project funding model", registeredProject.fundingModel, 0);
   assertPublicKey("registered project governance proposal", registeredProject.governanceProposal, draftProposal);
   assertEqual("registered project min participation", registeredProject.minParticipationAmount, PROJECT_MIN_PARTICIPATION_AMOUNT);
   assertEqual(
@@ -2147,22 +2148,24 @@ async function registerProject(
     projectId,
     receivingAccount,
     statusVariant = 2,
+    fundingModelVariant = 0,
   },
 ) {
-  const data = Buffer.alloc(8 + 8 + 1 + 1 + 1 + 32 + 32 + 32 + 8 + 8 + 8 + 8 + 8);
+  const data = Buffer.alloc(8 + 8 + 1 + 1 + 1 + 1 + 32 + 32 + 32 + 8 + 8 + 8 + 8 + 8);
   discriminator("register_project").copy(data, 0);
   data.writeBigUInt64LE(projectId, 8);
   data.writeUInt8(1, 16);
   data.writeUInt8(1, 17);
   data.writeUInt8(statusVariant, 18);
-  REWARD_METADATA_HASH.copy(data, 19);
-  receivingAccount.toBuffer().copy(data, 51);
-  governanceProposal.toBuffer().copy(data, 83);
-  data.writeBigUInt64LE(minParticipationAmount, 115);
-  data.writeBigUInt64LE(maxWalletParticipationAmount, 123);
-  data.writeBigUInt64LE(maxTotalParticipationAmount, 131);
-  data.writeBigInt64LE(participationStartsAt, 139);
-  data.writeBigInt64LE(participationEndsAt, 147);
+  data.writeUInt8(fundingModelVariant, 19);
+  REWARD_METADATA_HASH.copy(data, 20);
+  receivingAccount.toBuffer().copy(data, 52);
+  governanceProposal.toBuffer().copy(data, 84);
+  data.writeBigUInt64LE(minParticipationAmount, 116);
+  data.writeBigUInt64LE(maxWalletParticipationAmount, 124);
+  data.writeBigUInt64LE(maxTotalParticipationAmount, 132);
+  data.writeBigInt64LE(participationStartsAt, 140);
+  data.writeBigInt64LE(participationEndsAt, 148);
   const instruction = new TransactionInstruction({
     programId,
     keys: [
@@ -2990,6 +2993,7 @@ function parseProjectRecord(data) {
     requiredTier: data.readUInt8(offset.required_tier),
     riskLevel: data.readUInt8(offset.risk_level),
     status: data.readUInt8(offset.status),
+    fundingModel: data.readUInt8(offset.funding_model),
     receivingAccount: new PublicKey(data.subarray(offset.receiving_account, offset.receiving_account + 32)),
     governanceProposal: new PublicKey(data.subarray(offset.governance_proposal, offset.governance_proposal + 32)),
     totalParticipants: data.readBigUInt64LE(offset.total_participants),

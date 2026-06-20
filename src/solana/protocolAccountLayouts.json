@@ -169,7 +169,7 @@
   },
   "ProjectRecord": {
     "discriminatorHex": "5dae70cbe77b5c38",
-    "minimumLength": 301,
+    "minimumLength": 302,
     "fields": [
       {
         "name": "project_id",
@@ -202,111 +202,117 @@
         "size": 1
       },
       {
+        "name": "funding_model",
+        "type": "defined:ProjectFundingModel",
+        "offset": 51,
+        "size": 1
+      },
+      {
         "name": "metadata_hash",
         "type": "array:u8:32",
-        "offset": 51,
+        "offset": 52,
         "size": 32
       },
       {
         "name": "receiving_account",
         "type": "pubkey",
-        "offset": 83,
+        "offset": 84,
         "size": 32
       },
       {
         "name": "governance_proposal",
         "type": "pubkey",
-        "offset": 115,
+        "offset": 116,
         "size": 32
       },
       {
         "name": "total_participants",
         "type": "u64",
-        "offset": 147,
+        "offset": 148,
         "size": 8
       },
       {
         "name": "min_participation_amount",
         "type": "u64",
-        "offset": 155,
+        "offset": 156,
         "size": 8
       },
       {
         "name": "max_wallet_participation_amount",
         "type": "u64",
-        "offset": 163,
+        "offset": 164,
         "size": 8
       },
       {
         "name": "max_total_participation_amount",
         "type": "u64",
-        "offset": 171,
+        "offset": 172,
         "size": 8
       },
       {
         "name": "total_participation_amount",
         "type": "u64",
-        "offset": 179,
+        "offset": 180,
         "size": 8
       },
       {
         "name": "participation_starts_at",
         "type": "i64",
-        "offset": 187,
+        "offset": 188,
         "size": 8
       },
       {
         "name": "participation_ends_at",
         "type": "i64",
-        "offset": 195,
+        "offset": 196,
         "size": 8
       },
       {
         "name": "cancellation_hash",
         "type": "array:u8:32",
-        "offset": 203,
+        "offset": 204,
         "size": 32
       },
       {
         "name": "cancelled_at",
         "type": "i64",
-        "offset": 235,
+        "offset": 236,
         "size": 8
       },
       {
         "name": "refund_pool_amount",
         "type": "u64",
-        "offset": 243,
+        "offset": 244,
         "size": 8
       },
       {
         "name": "total_refunded_amount",
         "type": "u64",
-        "offset": 251,
+        "offset": 252,
         "size": 8
       },
       {
         "name": "participation_paused",
         "type": "bool",
-        "offset": 259,
+        "offset": 260,
         "size": 1
       },
       {
         "name": "current_disclosure_revision_id",
         "type": "u64",
-        "offset": 260,
+        "offset": 261,
         "size": 8
       },
       {
         "name": "current_disclosure_hash",
         "type": "array:u8:32",
-        "offset": 268,
+        "offset": 269,
         "size": 32
       },
       {
         "name": "bump",
         "type": "u8",
-        "offset": 300,
+        "offset": 301,
         "size": 1
       }
     ]

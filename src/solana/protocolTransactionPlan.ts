@@ -96,6 +96,7 @@ export type ProjectLifecycleStatus =
   | "PAUSED"
   | "REJECTED"
   | "CANCELLED";
+export type ProjectFundingModel = "RECORD_ONLY" | "DIRECT_SETTLEMENT" | "PROGRAM_ESCROW";
 
 export const PROTOCOL_INSTRUCTION_SPECS = protocolInstructionSpecsJson as Record<string, ProtocolInstructionSpec>;
 const U16_MAX = 2n ** 16n - 1n;
@@ -151,6 +152,12 @@ const PROJECT_STATUS_VARIANTS: Record<ProjectLifecycleStatus, number> = {
   PAUSED: 9,
   REJECTED: 10,
   CANCELLED: 11,
+};
+
+const PROJECT_FUNDING_MODEL_VARIANTS: Record<ProjectFundingModel, number> = {
+  RECORD_ONLY: 0,
+  DIRECT_SETTLEMENT: 1,
+  PROGRAM_ESCROW: 2,
 };
 
 const STAKE_TIER_VARIANTS: Record<Exclude<StakingTier, "NONE">, number> = {
@@ -258,6 +265,7 @@ export type RegisterProjectPlanInput = {
   requiredTier: Exclude<StakingTier, "NONE">;
   riskLevel: ProjectRiskLevel;
   status: ProjectLifecycleStatus;
+  fundingModel: ProjectFundingModel;
   metadataHash: string | Uint8Array | number[];
   receivingAccountAddress: string;
   governanceProposalAddress: string;
@@ -860,6 +868,7 @@ export function buildRegisterProjectTransactionPlan({
   requiredTier,
   riskLevel,
   status,
+  fundingModel,
 }: RegisterProjectPlanInput): PreparedSolanaTransactionPlan {
   const project = toU64(projectId);
   const receivingAccount = new PublicKey(receivingAccountAddress);
@@ -883,6 +892,7 @@ export function buildRegisterProjectTransactionPlan({
       enumVariantHex(requiredTier, STAKE_TIER_VARIANTS),
       enumVariantHex(riskLevel, PROJECT_RISK_LEVEL_VARIANTS),
       enumVariantHex(status, PROJECT_STATUS_VARIANTS),
+      enumVariantHex(fundingModel, PROJECT_FUNDING_MODEL_VARIANTS),
       fixedHashHex(metadataHash),
       pubkeyHex(receivingAccount),
       pubkeyHex(governanceProposal),
@@ -906,7 +916,9 @@ export function buildRegisterProjectTransactionPlan({
       "Admin-only project registration; project metadata and receiving account must be reviewed before signing.",
       "Public project statuses require an approved ProjectApproval governance proposal on-chain.",
       "Project participation minimums, wallet caps, allocation caps, and allocation windows are enforced by the protocol record.",
-      "The receiving account is recorded only; project fund custody remains outside this instruction.",
+      fundingModel === "RECORD_ONLY"
+        ? "Record-only funding is enabled; this instruction does not move project funds or create escrow."
+        : "Direct settlement and escrow models require a future audited protocol path before signing.",
     ],
   });
 }
