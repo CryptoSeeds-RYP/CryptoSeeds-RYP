@@ -40,6 +40,28 @@ describe("transaction intents", () => {
     expect(intent.preparedSolanaTransaction?.warnings.join(" ")).toContain("Golden Key");
   });
 
+  it("blocks unstaking previews that would leave below-Seed stake dust", () => {
+    const intent = buildUnstakePreviewIntent(walletAddress, 16000, 20000);
+
+    expect(intent.type).toBe("UNSTAKE_RYP");
+    expect(intent.status).toBe("FAILED");
+    expect(intent.executionMode).toBe("PREVIEW_ONLY");
+    expect(intent.preparedSolanaTransaction).toBeUndefined();
+    expect(intent.signaturePolicy).toContain("Seed minimum");
+    expect(intent.expectedResult).toContain("Seed minimum");
+  });
+
+  it("allows unstaking previews that fully exit or leave an active tier", () => {
+    const partial = buildUnstakePreviewIntent(walletAddress, 15000, 20000);
+    const full = buildUnstakePreviewIntent(walletAddress, 5000, 5000);
+
+    expect(partial.status).toBe("READY");
+    expect(partial.preparedSolanaTransaction?.amountBaseUnits).toBe("15000000000");
+    expect(partial.expectedResult).toContain("SEED tier");
+    expect(full.status).toBe("READY");
+    expect(full.expectedResult).toContain("exits to zero");
+  });
+
   it("keeps project review intents preview-only until risk is acknowledged", () => {
     const project = projects[0];
     const intent = buildProjectReviewIntent(project, walletAddress);

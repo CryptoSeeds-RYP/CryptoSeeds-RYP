@@ -7,6 +7,7 @@ import type {
   TransactionAccountReference,
 } from "../domain/transactions";
 import type { StakingTier } from "../domain/microverse";
+import { validateUnstakePreview } from "../domain/staking";
 import { tierRequirements } from "../domain/tiering";
 import protocolInstructionSpecsJson from "./protocolInstructionSpecs.json";
 
@@ -225,6 +226,7 @@ export type VerifyRewardVaultPlanInput = {
 export type UnstakePlanInput = {
   ownerAddress: string;
   amountUi: number | string;
+  currentStakedAmountUi?: number | string;
 };
 
 export type VotingRightsPlanInput = {
@@ -593,9 +595,14 @@ export function buildVerifyRewardVaultTransactionPlan({
 
 export function buildUnstakeRypTransactionPlan({
   amountUi,
+  currentStakedAmountUi,
   ownerAddress,
 }: UnstakePlanInput): PreparedSolanaTransactionPlan {
   const amountBaseUnits = parseRypAmountToBaseUnits(amountUi, appConfig.rypDecimals);
+  if (currentStakedAmountUi !== undefined) {
+    const validation = validateUnstakePreview({ currentStakedAmount: currentStakedAmountUi, unstakeAmount: amountUi });
+    if (!validation.valid) throw new Error(validation.reason ?? "Invalid unstake preview.");
+  }
   const addresses = deriveProtocolAddresses(ownerAddress);
   const spec = instructionSpec("unstake_ryp");
   const instruction = instructionPlan({

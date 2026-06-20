@@ -124,14 +124,27 @@ describe("protocol transaction plan", () => {
 
   it("builds unstake and voting-rights plans without hidden broadcast assumptions", () => {
     const unstake = buildUnstakeRypTransactionPlan({ ownerAddress, amountUi: "1250.5" });
+    const guardedUnstake = buildUnstakeRypTransactionPlan({
+      amountUi: 15_000,
+      currentStakedAmountUi: 20_000,
+      ownerAddress,
+    });
     const voting = buildActivateVotingRightsTransactionPlan({ ownerAddress });
 
     expect(unstake.action).toBe("UNSTAKE_RYP");
     expect(unstake.amountBaseUnits).toBe("1250500000");
+    expect(guardedUnstake.amountBaseUnits).toBe("15000000000");
     expect(unstake.instructions[0].discriminatorHex).toBe("ae0b5ccc93d66cdd");
     expect(voting.action).toBe("ACTIVATE_VOTING_RIGHTS");
     expect(voting.instructions[0].dataHex).toBe("463cc3194dbcfb73");
     expect(voting.warnings.join(" ")).toContain("14-day staking delay");
+    expect(() =>
+      buildUnstakeRypTransactionPlan({
+        amountUi: 16_000,
+        currentStakedAmountUi: 20_000,
+        ownerAddress,
+      }),
+    ).toThrow("Seed minimum");
   });
 
   it("derives role-keyed reward claim records", () => {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { UserMicroVerseState } from "./microverse";
-import { summarizeStakingPosition } from "./staking";
+import { summarizeStakingPosition, validateUnstakePreview } from "./staking";
 import { tierRequirements } from "./tiering";
 
 function user(overrides: Partial<UserMicroVerseState>): UserMicroVerseState {
@@ -61,5 +61,26 @@ describe("staking summary", () => {
     expect(summary.votingDaysRemaining).toBe(0);
     expect(summary.nextTier).toBe("FRUIT");
     expect(summary.rypToNextTier).toBe(tierRequirements.FRUIT - tierRequirements.TREE);
+  });
+
+  it("validates unstake previews against the protocol remainder rule", () => {
+    expect(validateUnstakePreview({ currentStakedAmount: tierRequirements.SEED, unstakeAmount: tierRequirements.SEED })).toMatchObject({
+      valid: true,
+      remainingAmount: 0,
+      remainingTier: "NONE",
+    });
+    expect(validateUnstakePreview({ currentStakedAmount: tierRequirements.SPROUT, unstakeAmount: 15_000 })).toMatchObject({
+      valid: true,
+      remainingAmount: tierRequirements.SEED,
+      remainingTier: "SEED",
+    });
+    expect(validateUnstakePreview({ currentStakedAmount: "20,000", unstakeAmount: "16,000" })).toMatchObject({
+      valid: false,
+      remainingAmount: 4_000,
+      remainingTier: "NONE",
+    });
+    expect(validateUnstakePreview({ currentStakedAmount: 5_000, unstakeAmount: 5_001 }).reason).toContain(
+      "exceeds the current staked balance",
+    );
   });
 });

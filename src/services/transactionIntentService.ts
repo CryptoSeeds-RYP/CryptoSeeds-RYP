@@ -4,6 +4,7 @@ import { basisPointsToPercent, RYP_TOKEN_TRANSFER_FEE_BPS } from "../domain/feeR
 import { latestRiskDisclosure } from "../domain/projectRegistry";
 import { seedBotFeeDisclosure, type SeedBotStrategy } from "../domain/seedbot";
 import { venueById } from "../domain/seedbotVenues";
+import { validateUnstakePreview } from "../domain/staking";
 import { effectiveFee, tierRequirements } from "../domain/tiering";
 import { buildStakeRypTransactionPlan, buildUnstakeRypTransactionPlan } from "../solana/protocolTransactionPlan";
 import { buildSeedBotRoutePlan } from "./seedbotVenueRouter";
@@ -47,10 +48,27 @@ export function buildStakePreviewIntent(
   });
 }
 
-export function buildUnstakePreviewIntent(walletAddress?: string, amount = 5000): TransactionIntent {
-  const preparedSolanaTransaction = maybeBuildPlan(() =>
-    walletAddress ? buildUnstakeRypTransactionPlan({ ownerAddress: walletAddress, amountUi: amount }) : undefined,
-  );
+export function buildUnstakePreviewIntent(
+  walletAddress?: string,
+  amount: number | string = 5000,
+  currentStakedAmount?: number | string,
+): TransactionIntent {
+  const validation =
+    currentStakedAmount === undefined
+      ? undefined
+      : validateUnstakePreview({ currentStakedAmount, unstakeAmount: amount });
+  const blocked = validation?.valid === false;
+  const preparedSolanaTransaction = blocked
+    ? undefined
+    : maybeBuildPlan(() =>
+        walletAddress
+          ? buildUnstakeRypTransactionPlan({
+              amountUi: amount,
+              currentStakedAmountUi: currentStakedAmount,
+              ownerAddress: walletAddress,
+            })
+          : undefined,
+      );
 
   return buildIntent({
     id: `unstake-${amount}-preview`,
@@ -58,16 +76,20 @@ export function buildUnstakePreviewIntent(walletAddress?: string, amount = 5000)
     title: "Unstake RYP",
     walletAddress,
     inputToken: "RYP",
-    amount: amount.toLocaleString(),
-    estimatedFees: "Solana network fee only in the staking MVP; final RYP transfer-fee behavior depends on the approved token route",
-    status: "READY",
-    executionMode: "WALLET_APPROVED",
-    signaturePolicy: "Manual Solana wallet signature required before unstaking can be submitted.",
+    amount: formatIntentAmount(amount),
+    estimatedFees: blocked
+      ? "No wallet signature is prepared until the unstake amount passes staking remainder rules."
+      : "Solana network fee only in the staking MVP; final RYP transfer-fee behavior depends on the approved token route",
+    status: blocked ? "FAILED" : "READY",
+    executionMode: blocked ? "PREVIEW_ONLY" : "WALLET_APPROVED",
+    signaturePolicy: blocked
+      ? (validation?.reason ?? "Unstake preview is blocked by staking remainder rules.")
+      : "Manual Solana wallet signature required before unstaking can be submitted.",
     programs: cryptoSeedsPrograms("Stake withdrawal and tier recalculation"),
     accounts: preparedSolanaTransaction?.instructions[0].accounts ?? walletAccounts(walletAddress),
     preparedSolanaTransaction,
     riskSummary: "Unstaking can reduce tier access, project slots, Golden Key state, and fee reduction.",
-    expectedResult: "RYP returns to the wallet after the Solana program confirms the withdrawal.",
+    expectedResult: unstakeExpectedResult(validation),
   });
 }
 
@@ -373,4 +395,17 @@ function maybeBuildPlan<T>(factory: () => T): T | undefined {
   } catch {
     return undefined;
   }
+}
+
+function formatIntentAmount(value: number | string) {
+  return typeof value === "number" ? value.toLocaleString() : value;
+}
+
+function unstakeExpectedResult(validation: ReturnType<typeof validateUnstakePreview> | undefined) {
+  if (!validation) return "RYP returns to the wallet after the Solana program confirms the withdrawal.";
+  if (!validation.valid) return validation.reason ?? "Unstake preview is blocked.";
+  if (validation.remainingAmount === 0) {
+    return "Full unstake exits to zero, revoking active staking access after confirmation.";
+  }
+  return `${validation.remainingAmount.toLocaleString()} RYP remains staked at ${validation.remainingTier} tier after confirmation.`;
 }
