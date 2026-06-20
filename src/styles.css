@@ -1580,6 +1580,10 @@ button:disabled {
   line-height: 1.4;
 }
 
+.policy-note-list span.critical {
+  color: #ffbd98;
+}
+
 .policy-strip div {
   display: grid;
   gap: 5px;

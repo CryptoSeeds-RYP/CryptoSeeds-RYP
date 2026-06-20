@@ -5,6 +5,11 @@ import { appConfig } from "../config/env";
 import { adminActionPreviews, buildAdminAccess, buildAdminProtocolPreviews } from "../domain/admin";
 import { basisPointsToPercent, feeRoutePolicies } from "../domain/feeRouter";
 import {
+  buildProtocolConfigInspectionPreview,
+  readProtocolConfigInspection,
+  type ProtocolConfigInspection,
+} from "../solana/protocolConfigInspection";
+import {
   buildRewardAccountInspectionPreview,
   readRewardAccountInspection,
   type RewardAccountInspection,
@@ -27,9 +32,39 @@ export function AdminView({
     rypMintAddress: appConfig.rypMintAddress,
     rypDecimals: appConfig.rypDecimals,
   });
+  const [protocolInspection, setProtocolInspection] = useState<ProtocolConfigInspection>(() =>
+    buildProtocolConfigInspectionPreview(),
+  );
   const [rewardInspection, setRewardInspection] = useState<RewardAccountInspection>(() =>
     buildRewardAccountInspectionPreview({ epochId: appConfig.rewardInspectionEpochId }),
   );
+
+  useEffect(() => {
+    let cancelled = false;
+    const preview = buildProtocolConfigInspectionPreview();
+    setProtocolInspection(preview);
+
+    if (appConfig.protocolDeployment === "placeholder") return undefined;
+
+    readProtocolConfigInspection({ connection })
+      .then((inspection) => {
+        if (!cancelled) setProtocolInspection(inspection);
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        setProtocolInspection({
+          ...preview,
+          warnings: [
+            ...preview.warnings,
+            `Protocol config RPC read failed: ${error instanceof Error ? error.message : "unknown error"}.`,
+          ],
+        });
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [connection]);
 
   useEffect(() => {
     let cancelled = false;
@@ -93,6 +128,96 @@ export function AdminView({
             ))}
           </div>
         )}
+      </section>
+
+      <section className="governance-section protocol-config-inspector">
+        <div className="view-header">
+          <div>
+            <Database size={20} />
+            <strong>Protocol Config Inspector</strong>
+          </div>
+          <span>{formatLabel(protocolInspection.executionMode)} / no config execution</span>
+        </div>
+        <div className="policy-strip reward-policy-strip">
+          <div>
+            <span>Program</span>
+            <strong>{shortAddress(protocolInspection.programId)}</strong>
+          </div>
+          <div>
+            <span>Config PDA</span>
+            <strong>{shortAddress(protocolInspection.configAddress)}</strong>
+          </div>
+          <div>
+            <span>RYP Vault</span>
+            <strong>{shortAddress(protocolInspection.rypVaultAddress)}</strong>
+          </div>
+          <div>
+            <span>Status</span>
+            <strong>{formatLabel(protocolInspection.status)}</strong>
+          </div>
+        </div>
+        {(protocolInspection.blockers.length > 0 || protocolInspection.warnings.length > 0) && (
+          <div className="policy-note-list">
+            {protocolInspection.blockers.map((blocker) => (
+              <span className="critical" key={blocker}>{blocker}</span>
+            ))}
+            {protocolInspection.warnings.map((warning) => (
+              <span key={warning}>{warning}</span>
+            ))}
+          </div>
+        )}
+        <div className="authority-grid ops-grid reward-account-grid">
+          <article className={`authority-card reward-account-card ${protocolInspection.status.toLowerCase()}`}>
+            <div className="authority-card-top">
+              <Database size={17} />
+              <span>{formatLabel(protocolInspection.status)}</span>
+            </div>
+            <strong>Protocol Config</strong>
+            <p>{protocolInspection.message}</p>
+            <em>
+              {protocolInspection.decoded
+                ? `${basisPointsToPercent(protocolInspection.decoded.baseFeeBps)} base fee / paused: ${protocolInspection.decoded.paused}`
+                : "Base fee, pause state, and stake totals pending"}
+            </em>
+            <code>{protocolInspection.configAddress}</code>
+          </article>
+          <article className={`authority-card reward-account-card ${protocolInspection.status.toLowerCase()}`}>
+            <div className="authority-card-top">
+              <Landmark size={17} />
+              <span>Tier Policy</span>
+            </div>
+            <strong>Staking Thresholds</strong>
+            <p>
+              {protocolInspection.decoded
+                ? protocolInspection.decoded.tierThresholds.map(formatRypBaseUnits).join(" / ")
+                : "Seed / Sprout / Sapling / Tree / Fruit thresholds pending"}
+            </p>
+            <em>
+              {protocolInspection.decoded
+                ? `${protocolInspection.decoded.tierFeeReductionBps.join(" / ")} bps reductions`
+                : "Tier fee reductions pending"}
+            </em>
+            <code>{protocolInspection.rypMintAddress}</code>
+          </article>
+          <article className={`authority-card reward-account-card ${protocolInspection.status.toLowerCase()}`}>
+            <div className="authority-card-top">
+              <ShieldCheck size={17} />
+              <span>Authorities</span>
+            </div>
+            <strong>Control Keys</strong>
+            <p>
+              {protocolInspection.decoded
+                ? `Protocol ${shortAddress(protocolInspection.decoded.authority)} / Projects ${shortAddress(protocolInspection.decoded.projectAuthority)}`
+                : "Protocol and project authorities pending"}
+            </p>
+            <em>
+              {protocolInspection.decoded
+                ? `Total staked ${formatRypBaseUnits(protocolInspection.decoded.totalStaked)}`
+                : "Total staked pending"}
+            </em>
+            <code>{protocolInspection.rypVaultAddress}</code>
+          </article>
+        </div>
       </section>
 
       <section className="governance-section admin-protocol-preview">
@@ -272,4 +397,19 @@ function shortAddress(address: string) {
 
 function shortData(dataHex: string) {
   return `${dataHex.slice(0, 18)}...${dataHex.slice(-10)} (${dataHex.length / 2} bytes)`;
+}
+
+function formatRypBaseUnits(value: string) {
+  try {
+    const decimals = BigInt(appConfig.rypDecimals);
+    const divisor = 10n ** decimals;
+    const raw = BigInt(value);
+    const whole = raw / divisor;
+    const fraction = raw % divisor;
+    if (fraction === 0n) return `${whole.toLocaleString()} RYP`;
+    const fractionText = fraction.toString().padStart(appConfig.rypDecimals, "0").replace(/0+$/, "");
+    return `${whole.toLocaleString()}.${fractionText} RYP`;
+  } catch {
+    return `${value} base units`;
+  }
 }
