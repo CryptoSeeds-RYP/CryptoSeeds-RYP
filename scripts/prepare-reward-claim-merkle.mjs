@@ -29,7 +29,7 @@ if (!roleSpec) {
 }
 
 const programId = new PublicKey(options.programId ?? process.env.VITE_CRYPTOSEEDS_PROGRAM_ID ?? PLACEHOLDER_PROGRAM_ID);
-const epochId = BigInt(options.epochId);
+const epochId = parseU64(options.epochId, "Reward epoch id");
 const rewardEpoch = options.rewardEpochAddress
   ? new PublicKey(options.rewardEpochAddress)
   : deriveRewardEpochAddress({ epochId, programId });
@@ -70,7 +70,8 @@ const records = included.map((payout, index) => ({
       : "CREATE_RECORD_FROM_PROOF_THEN_MARK_ROLLOVER",
 }));
 const summary = summarize({ draft, records });
-const validation = validate({ draft, records, summary });
+const claimMerkleRoot = tree.root ? bytesToHex(tree.root) : ZERO_ROOT;
+const validation = validate({ claimMerkleRoot, draft, records, summary });
 const exportPacket = {
   exportVersion: "reward-claim-merkle/v1",
   executionMode: "PROOF_ONLY",
@@ -79,7 +80,7 @@ const exportPacket = {
   rewardEpochAddress: rewardEpoch.toBase58(),
   rewardMint: draft.rewardMint,
   rewardRole,
-  claimMerkleRoot: tree.root ? bytesToHex(tree.root) : ZERO_ROOT,
+  claimMerkleRoot,
   records,
   summary,
   validation,
@@ -183,7 +184,7 @@ function summarize({ draft, records }) {
   };
 }
 
-function validate({ draft, records, summary }) {
+function validate({ claimMerkleRoot, draft, records, summary }) {
   const blockers = [];
   const warnings = [];
   const holderEpoch = draft.holderEpoch;
@@ -214,8 +215,54 @@ function validate({ draft, records, summary }) {
       blockers.push("Merkle rollover amounts must equal the holder epoch rollover amount.");
     }
   }
+  for (const record of records) {
+    const verification = verifyRecordProof({ claimMerkleRoot, record });
+    if (!verification.valid) {
+      blockers.push(`Merkle proof invalid for ${record.walletAddress}: ${verification.blockers.join(" ")}`);
+    }
+  }
 
   return { valid: blockers.length === 0, blockers, warnings };
+}
+
+function verifyRecordProof({ claimMerkleRoot, record }) {
+  const blockers = [];
+  let node;
+  let index;
+  try {
+    node = hexToBytes32(record.leafHash, "Reward claim leaf hash");
+    index = parseU64(record.leafIndex, "Reward claim leaf index");
+  } catch (error) {
+    blockers.push(error instanceof Error ? error.message : "Reward claim proof input is invalid.");
+    return { valid: false, blockers };
+  }
+
+  for (const [proofIndex, proofNode] of record.proof.entries()) {
+    let sibling;
+    try {
+      sibling = hexToBytes32(proofNode, `Reward claim proof node ${proofIndex}`);
+    } catch (error) {
+      blockers.push(error instanceof Error ? error.message : `Reward claim proof node ${proofIndex} is invalid.`);
+      continue;
+    }
+    node = index % 2n === 0n ? rewardMerkleNodeHash(node, sibling) : rewardMerkleNodeHash(sibling, node);
+    index /= 2n;
+  }
+
+  const calculatedRoot = bytesToHex(node);
+  if (calculatedRoot !== claimMerkleRoot) {
+    blockers.push("record proof does not reconstruct the exported claim root.");
+  }
+
+  return { valid: blockers.length === 0, blockers };
+}
+
+function hexToBytes32(value, label) {
+  const text = String(value ?? "").trim().toLowerCase();
+  if (!/^[0-9a-f]{64}$/.test(text)) {
+    throw new Error(`${label} must be a 32-byte hex string.`);
+  }
+  return Buffer.from(text, "hex");
 }
 
 function deriveRewardEpochAddress({ epochId, programId }) {
@@ -242,6 +289,18 @@ function u64Buffer(value) {
   return buffer;
 }
 
+function parseU64(value, label) {
+  const text = String(value ?? "").trim();
+  if (!/^\d+$/.test(text)) {
+    throw new Error(`${label} must be a non-negative integer.`);
+  }
+  const parsed = BigInt(text);
+  if (parsed > 2n ** 64n - 1n) {
+    throw new Error(`${label} is outside u64 range.`);
+  }
+  return parsed;
+}
+
 function bytesToHex(bytes) {
   return [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
@@ -259,12 +318,15 @@ function parseArgs(args) {
     const arg = args[index];
     const value = args[index + 1];
     if (arg === "--program-id") {
+      requireValue(value, arg);
       parsed.programId = value;
       index += 1;
     } else if (arg === "--reward-epoch-address") {
+      requireValue(value, arg);
       parsed.rewardEpochAddress = value;
       index += 1;
     } else if (arg === "--reward-role") {
+      requireValue(value, arg);
       parsed.rewardRole = value;
       index += 1;
     } else {
@@ -273,4 +335,10 @@ function parseArgs(args) {
   }
 
   return parsed;
+}
+
+function requireValue(value, arg) {
+  if (!value || value.startsWith("--")) {
+    throw new Error(`${arg} requires a value.`);
+  }
 }
