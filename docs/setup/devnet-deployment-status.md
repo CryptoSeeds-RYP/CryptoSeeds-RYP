@@ -40,7 +40,7 @@ The status report now includes a `protocolTargets` block before funding/deployme
 
 External blocker:
 
-- Devnet faucet rejected airdrop requests for the generated authority wallet, including the latest attempt on 2026-06-20 with HTTP 429.
+- Devnet faucet rejected airdrop requests for the generated authority wallet, including 2026-06-20 attempts for `3 SOL` and `0.5 SOL` with rate-limit errors.
 - Because the authority wallet has `0 SOL`, the devnet test RYP mint has not been created yet.
 - `npm run devnet:status -- --env .env.devnet.example` currently reports this exact blocker.
 - `npm run devnet:prep -- --env .env.devnet.example` is correctly blocked until the devnet test mint account exists.

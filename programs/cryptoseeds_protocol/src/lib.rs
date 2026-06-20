@@ -4694,7 +4694,62 @@ fn validate_project_status_transition(current: ProjectStatus, next: ProjectStatu
         !is_terminal_project_status(current) || current == next,
         CryptoSeedsError::InvalidProjectStatusTransition
     );
+    require!(
+        project_status_transition_allowed(current, next),
+        CryptoSeedsError::InvalidProjectStatusTransition
+    );
     Ok(())
+}
+
+fn project_status_transition_allowed(current: ProjectStatus, next: ProjectStatus) -> bool {
+    if current == next {
+        return current != ProjectStatus::Cancelled;
+    }
+
+    match current {
+        ProjectStatus::Proposed => matches!(
+            next,
+            ProjectStatus::UnderReview | ProjectStatus::GovernanceVote | ProjectStatus::Rejected
+        ),
+        ProjectStatus::UnderReview => {
+            matches!(next, ProjectStatus::GovernanceVote | ProjectStatus::Rejected)
+        }
+        ProjectStatus::GovernanceVote => {
+            matches!(next, ProjectStatus::Approved | ProjectStatus::Rejected)
+        }
+        ProjectStatus::Approved => matches!(next, ProjectStatus::Open | ProjectStatus::Paused),
+        ProjectStatus::Open => matches!(next, ProjectStatus::Active | ProjectStatus::Paused),
+        ProjectStatus::Active => matches!(
+            next,
+            ProjectStatus::MilestoneReached
+                | ProjectStatus::HarvestAvailable
+                | ProjectStatus::Paused
+                | ProjectStatus::Completed
+        ),
+        ProjectStatus::MilestoneReached => matches!(
+            next,
+            ProjectStatus::Active
+                | ProjectStatus::HarvestAvailable
+                | ProjectStatus::Paused
+                | ProjectStatus::Completed
+        ),
+        ProjectStatus::HarvestAvailable => matches!(
+            next,
+            ProjectStatus::Active
+                | ProjectStatus::MilestoneReached
+                | ProjectStatus::Paused
+                | ProjectStatus::Completed
+        ),
+        ProjectStatus::Paused => matches!(
+            next,
+            ProjectStatus::Open
+                | ProjectStatus::Active
+                | ProjectStatus::MilestoneReached
+                | ProjectStatus::HarvestAvailable
+                | ProjectStatus::Completed
+        ),
+        ProjectStatus::Rejected | ProjectStatus::Completed | ProjectStatus::Cancelled => false,
+    }
 }
 
 fn validate_unstake_remainder(staked_amount: u64, tier: StakeTier) -> Result<()> {
@@ -5806,14 +5861,70 @@ mod tests {
         assert!(validate_project_initial_status(ProjectStatus::Completed).is_err());
         assert!(validate_project_initial_status(ProjectStatus::Cancelled).is_err());
 
-        assert!(
-            validate_project_status_transition(ProjectStatus::Open, ProjectStatus::Active).is_ok()
-        );
+        let allowed_transitions = [
+            (ProjectStatus::Proposed, ProjectStatus::UnderReview),
+            (ProjectStatus::Proposed, ProjectStatus::GovernanceVote),
+            (ProjectStatus::Proposed, ProjectStatus::Rejected),
+            (ProjectStatus::UnderReview, ProjectStatus::GovernanceVote),
+            (ProjectStatus::UnderReview, ProjectStatus::Rejected),
+            (ProjectStatus::GovernanceVote, ProjectStatus::Approved),
+            (ProjectStatus::GovernanceVote, ProjectStatus::Rejected),
+            (ProjectStatus::Approved, ProjectStatus::Open),
+            (ProjectStatus::Approved, ProjectStatus::Paused),
+            (ProjectStatus::Open, ProjectStatus::Active),
+            (ProjectStatus::Open, ProjectStatus::Paused),
+            (ProjectStatus::Active, ProjectStatus::MilestoneReached),
+            (ProjectStatus::Active, ProjectStatus::HarvestAvailable),
+            (ProjectStatus::Active, ProjectStatus::Paused),
+            (ProjectStatus::Active, ProjectStatus::Completed),
+            (ProjectStatus::MilestoneReached, ProjectStatus::Active),
+            (ProjectStatus::MilestoneReached, ProjectStatus::HarvestAvailable),
+            (ProjectStatus::MilestoneReached, ProjectStatus::Paused),
+            (ProjectStatus::MilestoneReached, ProjectStatus::Completed),
+            (ProjectStatus::HarvestAvailable, ProjectStatus::Active),
+            (ProjectStatus::HarvestAvailable, ProjectStatus::MilestoneReached),
+            (ProjectStatus::HarvestAvailable, ProjectStatus::Paused),
+            (ProjectStatus::HarvestAvailable, ProjectStatus::Completed),
+            (ProjectStatus::Paused, ProjectStatus::Open),
+            (ProjectStatus::Paused, ProjectStatus::Active),
+            (ProjectStatus::Paused, ProjectStatus::MilestoneReached),
+            (ProjectStatus::Paused, ProjectStatus::HarvestAvailable),
+            (ProjectStatus::Paused, ProjectStatus::Completed),
+        ];
+        for (current, next) in allowed_transitions {
+            assert!(validate_project_status_transition(current, next).is_ok());
+        }
+
         assert!(validate_project_status_transition(
-            ProjectStatus::Active,
-            ProjectStatus::Completed
+            ProjectStatus::Proposed,
+            ProjectStatus::HarvestAvailable
         )
-        .is_ok());
+        .is_err());
+        assert!(validate_project_status_transition(
+            ProjectStatus::UnderReview,
+            ProjectStatus::Open
+        )
+        .is_err());
+        assert!(validate_project_status_transition(
+            ProjectStatus::GovernanceVote,
+            ProjectStatus::Open
+        )
+        .is_err());
+        assert!(validate_project_status_transition(
+            ProjectStatus::Approved,
+            ProjectStatus::Active
+        )
+        .is_err());
+        assert!(validate_project_status_transition(
+            ProjectStatus::Open,
+            ProjectStatus::HarvestAvailable
+        )
+        .is_err());
+        assert!(validate_project_status_transition(
+            ProjectStatus::Paused,
+            ProjectStatus::Approved
+        )
+        .is_err());
         assert!(validate_project_status_transition(
             ProjectStatus::Open,
             ProjectStatus::Cancelled
