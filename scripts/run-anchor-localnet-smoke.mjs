@@ -197,12 +197,14 @@ async function runSmoke(connection) {
   const owner = Keypair.generate();
   const intruder = Keypair.generate();
   const newAuthority = Keypair.generate();
+  const projectAuthority = Keypair.generate();
   const mint = Keypair.generate();
   log("funding authority and owner wallets");
   await fund(connection, authority.publicKey, 10);
   await fund(connection, owner.publicKey, 10);
   await fund(connection, intruder.publicKey, 10);
   await fund(connection, newAuthority.publicKey, 10);
+  await fund(connection, projectAuthority.publicKey, 10);
 
   const [config] = PublicKey.findProgramAddressSync([Buffer.from("config")], programId);
   const [rewardConfig] = PublicKey.findProgramAddressSync([Buffer.from("reward-config")], programId);
@@ -284,6 +286,8 @@ async function runSmoke(connection) {
 
   const initializedConfig = parseProtocolConfig(await getAccountData(connection, config));
   assertPublicKey("config authority", initializedConfig.authority, authority.publicKey);
+  assertPublicKey("initial project authority", initializedConfig.projectAuthority, authority.publicKey);
+  assertPublicKey("initial pending project authority", initializedConfig.pendingProjectAuthority, PublicKey.default);
   assertPublicKey("config mint", initializedConfig.rypMint, mint.publicKey);
   assertPublicKey("config vault", initializedConfig.rypVault, rypVault);
   assertEqual("base fee bps", initializedConfig.baseFeeBps, BASE_FEE_BPS);
@@ -395,13 +399,45 @@ async function runSmoke(connection) {
   const closedProposal = parseGovernanceProposal(await getAccountData(connection, proposal));
   assertEqual("closed proposal rejected status", closedProposal.status, 2);
 
+  log("calling transfer_project_authority");
+  await transferProjectAuthority(connection, { authority, config, newAuthority: projectAuthority.publicKey });
+  const pendingProjectAuthorityConfig = parseProtocolConfig(await getAccountData(connection, config));
+  assertPublicKey("pending project authority", pendingProjectAuthorityConfig.pendingProjectAuthority, projectAuthority.publicKey);
+  log("calling accept_project_authority");
+  await acceptProjectAuthority(connection, { config, pendingAuthority: projectAuthority });
+  const transferredProjectAuthorityConfig = parseProtocolConfig(await getAccountData(connection, config));
+  assertPublicKey("project authority transferred", transferredProjectAuthorityConfig.projectAuthority, projectAuthority.publicKey);
+  assertPublicKey(
+    "cleared project pending authority",
+    transferredProjectAuthorityConfig.pendingProjectAuthority,
+    PublicKey.default,
+  );
+
+  const staleProjectAuthorityProjectId = 19n;
+  const staleProjectAuthorityProject = deriveProjectAddress(staleProjectAuthorityProjectId);
+  await expectFailure(
+    "register_project rejects stale project authority",
+    () =>
+      registerProject(connection, {
+        authority,
+        config,
+        governanceProposal: proposal,
+        project: staleProjectAuthorityProject,
+        projectId: staleProjectAuthorityProjectId,
+        receivingAccount: Keypair.generate().publicKey,
+        statusVariant: 2,
+      }),
+    "custom program error",
+  );
+  await assertMissingAccount(connection, staleProjectAuthorityProject, "project after stale project authority rejection");
+
   const rejectedOpenProjectId = 20n;
   const rejectedOpenProject = deriveProjectAddress(rejectedOpenProjectId);
   await expectFailure(
     "register_project rejects open project before approved governance",
     () =>
       registerProject(connection, {
-        authority,
+        authority: projectAuthority,
         config,
         governanceProposal: proposal,
         project: rejectedOpenProject,
@@ -426,7 +462,7 @@ async function runSmoke(connection) {
     "register_project rejects invalid participation bounds",
     () =>
       registerProject(connection, {
-        authority,
+        authority: projectAuthority,
         config,
         governanceProposal: draftProposal,
         maxTotalParticipationAmount: 99n,
@@ -446,7 +482,7 @@ async function runSmoke(connection) {
     "register_project rejects invalid participation window",
     () =>
       registerProject(connection, {
-        authority,
+        authority: projectAuthority,
         config,
         governanceProposal: draftProposal,
         participationEndsAt: 1_000n,
@@ -465,7 +501,7 @@ async function runSmoke(connection) {
   const projectParticipation = deriveProjectParticipationAddress({ project, wallet: owner.publicKey });
   log("calling register_project for governance-vote draft project");
   await registerProject(connection, {
-    authority,
+    authority: projectAuthority,
     config,
     governanceProposal: draftProposal,
     project,
@@ -503,10 +539,10 @@ async function runSmoke(connection) {
     "custom program error",
   );
   log("calling set_project_pause for draft project");
-  await setProjectPause(connection, { authority, config, paused: true, project, projectId });
+  await setProjectPause(connection, { authority: projectAuthority, config, paused: true, project, projectId });
   const pausedProject = parseProjectRecord(await getAccountData(connection, project));
   assertEqual("project pause flag set", pausedProject.participationPaused, true);
-  await setProjectPause(connection, { authority, config, paused: false, project, projectId });
+  await setProjectPause(connection, { authority: projectAuthority, config, paused: false, project, projectId });
   const unpausedProject = parseProjectRecord(await getAccountData(connection, project));
   assertEqual("project pause flag cleared", unpausedProject.participationPaused, false);
 
@@ -514,7 +550,7 @@ async function runSmoke(connection) {
     "update_project_status rejects open project before approved governance",
     () =>
       updateProjectStatus(connection, {
-        authority,
+        authority: projectAuthority,
         config,
         governanceProposal: draftProposal,
         project,
@@ -543,7 +579,7 @@ async function runSmoke(connection) {
     "cancel_project rejects refund pool above recorded participation",
     () =>
       cancelProject(connection, {
-        authority,
+        authority: projectAuthority,
         config,
         project,
         projectId,
@@ -553,7 +589,7 @@ async function runSmoke(connection) {
   );
 
   log("calling cancel_project for draft project accounting");
-  await cancelProject(connection, { authority, config, project, projectId, refundPoolAmount: 0n });
+  await cancelProject(connection, { authority: projectAuthority, config, project, projectId, refundPoolAmount: 0n });
   const cancelledProject = parseProjectRecord(await getAccountData(connection, project));
   assertEqual("cancelled project status", cancelledProject.status, 11);
   assertEqual("cancelled project refund pool", cancelledProject.refundPoolAmount, 0n);
@@ -562,12 +598,12 @@ async function runSmoke(connection) {
 
   await expectFailure(
     "record_project_refund rejects zero amount",
-    () => recordProjectRefund(connection, { authority, config, project, projectId, refundAmount: 0n }),
+    () => recordProjectRefund(connection, { authority: projectAuthority, config, project, projectId, refundAmount: 0n }),
     "custom program error",
   );
   await expectFailure(
     "record_project_refund rejects refund above pool",
-    () => recordProjectRefund(connection, { authority, config, project, projectId, refundAmount: 1n }),
+    () => recordProjectRefund(connection, { authority: projectAuthority, config, project, projectId, refundAmount: 1n }),
     "custom program error",
   );
 
@@ -855,6 +891,7 @@ async function runSmoke(connection) {
   const transferredConfig = parseProtocolConfig(await getAccountData(connection, config));
   assertPublicKey("transferred protocol authority", transferredConfig.authority, newAuthority.publicKey);
   assertPublicKey("cleared protocol pending authority", transferredConfig.pendingAuthority, PublicKey.default);
+  assertPublicKey("project authority preserved after protocol transfer", transferredConfig.projectAuthority, projectAuthority.publicKey);
 
   log("calling accept_reward_authority");
   await acceptRewardAuthority(connection, { config, pendingAuthority: newAuthority, rewardConfig });
@@ -907,6 +944,9 @@ async function runSmoke(connection) {
 	      "reject_vote_without_active_voting_rights",
 	      "reject_governance_close_before_window_end",
 	      "close_governance_proposal_after_window",
+	      "transfer_project_authority",
+	      "accept_project_authority",
+	      "reject_stale_project_authority",
 	      "reject_open_project_before_approved_governance",
 	      "reject_invalid_project_participation_bounds",
 	      "reject_invalid_project_participation_window",
@@ -1812,6 +1852,29 @@ async function acceptProtocolAuthority(connection, { config, pendingAuthority })
   await sendAndConfirm(connection, new Transaction().add(instruction), [pendingAuthority]);
 }
 
+async function transferProjectAuthority(connection, { authority, config, newAuthority }) {
+  const data = Buffer.alloc(8 + 32);
+  discriminator("transfer_project_authority").copy(data, 0);
+  newAuthority.toBuffer().copy(data, 8);
+  const instruction = new TransactionInstruction({
+    programId,
+    keys: [accountMeta(authority.publicKey, true, false), accountMeta(config, false, true)],
+    data,
+  });
+
+  await sendAndConfirm(connection, new Transaction().add(instruction), [authority]);
+}
+
+async function acceptProjectAuthority(connection, { config, pendingAuthority }) {
+  const instruction = new TransactionInstruction({
+    programId,
+    keys: [accountMeta(pendingAuthority.publicKey, true, false), accountMeta(config, false, true)],
+    data: discriminator("accept_project_authority"),
+  });
+
+  await sendAndConfirm(connection, new Transaction().add(instruction), [pendingAuthority]);
+}
+
 async function transferRewardAuthority(connection, { authority, config, newAuthority, rewardConfig }) {
   const data = Buffer.alloc(8 + 32);
   discriminator("transfer_reward_authority").copy(data, 0);
@@ -2494,14 +2557,21 @@ async function assertMissingAccount(connection, publicKey, label) {
 }
 
 function parseProtocolConfig(data) {
+  assertRewardAccountLayout(data, "ProtocolConfig");
+  const offset = rewardAccountOffsets.ProtocolConfig;
+
   return {
-    authority: new PublicKey(data.subarray(8, 40)),
-    rypMint: new PublicKey(data.subarray(40, 72)),
-    rypVault: new PublicKey(data.subarray(72, 104)),
-    baseFeeBps: data.readUInt16LE(104),
-    totalStaked: data.readBigUInt64LE(156),
-    paused: data.readUInt8(164) === 1,
-    pendingAuthority: new PublicKey(data.subarray(166, 198)),
+    authority: new PublicKey(data.subarray(offset.authority, offset.authority + 32)),
+    rypMint: new PublicKey(data.subarray(offset.ryp_mint, offset.ryp_mint + 32)),
+    rypVault: new PublicKey(data.subarray(offset.ryp_vault, offset.ryp_vault + 32)),
+    baseFeeBps: data.readUInt16LE(offset.base_fee_bps),
+    totalStaked: data.readBigUInt64LE(offset.total_staked),
+    paused: data.readUInt8(offset.paused) === 1,
+    pendingAuthority: new PublicKey(data.subarray(offset.pending_authority, offset.pending_authority + 32)),
+    projectAuthority: new PublicKey(data.subarray(offset.project_authority, offset.project_authority + 32)),
+    pendingProjectAuthority: new PublicKey(
+      data.subarray(offset.pending_project_authority, offset.pending_project_authority + 32),
+    ),
   };
 }
 

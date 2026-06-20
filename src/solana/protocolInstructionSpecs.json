@@ -26,6 +26,26 @@
       }
     ]
   },
+  "accept_project_authority": {
+    "discriminatorHex": "202193b59bdce543",
+    "args": [],
+    "accounts": [
+      {
+        "name": "pending_authority",
+        "label": "pending authority",
+        "role": "pending authority",
+        "signer": true,
+        "writable": false
+      },
+      {
+        "name": "config",
+        "label": "config",
+        "role": "config",
+        "signer": false,
+        "writable": true
+      }
+    ]
+  },
   "cancel_reward_epoch": {
     "discriminatorHex": "fbcec2e37706337b",
     "args": [
@@ -1231,6 +1251,28 @@
   },
   "transfer_protocol_authority": {
     "discriminatorHex": "234c244d88709ede",
+    "args": [
+      "new_authority"
+    ],
+    "accounts": [
+      {
+        "name": "authority",
+        "label": "authority",
+        "role": "authority",
+        "signer": true,
+        "writable": false
+      },
+      {
+        "name": "config",
+        "label": "config",
+        "role": "config",
+        "signer": false,
+        "writable": true
+      }
+    ]
+  },
+  "transfer_project_authority": {
+    "discriminatorHex": "1421786cd3d4cff7",
     "args": [
       "new_authority"
     ],

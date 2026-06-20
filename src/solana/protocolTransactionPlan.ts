@@ -51,6 +51,7 @@ type ProtocolAddressBook = ReturnType<typeof deriveProtocolAddresses> &
     participation?: string;
     payer?: string;
     payerFeeAccount?: string;
+    pendingAuthority?: string;
     permission?: string;
     project?: string;
     proposal?: string;
@@ -232,6 +233,15 @@ export type CloseGovernanceProposalPlanInput = {
   authorityAddress: string;
   proposalId: bigint | number | string;
   approved: boolean;
+};
+
+export type TransferProjectAuthorityPlanInput = {
+  authorityAddress: string;
+  newAuthorityAddress: string;
+};
+
+export type AcceptProjectAuthorityPlanInput = {
+  pendingAuthorityAddress: string;
 };
 
 export type RegisterProjectPlanInput = {
@@ -729,6 +739,64 @@ export function buildCloseGovernanceProposalTransactionPlan({
     warnings: [
       "Admin-only proposal close; the on-chain proposal must still be open and past its voting window.",
       "Closing a proposal records the deterministic vote result; execution remains separate.",
+    ],
+  });
+}
+
+export function buildTransferProjectAuthorityTransactionPlan({
+  authorityAddress,
+  newAuthorityAddress,
+}: TransferProjectAuthorityPlanInput): PreparedSolanaTransactionPlan {
+  const newAuthority = new PublicKey(newAuthorityAddress);
+  const addresses = {
+    ...deriveProtocolAddresses(authorityAddress),
+    authority: new PublicKey(authorityAddress).toBase58(),
+  };
+  const spec = instructionSpec("transfer_project_authority");
+  const instruction = instructionPlan({
+    accounts: accountsFromSpec(spec, addresses),
+    argDataHex: pubkeyHex(newAuthority),
+    discriminatorHex: spec.discriminatorHex,
+    instructionName: "transfer_project_authority",
+    programId: addresses.programId,
+  });
+
+  return transactionPlan({
+    action: "TRANSFER_PROJECT_AUTHORITY",
+    addresses,
+    feePayer: addresses.authority,
+    instruction,
+    warnings: [
+      "Project authority transfer is two-step; the nominated authority must accept before project admin power changes.",
+      "Only the current project authority can nominate a new project authority.",
+    ],
+  });
+}
+
+export function buildAcceptProjectAuthorityTransactionPlan({
+  pendingAuthorityAddress,
+}: AcceptProjectAuthorityPlanInput): PreparedSolanaTransactionPlan {
+  const pendingAuthority = new PublicKey(pendingAuthorityAddress);
+  const addresses = {
+    ...deriveProtocolAddresses(pendingAuthorityAddress),
+    pendingAuthority: pendingAuthority.toBase58(),
+  };
+  const spec = instructionSpec("accept_project_authority");
+  const instruction = instructionPlan({
+    accounts: accountsFromSpec(spec, addresses),
+    discriminatorHex: spec.discriminatorHex,
+    instructionName: "accept_project_authority",
+    programId: addresses.programId,
+  });
+
+  return transactionPlan({
+    action: "ACCEPT_PROJECT_AUTHORITY",
+    addresses,
+    feePayer: addresses.pendingAuthority,
+    instruction,
+    warnings: [
+      "Only the currently nominated project authority can accept project admin power.",
+      "This does not change protocol, reward, treasury, or user custody authority.",
     ],
   });
 }
@@ -1370,6 +1438,7 @@ function derivedAccountReferences(addresses: ProtocolAddressBook): TransactionAc
     ["staker_reward_vault", "Staker reward vault"],
     ["independent_treasury_vault", "Independent treasury vault"],
     ["payer_fee_account", "Payer fee account"],
+    ["pending_authority", "Pending authority"],
     ["reward_epoch", "Reward epoch"],
     ["claim_record", "Reward claim record"],
     ["proposal", "Governance proposal"],
@@ -1426,6 +1495,8 @@ function addressForProtocolAccountIfPresent(addresses: ProtocolAddressBook, name
       return addresses.payer;
     case "payer_fee_account":
       return addresses.payerFeeAccount;
+    case "pending_authority":
+      return addresses.pendingAuthority;
     case "permission":
       return addresses.permission;
     case "position":

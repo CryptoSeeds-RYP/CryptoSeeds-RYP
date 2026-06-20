@@ -301,7 +301,7 @@
   },
   "ProtocolConfig": {
     "discriminatorHex": "cf5bfa1c98b3d7d1",
-    "minimumLength": 198,
+    "minimumLength": 262,
     "fields": [
       {
         "name": "authority",
@@ -361,6 +361,18 @@
         "name": "pending_authority",
         "type": "pubkey",
         "offset": 166,
+        "size": 32
+      },
+      {
+        "name": "project_authority",
+        "type": "pubkey",
+        "offset": 198,
+        "size": 32
+      },
+      {
+        "name": "pending_project_authority",
+        "type": "pubkey",
+        "offset": 230,
         "size": 32
       }
     ]

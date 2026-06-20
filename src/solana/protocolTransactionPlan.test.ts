@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildActivateVotingRightsTransactionPlan,
+  buildAcceptProjectAuthorityTransactionPlan,
   buildCancelProjectTransactionPlan,
   buildCastGovernanceVoteTransactionPlan,
   buildClaimRewardRecordTransactionPlan,
@@ -19,6 +20,7 @@ import {
   buildRoutePlatformFeeTransactionPlan,
   buildSetProjectPauseTransactionPlan,
   buildStakeRypTransactionPlan,
+  buildTransferProjectAuthorityTransactionPlan,
   buildUnstakeRypTransactionPlan,
   buildUpdateFeeConfigTransactionPlan,
   buildUpdateProjectStatusTransactionPlan,
@@ -275,6 +277,14 @@ describe("protocol transaction plan", () => {
   it("builds project registry admin lifecycle plans", () => {
     const receivingAccount = "So11111111111111111111111111111111111111112";
     const governanceProposalAddress = "11111111111111111111111111111111";
+    const newProjectAuthorityAddress = "So11111111111111111111111111111111111111112";
+    const transferProjectAuthority = buildTransferProjectAuthorityTransactionPlan({
+      authorityAddress: ownerAddress,
+      newAuthorityAddress: newProjectAuthorityAddress,
+    });
+    const acceptProjectAuthority = buildAcceptProjectAuthorityTransactionPlan({
+      pendingAuthorityAddress: newProjectAuthorityAddress,
+    });
     const registerProject = buildRegisterProjectTransactionPlan({
       authorityAddress: ownerAddress,
       governanceProposalAddress,
@@ -314,6 +324,17 @@ describe("protocol transaction plan", () => {
       refundMetadataHash: "bb".repeat(32),
     });
 
+    expect(transferProjectAuthority.action).toBe("TRANSFER_PROJECT_AUTHORITY");
+    expect(transferProjectAuthority.instructions[0].dataHex).toMatch(/^1421786cd3d4cff7/);
+    expect(transferProjectAuthority.instructions[0].accounts.map((account) => account.anchorName)).toEqual(
+      PROTOCOL_INSTRUCTION_SPECS.transfer_project_authority.accounts.map((account) => account.name),
+    );
+    expect(acceptProjectAuthority.action).toBe("ACCEPT_PROJECT_AUTHORITY");
+    expect(acceptProjectAuthority.instructions[0].dataHex).toBe("202193b59bdce543");
+    expect(acceptProjectAuthority.feePayer).toBe(newProjectAuthorityAddress);
+    expect(acceptProjectAuthority.instructions[0].accounts.map((account) => account.anchorName)).toEqual(
+      PROTOCOL_INSTRUCTION_SPECS.accept_project_authority.accounts.map((account) => account.name),
+    );
     expect(registerProject.action).toBe("REGISTER_PROJECT");
     expect(registerProject.instructions[0].dataHex).toMatch(/^829679d8b7e1f3c00900000000000000020104/);
     expect(registerProject.instructions[0].dataHex).toContain("ef".repeat(32));

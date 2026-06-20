@@ -61,6 +61,7 @@ export type PreparedInstructionPlan = {
 export type PreparedSolanaTransactionPlan = {
   action:
     | "ACTIVATE_VOTING_RIGHTS"
+    | "ACCEPT_PROJECT_AUTHORITY"
     | "CANCEL_PROJECT"
     | "CLAIM_REWARD"
     | "CLOSE_GOVERNANCE_PROPOSAL"
@@ -77,6 +78,7 @@ export type PreparedSolanaTransactionPlan = {
     | "ROUTE_PLATFORM_FEE"
     | "SET_PROJECT_PAUSE"
     | "STAKE_RYP"
+    | "TRANSFER_PROJECT_AUTHORITY"
     | "UNSTAKE_RYP"
     | "UPDATE_FEE_CONFIG"
     | "UPDATE_PROJECT_STATUS"

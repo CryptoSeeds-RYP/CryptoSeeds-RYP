@@ -57,6 +57,8 @@ pub mod cryptoseeds_protocol {
         config.paused = false;
         config.bump = ctx.bumps.config;
         config.pending_authority = Pubkey::default();
+        config.project_authority = ctx.accounts.authority.key();
+        config.pending_project_authority = Pubkey::default();
 
         emit!(ConfigInitialized {
             authority: config.authority,
@@ -725,6 +727,43 @@ pub mod cryptoseeds_protocol {
         Ok(())
     }
 
+    pub fn transfer_project_authority(
+        ctx: Context<TransferProjectAuthority>,
+        new_authority: Pubkey,
+    ) -> Result<()> {
+        validate_protocol_authority(&ctx.accounts.config, &ctx.accounts.authority.key())?;
+        validate_new_authority(new_authority, ctx.accounts.config.project_authority)?;
+
+        ctx.accounts.config.pending_project_authority = new_authority;
+
+        emit!(ProjectAuthorityTransferStarted {
+            current_authority: ctx.accounts.config.project_authority,
+            pending_authority: new_authority,
+        });
+
+        Ok(())
+    }
+
+    pub fn accept_project_authority(ctx: Context<AcceptProjectAuthority>) -> Result<()> {
+        require_keys_eq!(
+            ctx.accounts.config.pending_project_authority,
+            ctx.accounts.pending_authority.key(),
+            CryptoSeedsError::Unauthorized
+        );
+
+        let previous_authority = ctx.accounts.config.project_authority;
+        let new_authority = ctx.accounts.pending_authority.key();
+        ctx.accounts.config.project_authority = new_authority;
+        ctx.accounts.config.pending_project_authority = Pubkey::default();
+
+        emit!(ProjectAuthorityTransferred {
+            previous_authority,
+            new_authority,
+        });
+
+        Ok(())
+    }
+
     pub fn transfer_reward_authority(
         ctx: Context<TransferRewardAuthority>,
         new_authority: Pubkey,
@@ -1336,7 +1375,7 @@ pub mod cryptoseeds_protocol {
         participation_starts_at: i64,
         participation_ends_at: i64,
     ) -> Result<()> {
-        validate_protocol_authority(&ctx.accounts.config, &ctx.accounts.authority.key())?;
+        validate_project_authority(&ctx.accounts.config, &ctx.accounts.authority.key())?;
         validate_metadata_hash(&metadata_hash)?;
         validate_project_participation_bounds(
             min_participation_amount,
@@ -1403,7 +1442,7 @@ pub mod cryptoseeds_protocol {
         _project_id: u64,
         status: ProjectStatus,
     ) -> Result<()> {
-        validate_protocol_authority(&ctx.accounts.config, &ctx.accounts.authority.key())?;
+        validate_project_authority(&ctx.accounts.config, &ctx.accounts.authority.key())?;
         require_keys_eq!(
             ctx.accounts.project.governance_proposal,
             ctx.accounts.governance_proposal_account.key(),
@@ -1429,7 +1468,7 @@ pub mod cryptoseeds_protocol {
         _project_id: u64,
         paused: bool,
     ) -> Result<()> {
-        validate_protocol_authority(&ctx.accounts.config, &ctx.accounts.authority.key())?;
+        validate_project_authority(&ctx.accounts.config, &ctx.accounts.authority.key())?;
         ctx.accounts.project.participation_paused = paused;
 
         emit!(ProjectPauseUpdated {
@@ -1446,7 +1485,7 @@ pub mod cryptoseeds_protocol {
         cancellation_hash: [u8; 32],
         refund_pool_amount: u64,
     ) -> Result<()> {
-        validate_protocol_authority(&ctx.accounts.config, &ctx.accounts.authority.key())?;
+        validate_project_authority(&ctx.accounts.config, &ctx.accounts.authority.key())?;
         validate_metadata_hash(&cancellation_hash)?;
         cancel_project_accounting(
             &mut ctx.accounts.project,
@@ -1470,7 +1509,7 @@ pub mod cryptoseeds_protocol {
         refund_amount: u64,
         refund_metadata_hash: [u8; 32],
     ) -> Result<()> {
-        validate_protocol_authority(&ctx.accounts.config, &ctx.accounts.authority.key())?;
+        validate_project_authority(&ctx.accounts.config, &ctx.accounts.authority.key())?;
         validate_metadata_hash(&refund_metadata_hash)?;
         record_project_refund_accounting(&mut ctx.accounts.project, refund_amount)?;
 
@@ -2086,6 +2125,20 @@ pub struct AcceptProtocolAuthority<'info> {
 }
 
 #[derive(Accounts)]
+pub struct TransferProjectAuthority<'info> {
+    pub authority: Signer<'info>,
+    #[account(mut, seeds = [CONFIG_SEED], bump = config.bump)]
+    pub config: Account<'info, ProtocolConfig>,
+}
+
+#[derive(Accounts)]
+pub struct AcceptProjectAuthority<'info> {
+    pub pending_authority: Signer<'info>,
+    #[account(mut, seeds = [CONFIG_SEED], bump = config.bump)]
+    pub config: Account<'info, ProtocolConfig>,
+}
+
+#[derive(Accounts)]
 pub struct TransferRewardAuthority<'info> {
     pub authority: Signer<'info>,
     #[account(seeds = [CONFIG_SEED], bump = config.bump)]
@@ -2553,6 +2606,8 @@ pub struct ProtocolConfig {
     pub paused: bool,
     pub bump: u8,
     pub pending_authority: Pubkey,
+    pub project_authority: Pubkey,
+    pub pending_project_authority: Pubkey,
 }
 
 #[account]
@@ -3039,6 +3094,18 @@ pub struct ProtocolAuthorityTransferred {
 }
 
 #[event]
+pub struct ProjectAuthorityTransferStarted {
+    pub current_authority: Pubkey,
+    pub pending_authority: Pubkey,
+}
+
+#[event]
+pub struct ProjectAuthorityTransferred {
+    pub previous_authority: Pubkey,
+    pub new_authority: Pubkey,
+}
+
+#[event]
 pub struct RewardAuthorityTransferStarted {
     pub reward_config: Pubkey,
     pub current_authority: Pubkey,
@@ -3397,6 +3464,15 @@ fn validate_fee_reductions(base_fee_bps: u16, reductions: &[u16; 5]) -> Result<(
 
 fn validate_protocol_authority(config: &ProtocolConfig, authority: &Pubkey) -> Result<()> {
     require_keys_eq!(config.authority, *authority, CryptoSeedsError::Unauthorized);
+    Ok(())
+}
+
+fn validate_project_authority(config: &ProtocolConfig, authority: &Pubkey) -> Result<()> {
+    require_keys_eq!(
+        config.project_authority,
+        *authority,
+        CryptoSeedsError::Unauthorized
+    );
     Ok(())
 }
 
@@ -4817,6 +4893,19 @@ mod tests {
     }
 
     #[test]
+    fn validates_project_authority_separately_from_protocol_authority() {
+        let protocol_authority = Pubkey::new_unique();
+        let project_authority = Pubkey::new_unique();
+        let mut config = protocol_config(protocol_authority);
+        config.project_authority = project_authority;
+
+        assert!(validate_protocol_authority(&config, &protocol_authority).is_ok());
+        assert!(validate_protocol_authority(&config, &project_authority).is_err());
+        assert!(validate_project_authority(&config, &project_authority).is_ok());
+        assert!(validate_project_authority(&config, &protocol_authority).is_err());
+    }
+
+    #[test]
     fn validates_seedbot_permission_bounds() {
         let now = 1_000;
         assert!(
@@ -5224,6 +5313,23 @@ mod tests {
             total_volume_used_amount: 0,
             total_trades_used: 0,
             last_execution_ts: 0,
+        }
+    }
+
+    fn protocol_config(authority: Pubkey) -> ProtocolConfig {
+        ProtocolConfig {
+            authority,
+            ryp_mint: Pubkey::new_unique(),
+            ryp_vault: Pubkey::new_unique(),
+            base_fee_bps: 350,
+            tier_thresholds: THRESHOLDS,
+            tier_fee_reduction_bps: [0, 35, 70, 105, 140],
+            total_staked: 0,
+            paused: false,
+            bump: 255,
+            pending_authority: Pubkey::default(),
+            project_authority: authority,
+            pending_project_authority: Pubkey::default(),
         }
     }
 
