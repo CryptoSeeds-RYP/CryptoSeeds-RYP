@@ -247,7 +247,9 @@ describe("protocol transaction plan", () => {
       authorityAddress: ownerAddress,
       category: "PROJECT_APPROVAL",
       metadataHash: "cd".repeat(32),
+      minimumVotes: 3n,
       proposalId: 42n,
+      votingWindowSeconds: 604_800n,
     });
     const closeProposal = buildCloseGovernanceProposalTransactionPlan({
       approved: false,
@@ -257,7 +259,9 @@ describe("protocol transaction plan", () => {
 
     expect(createProposal.action).toBe("CREATE_GOVERNANCE_PROPOSAL");
     expect(createProposal.feePayer).toBe(ownerAddress);
-    expect(createProposal.instructions[0].dataHex).toBe(`665a7285933f71a82a0000000000000000${"cd".repeat(32)}`);
+    expect(createProposal.instructions[0].dataHex).toBe(
+      `665a7285933f71a82a0000000000000000${"cd".repeat(32)}803a0900000000000300000000000000`,
+    );
     expect(createProposal.instructions[0].accounts.map((account) => account.anchorName)).toEqual(
       PROTOCOL_INSTRUCTION_SPECS.create_governance_proposal.accounts.map((account) => account.name),
     );

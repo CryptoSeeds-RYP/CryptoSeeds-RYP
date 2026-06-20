@@ -1,7 +1,7 @@
 {
   "GovernanceProposal": {
     "discriminatorHex": "356bf0be2b49418f",
-    "minimumLength": 115,
+    "minimumLength": 139,
     "fields": [
       {
         "name": "proposal_id",
@@ -52,15 +52,33 @@
         "size": 8
       },
       {
-        "name": "closed_at",
+        "name": "voting_starts_at",
         "type": "i64",
         "offset": 106,
         "size": 8
       },
       {
+        "name": "voting_ends_at",
+        "type": "i64",
+        "offset": 114,
+        "size": 8
+      },
+      {
+        "name": "minimum_votes",
+        "type": "u64",
+        "offset": 122,
+        "size": 8
+      },
+      {
+        "name": "closed_at",
+        "type": "i64",
+        "offset": 130,
+        "size": 8
+      },
+      {
         "name": "bump",
         "type": "u8",
-        "offset": 114,
+        "offset": 138,
         "size": 1
       }
     ]

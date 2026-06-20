@@ -38,6 +38,8 @@ const PLATFORM_FEE_ROUTE_SPLIT = {
   treasury: 9_999n,
 };
 const VOTING_RIGHTS_DELAY_SECONDS = 14n * 24n * 60n * 60n;
+const GOVERNANCE_VOTING_WINDOW_SECONDS = 1n;
+const GOVERNANCE_MINIMUM_VOTES = 1n;
 const REWARD_EPOCH_CADENCE_SECONDS = 7n * 24n * 60n * 60n;
 const REWARD_METADATA_HASH = Buffer.alloc(32, 7);
 const ZERO_METADATA_HASH = Buffer.alloc(32, 0);
@@ -362,6 +364,13 @@ async function runSmoke(connection) {
   const createdProposal = parseGovernanceProposal(await getAccountData(connection, proposal));
   assertEqual("proposal id", createdProposal.proposalId, proposalId);
   assertEqual("proposal open status", createdProposal.status, 0);
+  assertEqual("proposal voting window starts", createdProposal.votingStartsAt > 0n, true);
+  assertEqual(
+    "proposal voting window seconds",
+    createdProposal.votingEndsAt - createdProposal.votingStartsAt,
+    GOVERNANCE_VOTING_WINDOW_SECONDS,
+  );
+  assertEqual("proposal minimum votes", createdProposal.minimumVotes, GOVERNANCE_MINIMUM_VOTES);
 
   await expectFailure(
     "cast_governance_vote rejects inactive voting rights",
@@ -370,10 +379,16 @@ async function runSmoke(connection) {
   );
   await assertMissingAccount(connection, voteRecord, "vote record after inactive voting rejection");
 
-  log("calling close_governance_proposal");
-  await closeGovernanceProposal(connection, { approved: true, authority, config, proposal, proposalId });
+  await expectFailure(
+    "close_governance_proposal rejects active voting window",
+    () => closeGovernanceProposal(connection, { approved: false, authority, config, proposal, proposalId }),
+    "custom program error",
+  );
+
+  log("calling close_governance_proposal after voting window");
+  await waitForGovernanceWindowClose(connection, { approved: false, authority, config, proposal, proposalId });
   const closedProposal = parseGovernanceProposal(await getAccountData(connection, proposal));
-  assertEqual("closed proposal approved status", closedProposal.status, 1);
+  assertEqual("closed proposal rejected status", closedProposal.status, 2);
 
   const projectId = 21n;
   const project = deriveProjectAddress(projectId);
@@ -736,8 +751,10 @@ async function runSmoke(connection) {
 	      "stake_ryp",
 	      "stake_receipt_lifecycle",
 	      "create_governance_proposal",
+	      "governance_proposal_window_and_thresholds",
 	      "reject_vote_without_active_voting_rights",
-	      "close_governance_proposal",
+	      "reject_governance_close_before_window_end",
+	      "close_governance_proposal_after_window",
 	      "register_project",
 	      "participate_project",
 	      "create_seedbot_permission",
@@ -1664,12 +1681,24 @@ async function acceptRewardAuthority(connection, { config, pendingAuthority, rew
   await sendAndConfirm(connection, new Transaction().add(instruction), [pendingAuthority]);
 }
 
-async function createGovernanceProposal(connection, { authority, config, proposal, proposalId }) {
-  const data = Buffer.alloc(8 + 8 + 1 + 32);
+async function createGovernanceProposal(
+  connection,
+  {
+    authority,
+    config,
+    minimumVotes = GOVERNANCE_MINIMUM_VOTES,
+    proposal,
+    proposalId,
+    votingWindowSeconds = GOVERNANCE_VOTING_WINDOW_SECONDS,
+  },
+) {
+  const data = Buffer.alloc(8 + 8 + 1 + 32 + 8 + 8);
   discriminator("create_governance_proposal").copy(data, 0);
   data.writeBigUInt64LE(proposalId, 8);
   data.writeUInt8(0, 16);
   REWARD_METADATA_HASH.copy(data, 17);
+  data.writeBigInt64LE(votingWindowSeconds, 49);
+  data.writeBigUInt64LE(minimumVotes, 57);
   const instruction = new TransactionInstruction({
     programId,
     keys: [
@@ -1682,6 +1711,21 @@ async function createGovernanceProposal(connection, { authority, config, proposa
   });
 
   await sendAndConfirm(connection, new Transaction().add(instruction), [authority]);
+}
+
+async function waitForGovernanceWindowClose(connection, args) {
+  let lastError;
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    try {
+      await closeGovernanceProposal(connection, args);
+      return;
+    } catch (error) {
+      lastError = error;
+      await sleep(1_000);
+    }
+  }
+
+  throw lastError;
 }
 
 async function castGovernanceVote(connection, { approve, config, owner, position, proposal, proposalId, voteRecord }) {
@@ -2316,6 +2360,9 @@ function parseGovernanceProposal(data) {
     yesVotes: data.readBigUInt64LE(offset.yes_votes),
     noVotes: data.readBigUInt64LE(offset.no_votes),
     createdAt: data.readBigInt64LE(offset.created_at),
+    votingStartsAt: data.readBigInt64LE(offset.voting_starts_at),
+    votingEndsAt: data.readBigInt64LE(offset.voting_ends_at),
+    minimumVotes: data.readBigUInt64LE(offset.minimum_votes),
     closedAt: data.readBigInt64LE(offset.closed_at),
     bump: data.readUInt8(offset.bump),
   };

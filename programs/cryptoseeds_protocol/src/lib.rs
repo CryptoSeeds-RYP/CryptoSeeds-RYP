@@ -26,6 +26,9 @@ pub const MAX_SEEDBOT_DAILY_TRADES: u16 = 50;
 pub const MAX_SEEDBOT_SLIPPAGE_BPS: u16 = 500;
 pub const MAX_REWARD_MERKLE_PROOF_NODES: usize = 32;
 pub const MAX_REWARD_CLAIM_WINDOW_SECONDS: i64 = 366 * 24 * 60 * 60;
+pub const MIN_GOVERNANCE_VOTING_WINDOW_SECONDS: i64 = 1;
+pub const MAX_GOVERNANCE_VOTING_WINDOW_SECONDS: i64 = 90 * 24 * 60 * 60;
+pub const MAX_GOVERNANCE_MINIMUM_VOTES: u64 = 1_000_000;
 pub const BPS_DENOMINATOR: u16 = 10_000;
 pub const VOTING_RIGHTS_LEVEL_TWO_VOTE_COUNT: u32 = 100;
 
@@ -1170,11 +1173,18 @@ pub mod cryptoseeds_protocol {
         proposal_id: u64,
         category: GovernanceProposalCategory,
         metadata_hash: [u8; 32],
+        voting_window_seconds: i64,
+        minimum_votes: u64,
     ) -> Result<()> {
         validate_protocol_authority(&ctx.accounts.config, &ctx.accounts.authority.key())?;
         validate_metadata_hash(&metadata_hash)?;
 
         let clock = Clock::get()?;
+        let voting_starts_at = clock.unix_timestamp;
+        let voting_ends_at =
+            calculate_governance_voting_ends_at(voting_starts_at, voting_window_seconds)?;
+        validate_governance_minimum_votes(minimum_votes)?;
+
         let proposal = &mut ctx.accounts.proposal;
         proposal.proposal_id = proposal_id;
         proposal.authority = ctx.accounts.authority.key();
@@ -1183,7 +1193,10 @@ pub mod cryptoseeds_protocol {
         proposal.metadata_hash = metadata_hash;
         proposal.yes_votes = 0;
         proposal.no_votes = 0;
-        proposal.created_at = clock.unix_timestamp;
+        proposal.created_at = voting_starts_at;
+        proposal.voting_starts_at = voting_starts_at;
+        proposal.voting_ends_at = voting_ends_at;
+        proposal.minimum_votes = minimum_votes;
         proposal.closed_at = 0;
         proposal.bump = ctx.bumps.proposal;
 
@@ -1191,6 +1204,9 @@ pub mod cryptoseeds_protocol {
             proposal: proposal.key(),
             proposal_id,
             category,
+            voting_starts_at,
+            voting_ends_at,
+            minimum_votes,
         });
 
         Ok(())
@@ -1209,6 +1225,8 @@ pub mod cryptoseeds_protocol {
             ctx.accounts.proposal.status == GovernanceProposalStatus::Open,
             CryptoSeedsError::GovernanceProposalClosed
         );
+        let now = Clock::get()?.unix_timestamp;
+        validate_governance_vote_window(&ctx.accounts.proposal, now)?;
         require_keys_eq!(
             ctx.accounts.position.owner,
             ctx.accounts.owner.key(),
@@ -1223,7 +1241,7 @@ pub mod cryptoseeds_protocol {
         vote_record.proposal = ctx.accounts.proposal.key();
         vote_record.wallet = ctx.accounts.owner.key();
         vote_record.approve = approve;
-        vote_record.voted_at = Clock::get()?.unix_timestamp;
+        vote_record.voted_at = now;
         vote_record.bump = ctx.bumps.vote_record;
 
         let proposal = &mut ctx.accounts.proposal;
@@ -1277,6 +1295,12 @@ pub mod cryptoseeds_protocol {
             ctx.accounts.proposal.status == GovernanceProposalStatus::Open,
             CryptoSeedsError::GovernanceProposalClosed
         );
+        let now = Clock::get()?.unix_timestamp;
+        let proposal_passed = validate_governance_proposal_close(&ctx.accounts.proposal, now)?;
+        require!(
+            proposal_passed == approved,
+            CryptoSeedsError::GovernanceCloseResultMismatch
+        );
 
         let proposal = &mut ctx.accounts.proposal;
         proposal.status = if approved {
@@ -1284,11 +1308,14 @@ pub mod cryptoseeds_protocol {
         } else {
             GovernanceProposalStatus::Rejected
         };
-        proposal.closed_at = Clock::get()?.unix_timestamp;
+        proposal.closed_at = now;
 
         emit!(GovernanceProposalClosed {
             proposal: proposal.key(),
             approved,
+            yes_votes: proposal.yes_votes,
+            no_votes: proposal.no_votes,
+            minimum_votes: proposal.minimum_votes,
         });
 
         Ok(())
@@ -2495,6 +2522,9 @@ pub struct GovernanceProposal {
     pub yes_votes: u64,
     pub no_votes: u64,
     pub created_at: i64,
+    pub voting_starts_at: i64,
+    pub voting_ends_at: i64,
+    pub minimum_votes: u64,
     pub closed_at: i64,
     pub bump: u8,
 }
@@ -2929,6 +2959,9 @@ pub struct GovernanceProposalCreated {
     pub proposal: Pubkey,
     pub proposal_id: u64,
     pub category: GovernanceProposalCategory,
+    pub voting_starts_at: i64,
+    pub voting_ends_at: i64,
+    pub minimum_votes: u64,
 }
 
 #[event]
@@ -2942,6 +2975,9 @@ pub struct GovernanceVoteCast {
 pub struct GovernanceProposalClosed {
     pub proposal: Pubkey,
     pub approved: bool,
+    pub yes_votes: u64,
+    pub no_votes: u64,
+    pub minimum_votes: u64,
 }
 
 #[event]
@@ -3089,6 +3125,18 @@ pub enum CryptoSeedsError {
     RewardClaimWindowExpired,
     #[msg("Governance proposal is not open for voting.")]
     GovernanceProposalClosed,
+    #[msg("Governance voting window is invalid.")]
+    InvalidGovernanceVotingWindow,
+    #[msg("Governance minimum vote threshold is invalid.")]
+    InvalidGovernanceMinimumVotes,
+    #[msg("Governance voting has not started.")]
+    GovernanceVotingNotStarted,
+    #[msg("Governance voting window has ended.")]
+    GovernanceVotingEnded,
+    #[msg("Governance proposal voting is still open.")]
+    GovernanceVotingStillOpen,
+    #[msg("Governance close result does not match the recorded vote tally.")]
+    GovernanceCloseResultMismatch,
     #[msg("The metadata hash is invalid.")]
     InvalidMetadata,
     #[msg("Project account is invalid.")]
@@ -3701,6 +3749,61 @@ fn validate_reward_vault_for_token_claim(
 fn validate_metadata_hash(metadata_hash: &[u8; 32]) -> Result<()> {
     require!(*metadata_hash != [0; 32], CryptoSeedsError::InvalidMetadata);
     Ok(())
+}
+
+fn calculate_governance_voting_ends_at(
+    voting_starts_at: i64,
+    voting_window_seconds: i64,
+) -> Result<i64> {
+    require!(
+        (MIN_GOVERNANCE_VOTING_WINDOW_SECONDS..=MAX_GOVERNANCE_VOTING_WINDOW_SECONDS)
+            .contains(&voting_window_seconds),
+        CryptoSeedsError::InvalidGovernanceVotingWindow
+    );
+
+    voting_starts_at
+        .checked_add(voting_window_seconds)
+        .ok_or(CryptoSeedsError::MathOverflow.into())
+}
+
+fn validate_governance_minimum_votes(minimum_votes: u64) -> Result<()> {
+    require!(
+        minimum_votes > 0 && minimum_votes <= MAX_GOVERNANCE_MINIMUM_VOTES,
+        CryptoSeedsError::InvalidGovernanceMinimumVotes
+    );
+    Ok(())
+}
+
+fn validate_governance_vote_window(proposal: &GovernanceProposal, now: i64) -> Result<()> {
+    require!(
+        now >= proposal.voting_starts_at,
+        CryptoSeedsError::GovernanceVotingNotStarted
+    );
+    require!(
+        now < proposal.voting_ends_at,
+        CryptoSeedsError::GovernanceVotingEnded
+    );
+    Ok(())
+}
+
+fn governance_proposal_total_votes(proposal: &GovernanceProposal) -> Result<u64> {
+    proposal
+        .yes_votes
+        .checked_add(proposal.no_votes)
+        .ok_or(CryptoSeedsError::MathOverflow.into())
+}
+
+fn governance_proposal_passed(proposal: &GovernanceProposal) -> Result<bool> {
+    let total_votes = governance_proposal_total_votes(proposal)?;
+    Ok(total_votes >= proposal.minimum_votes && proposal.yes_votes > proposal.no_votes)
+}
+
+fn validate_governance_proposal_close(proposal: &GovernanceProposal, now: i64) -> Result<bool> {
+    require!(
+        now >= proposal.voting_ends_at,
+        CryptoSeedsError::GovernanceVotingStillOpen
+    );
+    governance_proposal_passed(proposal)
 }
 
 fn validate_seedbot_permission_limits_at(
@@ -4365,6 +4468,69 @@ mod tests {
     }
 
     #[test]
+    fn validates_governance_voting_window_bounds() {
+        let now = 1_800_000_000;
+
+        assert_eq!(
+            calculate_governance_voting_ends_at(now, MIN_GOVERNANCE_VOTING_WINDOW_SECONDS).unwrap(),
+            now + MIN_GOVERNANCE_VOTING_WINDOW_SECONDS
+        );
+        assert_eq!(
+            calculate_governance_voting_ends_at(now, MAX_GOVERNANCE_VOTING_WINDOW_SECONDS).unwrap(),
+            now + MAX_GOVERNANCE_VOTING_WINDOW_SECONDS
+        );
+        assert!(
+            calculate_governance_voting_ends_at(now, MIN_GOVERNANCE_VOTING_WINDOW_SECONDS - 1)
+                .is_err()
+        );
+        assert!(
+            calculate_governance_voting_ends_at(now, MAX_GOVERNANCE_VOTING_WINDOW_SECONDS + 1)
+                .is_err()
+        );
+        assert!(calculate_governance_voting_ends_at(i64::MAX, 1).is_err());
+        assert!(validate_governance_minimum_votes(1).is_ok());
+        assert!(validate_governance_minimum_votes(MAX_GOVERNANCE_MINIMUM_VOTES).is_ok());
+        assert!(validate_governance_minimum_votes(0).is_err());
+        assert!(validate_governance_minimum_votes(MAX_GOVERNANCE_MINIMUM_VOTES + 1).is_err());
+    }
+
+    #[test]
+    fn validates_governance_vote_window() {
+        let mut proposal = governance_proposal();
+        proposal.voting_starts_at = 1_000;
+        proposal.voting_ends_at = 2_000;
+
+        assert!(validate_governance_vote_window(&proposal, 999).is_err());
+        assert!(validate_governance_vote_window(&proposal, 1_000).is_ok());
+        assert!(validate_governance_vote_window(&proposal, 1_999).is_ok());
+        assert!(validate_governance_vote_window(&proposal, 2_000).is_err());
+    }
+
+    #[test]
+    fn validates_governance_close_against_tally_and_threshold() {
+        let mut proposal = governance_proposal();
+        proposal.voting_ends_at = 2_000;
+        proposal.minimum_votes = 3;
+        proposal.yes_votes = 2;
+        proposal.no_votes = 0;
+
+        assert!(validate_governance_proposal_close(&proposal, 1_999).is_err());
+        assert!(!validate_governance_proposal_close(&proposal, 2_000).unwrap());
+
+        proposal.yes_votes = 2;
+        proposal.no_votes = 1;
+        assert!(validate_governance_proposal_close(&proposal, 2_000).unwrap());
+
+        proposal.yes_votes = 1;
+        proposal.no_votes = 2;
+        assert!(!validate_governance_proposal_close(&proposal, 2_000).unwrap());
+
+        proposal.yes_votes = u64::MAX;
+        proposal.no_votes = 1;
+        assert!(validate_governance_proposal_close(&proposal, 2_000).is_err());
+    }
+
+    #[test]
     fn records_seedbot_usage_with_daily_caps() {
         let now = 1_000;
         let mut permission = seedbot_permission(now + SEEDBOT_USAGE_WINDOW_SECONDS + 10_000);
@@ -4498,6 +4664,24 @@ mod tests {
             total_volume_used_amount: 0,
             total_trades_used: 0,
             last_execution_ts: 0,
+        }
+    }
+
+    fn governance_proposal() -> GovernanceProposal {
+        GovernanceProposal {
+            proposal_id: 3,
+            authority: Pubkey::new_unique(),
+            category: GovernanceProposalCategory::ProjectApproval,
+            status: GovernanceProposalStatus::Open,
+            metadata_hash: [7; 32],
+            yes_votes: 0,
+            no_votes: 0,
+            created_at: 1_000,
+            voting_starts_at: 1_000,
+            voting_ends_at: 2_000,
+            minimum_votes: 1,
+            closed_at: 0,
+            bump: 255,
         }
     }
 }

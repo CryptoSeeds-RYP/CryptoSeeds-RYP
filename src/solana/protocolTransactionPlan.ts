@@ -221,6 +221,8 @@ export type CreateGovernanceProposalPlanInput = {
   proposalId: bigint | number | string;
   category: GovernanceProposalCategory;
   metadataHash: string | Uint8Array | number[];
+  votingWindowSeconds: bigint | number | string;
+  minimumVotes: bigint | number | string;
 };
 
 export type CloseGovernanceProposalPlanInput = {
@@ -632,7 +634,9 @@ export function buildCreateGovernanceProposalTransactionPlan({
   authorityAddress,
   category,
   metadataHash,
+  minimumVotes,
   proposalId,
+  votingWindowSeconds,
 }: CreateGovernanceProposalPlanInput): PreparedSolanaTransactionPlan {
   const proposal = toU64(proposalId);
   const addresses = {
@@ -643,7 +647,13 @@ export function buildCreateGovernanceProposalTransactionPlan({
   const spec = instructionSpec("create_governance_proposal");
   const instruction = instructionPlan({
     accounts: accountsFromSpec(spec, addresses),
-    argDataHex: `${u64LeHex(proposal)}${enumVariantHex(category, GOVERNANCE_CATEGORY_VARIANTS)}${fixedHashHex(metadataHash)}`,
+    argDataHex: [
+      u64LeHex(proposal),
+      enumVariantHex(category, GOVERNANCE_CATEGORY_VARIANTS),
+      fixedHashHex(metadataHash),
+      i64LeHex(toI64(votingWindowSeconds)),
+      u64LeHex(toU64(minimumVotes)),
+    ].join(""),
     discriminatorHex: spec.discriminatorHex,
     instructionName: "create_governance_proposal",
     programId: addresses.programId,
@@ -656,6 +666,7 @@ export function buildCreateGovernanceProposalTransactionPlan({
     instruction,
     warnings: [
       "Admin-only governance proposal creation; metadata must point to reviewed off-chain proposal content.",
+      "Voting window and minimum vote threshold are enforced on-chain.",
       "No proposal is created until the configured protocol authority signs.",
     ],
   });
@@ -687,8 +698,8 @@ export function buildCloseGovernanceProposalTransactionPlan({
     feePayer: addresses.authority,
     instruction,
     warnings: [
-      "Admin-only proposal close; the on-chain proposal must still be open.",
-      "Closing a proposal only records the approval result; execution remains separate.",
+      "Admin-only proposal close; the on-chain proposal must still be open and past its voting window.",
+      "Closing a proposal records the deterministic vote result; execution remains separate.",
     ],
   });
 }

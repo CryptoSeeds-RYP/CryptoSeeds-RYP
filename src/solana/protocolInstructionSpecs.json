@@ -285,7 +285,9 @@
     "args": [
       "proposal_id",
       "category",
-      "metadata_hash"
+      "metadata_hash",
+      "voting_window_seconds",
+      "minimum_votes"
     ],
     "accounts": [
       {
