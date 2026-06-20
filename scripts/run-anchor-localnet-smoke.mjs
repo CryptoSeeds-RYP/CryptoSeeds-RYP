@@ -187,11 +187,13 @@ async function runSmoke(connection) {
   const authority = Keypair.generate();
   const owner = Keypair.generate();
   const intruder = Keypair.generate();
+  const newAuthority = Keypair.generate();
   const mint = Keypair.generate();
   log("funding authority and owner wallets");
   await fund(connection, authority.publicKey, 10);
   await fund(connection, owner.publicKey, 10);
   await fund(connection, intruder.publicKey, 10);
+  await fund(connection, newAuthority.publicKey, 10);
 
   const [config] = PublicKey.findProgramAddressSync([Buffer.from("config")], programId);
   const [rewardConfig] = PublicKey.findProgramAddressSync([Buffer.from("reward-config")], programId);
@@ -586,6 +588,36 @@ async function runSmoke(connection) {
   assertEqual("final vault balance", finalVaultBalance, 0n);
   assertEqual("final owner balance", finalOwnerBalance, SPROUT_STAKE_AMOUNT + HOLDER_REWARD_CLAIM_AMOUNT);
 
+  await expectFailure(
+    "accept_protocol_authority rejects missing nomination",
+    () => acceptProtocolAuthority(connection, { config, pendingAuthority: newAuthority }),
+  );
+  log("calling transfer_reward_authority");
+  await transferRewardAuthority(connection, { authority, config, newAuthority: newAuthority.publicKey, rewardConfig });
+  const pendingRewardConfig = parseRewardConfig(await getAccountData(connection, rewardConfig));
+  assertPublicKey("pending reward authority", pendingRewardConfig.pendingAuthority, newAuthority.publicKey);
+
+  log("calling transfer_protocol_authority");
+  await transferProtocolAuthority(connection, { authority, config, newAuthority: newAuthority.publicKey });
+  const pendingConfig = parseProtocolConfig(await getAccountData(connection, config));
+  assertPublicKey("pending protocol authority", pendingConfig.pendingAuthority, newAuthority.publicKey);
+
+  log("calling accept_protocol_authority");
+  await acceptProtocolAuthority(connection, { config, pendingAuthority: newAuthority });
+  const transferredConfig = parseProtocolConfig(await getAccountData(connection, config));
+  assertPublicKey("transferred protocol authority", transferredConfig.authority, newAuthority.publicKey);
+  assertPublicKey("cleared protocol pending authority", transferredConfig.pendingAuthority, PublicKey.default);
+
+  log("calling accept_reward_authority");
+  await acceptRewardAuthority(connection, { config, pendingAuthority: newAuthority, rewardConfig });
+  const transferredRewardConfig = parseRewardConfig(await getAccountData(connection, rewardConfig));
+  assertPublicKey("transferred reward authority", transferredRewardConfig.authority, newAuthority.publicKey);
+  assertPublicKey("cleared reward pending authority", transferredRewardConfig.pendingAuthority, PublicKey.default);
+  await expectFailure(
+    "set_pause rejects stale authority after transfer",
+    () => setPause(connection, { authority, config, paused: true }),
+  );
+
   return {
     status: "passed",
     programId: programId.toBase58(),
@@ -635,6 +667,12 @@ async function runSmoke(connection) {
       "pause_blocks_stake_and_unstake",
       "pause_blocks_voting_activation",
       "unstake_ryp",
+      "reject_authority_accept_without_nomination",
+      "transfer_reward_authority",
+      "transfer_protocol_authority",
+      "accept_protocol_authority",
+      "accept_reward_authority",
+      "reject_stale_authority_after_transfer",
     ],
   };
 }
@@ -1357,6 +1395,60 @@ async function updateFeeConfig(connection, { authority, baseFeeBps, config, tier
   await sendAndConfirm(connection, new Transaction().add(instruction), [authority]);
 }
 
+async function transferProtocolAuthority(connection, { authority, config, newAuthority }) {
+  const data = Buffer.alloc(8 + 32);
+  discriminator("transfer_protocol_authority").copy(data, 0);
+  newAuthority.toBuffer().copy(data, 8);
+  const instruction = new TransactionInstruction({
+    programId,
+    keys: [accountMeta(authority.publicKey, true, false), accountMeta(config, false, true)],
+    data,
+  });
+
+  await sendAndConfirm(connection, new Transaction().add(instruction), [authority]);
+}
+
+async function acceptProtocolAuthority(connection, { config, pendingAuthority }) {
+  const instruction = new TransactionInstruction({
+    programId,
+    keys: [accountMeta(pendingAuthority.publicKey, true, false), accountMeta(config, false, true)],
+    data: discriminator("accept_protocol_authority"),
+  });
+
+  await sendAndConfirm(connection, new Transaction().add(instruction), [pendingAuthority]);
+}
+
+async function transferRewardAuthority(connection, { authority, config, newAuthority, rewardConfig }) {
+  const data = Buffer.alloc(8 + 32);
+  discriminator("transfer_reward_authority").copy(data, 0);
+  newAuthority.toBuffer().copy(data, 8);
+  const instruction = new TransactionInstruction({
+    programId,
+    keys: [
+      accountMeta(authority.publicKey, true, false),
+      accountMeta(config, false, false),
+      accountMeta(rewardConfig, false, true),
+    ],
+    data,
+  });
+
+  await sendAndConfirm(connection, new Transaction().add(instruction), [authority]);
+}
+
+async function acceptRewardAuthority(connection, { config, pendingAuthority, rewardConfig }) {
+  const instruction = new TransactionInstruction({
+    programId,
+    keys: [
+      accountMeta(pendingAuthority.publicKey, true, false),
+      accountMeta(config, false, false),
+      accountMeta(rewardConfig, false, true),
+    ],
+    data: discriminator("accept_reward_authority"),
+  });
+
+  await sendAndConfirm(connection, new Transaction().add(instruction), [pendingAuthority]);
+}
+
 async function createGovernanceProposal(connection, { authority, config, proposal, proposalId }) {
   const data = Buffer.alloc(8 + 8 + 1 + 32);
   discriminator("create_governance_proposal").copy(data, 0);
@@ -1808,6 +1900,7 @@ function parseProtocolConfig(data) {
     baseFeeBps: data.readUInt16LE(104),
     totalStaked: data.readBigUInt64LE(156),
     paused: data.readUInt8(164) === 1,
+    pendingAuthority: new PublicKey(data.subarray(166, 198)),
   };
 }
 
@@ -1845,6 +1938,7 @@ function parseRewardConfig(data) {
     paused: data.readUInt8(offset.paused) === 1,
     draftOnly: data.readUInt8(offset.draft_only) === 1,
     bump: data.readUInt8(offset.bump),
+    pendingAuthority: new PublicKey(data.subarray(offset.pending_authority, offset.pending_authority + 32)),
   };
 }
 

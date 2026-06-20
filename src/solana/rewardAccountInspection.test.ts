@@ -45,7 +45,8 @@ describe("reward account inspection", () => {
     const authority = Keypair.generate().publicKey;
     const protocolConfig = Keypair.generate().publicKey;
     const rypMint = Keypair.generate().publicKey;
-    const data = new Uint8Array(139);
+    const pendingAuthority = Keypair.generate().publicKey;
+    const data = new Uint8Array(REWARD_ACCOUNT_LAYOUTS.RewardConfig.minimumLength);
 
     writeDiscriminator(data, "RewardConfig");
     writePubkey(data, 8, authority);
@@ -62,6 +63,7 @@ describe("reward account inspection", () => {
     data[136] = 0;
     data[137] = 1;
     data[138] = 255;
+    writePubkey(data, 139, pendingAuthority);
 
     expect(decodeRewardConfigAccount(data)).toEqual({
       authority: authority.toBase58(),
@@ -78,6 +80,7 @@ describe("reward account inspection", () => {
       paused: false,
       draftOnly: true,
       bump: 255,
+      pendingAuthority: pendingAuthority.toBase58(),
     });
   });
 
@@ -157,7 +160,7 @@ describe("reward account inspection", () => {
   });
 
   it("rejects reward accounts with the wrong Anchor discriminator", () => {
-    const data = new Uint8Array(139);
+    const data = new Uint8Array(REWARD_ACCOUNT_LAYOUTS.RewardConfig.minimumLength);
 
     expect(() => decodeRewardConfigAccount(data)).toThrow("RewardConfig discriminator mismatch");
   });
@@ -258,6 +261,7 @@ function buildDecodedInspection(
       paused: false,
       draftOnly: true,
       bump: 255,
+      pendingAuthority: PublicKey.default.toBase58(),
       ...overrides.rewardConfig,
     },
     epochStatus: "DECODED",

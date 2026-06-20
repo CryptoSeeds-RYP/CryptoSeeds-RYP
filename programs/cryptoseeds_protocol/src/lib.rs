@@ -48,6 +48,7 @@ pub mod cryptoseeds_protocol {
         config.total_staked = 0;
         config.paused = false;
         config.bump = ctx.bumps.config;
+        config.pending_authority = Pubkey::default();
 
         emit!(ConfigInitialized {
             authority: config.authority,
@@ -291,6 +292,7 @@ pub mod cryptoseeds_protocol {
         reward_config.paused = false;
         reward_config.draft_only = true;
         reward_config.bump = ctx.bumps.reward_config;
+        reward_config.pending_authority = Pubkey::default();
 
         emit!(RewardConfigInitialized {
             authority: reward_config.authority,
@@ -646,15 +648,85 @@ pub mod cryptoseeds_protocol {
         new_authority: Pubkey,
     ) -> Result<()> {
         validate_protocol_authority(&ctx.accounts.config, &ctx.accounts.authority.key())?;
-        require!(
-            new_authority != Pubkey::default(),
-            CryptoSeedsError::InvalidAuthority
+        validate_new_authority(new_authority, ctx.accounts.config.authority)?;
+
+        ctx.accounts.config.pending_authority = new_authority;
+
+        emit!(ProtocolAuthorityTransferStarted {
+            current_authority: ctx.accounts.config.authority,
+            pending_authority: new_authority,
+        });
+
+        Ok(())
+    }
+
+    pub fn accept_protocol_authority(ctx: Context<AcceptProtocolAuthority>) -> Result<()> {
+        require_keys_eq!(
+            ctx.accounts.config.pending_authority,
+            ctx.accounts.pending_authority.key(),
+            CryptoSeedsError::Unauthorized
         );
 
         let previous_authority = ctx.accounts.config.authority;
+        let new_authority = ctx.accounts.pending_authority.key();
         ctx.accounts.config.authority = new_authority;
+        ctx.accounts.config.pending_authority = Pubkey::default();
 
         emit!(ProtocolAuthorityTransferred {
+            previous_authority,
+            new_authority,
+        });
+
+        Ok(())
+    }
+
+    pub fn transfer_reward_authority(
+        ctx: Context<TransferRewardAuthority>,
+        new_authority: Pubkey,
+    ) -> Result<()> {
+        validate_reward_authority(
+            &ctx.accounts.config,
+            &ctx.accounts.reward_config,
+            ctx.accounts.config.key(),
+            &ctx.accounts.authority.key(),
+        )?;
+        validate_new_authority(new_authority, ctx.accounts.reward_config.authority)?;
+
+        ctx.accounts.reward_config.pending_authority = new_authority;
+
+        emit!(RewardAuthorityTransferStarted {
+            reward_config: ctx.accounts.reward_config.key(),
+            current_authority: ctx.accounts.reward_config.authority,
+            pending_authority: new_authority,
+        });
+
+        Ok(())
+    }
+
+    pub fn accept_reward_authority(ctx: Context<AcceptRewardAuthority>) -> Result<()> {
+        require_keys_eq!(
+            ctx.accounts.reward_config.pending_authority,
+            ctx.accounts.pending_authority.key(),
+            CryptoSeedsError::Unauthorized
+        );
+        require_keys_eq!(
+            ctx.accounts.config.authority,
+            ctx.accounts.pending_authority.key(),
+            CryptoSeedsError::Unauthorized
+        );
+        require_keys_eq!(
+            ctx.accounts.reward_config.protocol_config,
+            ctx.accounts.config.key(),
+            CryptoSeedsError::InvalidRewardVault
+        );
+
+        let previous_authority = ctx.accounts.reward_config.authority;
+        let new_authority = ctx.accounts.pending_authority.key();
+        ctx.accounts.reward_config.authority = new_authority;
+        ctx.accounts.reward_config.pending_authority = Pubkey::default();
+
+        emit!(RewardAuthorityTransferred {
+            reward_config: ctx.accounts.reward_config.key(),
             previous_authority,
             new_authority,
         });
@@ -1519,6 +1591,31 @@ pub struct TransferProtocolAuthority<'info> {
 }
 
 #[derive(Accounts)]
+pub struct AcceptProtocolAuthority<'info> {
+    pub pending_authority: Signer<'info>,
+    #[account(mut, seeds = [CONFIG_SEED], bump = config.bump)]
+    pub config: Account<'info, ProtocolConfig>,
+}
+
+#[derive(Accounts)]
+pub struct TransferRewardAuthority<'info> {
+    pub authority: Signer<'info>,
+    #[account(seeds = [CONFIG_SEED], bump = config.bump)]
+    pub config: Account<'info, ProtocolConfig>,
+    #[account(mut, seeds = [REWARD_CONFIG_SEED], bump = reward_config.bump)]
+    pub reward_config: Account<'info, RewardConfig>,
+}
+
+#[derive(Accounts)]
+pub struct AcceptRewardAuthority<'info> {
+    pub pending_authority: Signer<'info>,
+    #[account(seeds = [CONFIG_SEED], bump = config.bump)]
+    pub config: Account<'info, ProtocolConfig>,
+    #[account(mut, seeds = [REWARD_CONFIG_SEED], bump = reward_config.bump)]
+    pub reward_config: Account<'info, RewardConfig>,
+}
+
+#[derive(Accounts)]
 #[instruction(epoch_id: u64)]
 pub struct ReviewRewardEpoch<'info> {
     pub authority: Signer<'info>,
@@ -1834,6 +1931,7 @@ pub struct ProtocolConfig {
     pub total_staked: u64,
     pub paused: bool,
     pub bump: u8,
+    pub pending_authority: Pubkey,
 }
 
 #[account]
@@ -1868,6 +1966,7 @@ pub struct RewardConfig {
     pub paused: bool,
     pub draft_only: bool,
     pub bump: u8,
+    pub pending_authority: Pubkey,
 }
 
 #[account]
@@ -2252,7 +2351,27 @@ pub struct FeeConfigUpdated {
 }
 
 #[event]
+pub struct ProtocolAuthorityTransferStarted {
+    pub current_authority: Pubkey,
+    pub pending_authority: Pubkey,
+}
+
+#[event]
 pub struct ProtocolAuthorityTransferred {
+    pub previous_authority: Pubkey,
+    pub new_authority: Pubkey,
+}
+
+#[event]
+pub struct RewardAuthorityTransferStarted {
+    pub reward_config: Pubkey,
+    pub current_authority: Pubkey,
+    pub pending_authority: Pubkey,
+}
+
+#[event]
+pub struct RewardAuthorityTransferred {
+    pub reward_config: Pubkey,
     pub previous_authority: Pubkey,
     pub new_authority: Pubkey,
 }
@@ -2455,6 +2574,18 @@ fn validate_fee_reductions(base_fee_bps: u16, reductions: &[u16; 5]) -> Result<(
 
 fn validate_protocol_authority(config: &ProtocolConfig, authority: &Pubkey) -> Result<()> {
     require_keys_eq!(config.authority, *authority, CryptoSeedsError::Unauthorized);
+    Ok(())
+}
+
+fn validate_new_authority(new_authority: Pubkey, current_authority: Pubkey) -> Result<()> {
+    require!(
+        new_authority != Pubkey::default(),
+        CryptoSeedsError::InvalidAuthority
+    );
+    require!(
+        new_authority != current_authority,
+        CryptoSeedsError::InvalidAuthority
+    );
     Ok(())
 }
 
@@ -3127,6 +3258,14 @@ mod tests {
     fn validates_metadata_hashes() {
         assert!(validate_metadata_hash(&[9; 32]).is_ok());
         assert!(validate_metadata_hash(&[0; 32]).is_err());
+    }
+
+    #[test]
+    fn validates_new_authority_nominations() {
+        let current_authority = Pubkey::new_unique();
+        assert!(validate_new_authority(Pubkey::new_unique(), current_authority).is_ok());
+        assert!(validate_new_authority(Pubkey::default(), current_authority).is_err());
+        assert!(validate_new_authority(current_authority, current_authority).is_err());
     }
 
     #[test]

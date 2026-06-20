@@ -87,6 +87,7 @@ export type RewardConfigAccount = {
   paused: boolean;
   draftOnly: boolean;
   bump: number;
+  pendingAuthority: string;
 };
 
 export type RewardVaultStateAccount = {
@@ -362,6 +363,7 @@ export function decodeRewardConfigAccount(data: Uint8Array): RewardConfigAccount
     paused: readBool(data, offset.paused),
     draftOnly: readBool(data, offset.draft_only),
     bump: data[offset.bump],
+    pendingAuthority: readPubkey(data, offset.pending_authority),
   };
 }
 

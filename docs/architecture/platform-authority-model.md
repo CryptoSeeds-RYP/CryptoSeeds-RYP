@@ -25,6 +25,14 @@ CryptoSeeds should operate as a self-custodial platform and interface layer. Use
 
 No authority control should custody user funds. Any authority that can affect user rights, fee parameters, project visibility, or automation permissions should emit logs and have a public policy before launch.
 
+Protocol and reward authority rotation is two-step on-chain:
+
+1. Current authority nominates a pending authority.
+2. Pending authority signs an accept instruction.
+3. The program clears the pending authority after acceptance.
+
+`RewardConfig` has its own pending authority field so reward administration can be rotated deliberately after the protocol authority accepts. This avoids a silent one-step authority swap and reduces accidental lockout risk.
+
 ## Project Listing Disclosure Minimum
 
 Every listed project should carry:
