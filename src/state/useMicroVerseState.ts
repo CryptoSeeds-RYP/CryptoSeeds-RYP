@@ -279,6 +279,11 @@ export function useMicroVerseState() {
     setActiveLocation("seedbot");
     setIntent(
       buildSeedBotAllocationIntent({
+        access: {
+          rypBalance: snapshot?.user.rypBalance ?? 0,
+          stakingTier: snapshot?.user.stakingTier ?? "NONE",
+          walletConnected: Boolean(effectiveIntentWalletAddress()),
+        },
         strategy,
         mode,
         walletAddress: effectiveIntentWalletAddress(),

@@ -3,7 +3,7 @@ import type { Project, ProjectParticipation, StakingTier } from "../domain/micro
 import { basisPointsToPercent, RYP_TOKEN_TRANSFER_FEE_BPS } from "../domain/feeRouter";
 import { projectParticipationBlockingReasons } from "../domain/participation";
 import { evaluateProjectEligibility, latestRiskDisclosure } from "../domain/projectRegistry";
-import { seedBotFeeDisclosure, type SeedBotStrategy } from "../domain/seedbot";
+import { canAccessSeedBotStrategy, seedBotFeeDisclosure, type SeedBotStrategy } from "../domain/seedbot";
 import { venueById } from "../domain/seedbotVenues";
 import { validateUnstakePreview } from "../domain/staking";
 import { effectiveFee, tierRequirements } from "../domain/tiering";
@@ -26,6 +26,12 @@ type ProjectParticipationIntentOptions = {
   activeTier?: StakingTier;
   participations?: ProjectParticipation[];
   slotCount?: number;
+};
+
+type SeedBotAllocationAccess = {
+  rypBalance?: number;
+  stakingTier?: StakingTier;
+  walletConnected?: boolean;
 };
 
 export function buildStakePreviewIntent(
@@ -219,10 +225,12 @@ export function buildSeedBotSwapIntent(walletAddress?: string): TransactionInten
 }
 
 export function buildSeedBotAllocationIntent({
+  access = {},
   strategy,
   walletAddress,
   mode = "BASKET",
 }: {
+  access?: SeedBotAllocationAccess;
   strategy: SeedBotStrategy;
   walletAddress?: string;
   mode?: "BASKET" | "PER_ASSET";
@@ -232,7 +240,9 @@ export function buildSeedBotAllocationIntent({
   const routeSummary = routePlan.routes
     .map((route) => `${route.venueName}: ${route.assets.map((asset) => asset.symbol).join("/")}`)
     .join("; ");
-  const routeBlocked = routePlan.blockedReasons.length > 0;
+  const accessBlockers = seedBotAllocationAccessBlockers({ access, strategy, walletAddress });
+  const blockedReasons = [...accessBlockers, ...routePlan.blockedReasons];
+  const routeBlocked = blockedReasons.length > 0;
 
   return buildIntent({
     id: `seedbot-allocation-${strategy.id}-${mode.toLowerCase()}`,
@@ -247,7 +257,7 @@ export function buildSeedBotAllocationIntent({
     status: routeBlocked ? "BLOCKED" : "DRAFT",
     executionMode: "PREVIEW_ONLY",
     signaturePolicy: routeBlocked
-      ? "SeedBot allocation preview is blocked until strategy metadata and route checks pass."
+      ? "SeedBot allocation preview is blocked until access, strategy metadata, and route checks pass."
       : "Self-custodial allocation preview. Phantom or MetaMask approval is required per route.",
     programs: [
       {
@@ -267,12 +277,47 @@ export function buildSeedBotAllocationIntent({
       }))),
     ],
     riskSummary: routeBlocked
-      ? `SeedBot route blocked: ${routePlan.blockedReasons.join(" ")}`
+      ? `SeedBot route blocked: ${blockedReasons.join(" ")}`
       : `Historical strategy performance only. Past performance does not guarantee future results. Preferred venue: ${venue?.name ?? strategy.preferredVenueId}. Route mode: ${routePlan.mode}. Profit-based fee preview is disabled for live use until legal review.`,
     expectedResult: routeBlocked
       ? "No allocation route is prepared until SeedBot validation blockers are cleared."
       : "Wallet-approved allocation route is prepared; no funds move until the user signs.",
   });
+}
+
+function seedBotAllocationAccessBlockers({
+  access,
+  strategy,
+  walletAddress,
+}: {
+  access: SeedBotAllocationAccess;
+  strategy: SeedBotStrategy;
+  walletAddress?: string;
+}) {
+  const walletConnected = access.walletConnected ?? Boolean(walletAddress);
+  const stakingTier = access.stakingTier ?? "NONE";
+  const rypBalance = access.rypBalance ?? 0;
+
+  if (
+    canAccessSeedBotStrategy({
+      rypBalance,
+      stakingTier,
+      strategy,
+      walletConnected,
+    })
+  ) {
+    return [];
+  }
+
+  if (!walletConnected) {
+    return ["Connect a wallet before preparing SeedBot allocation routes."];
+  }
+
+  return [
+    strategy.minimumAccess === "RYP_HOLDER"
+      ? "RYP holder access is required for this SeedBot strategy."
+      : `${strategy.minimumAccess} tier access is required for this SeedBot strategy.`,
+  ];
 }
 
 export function advanceTransactionIntent(intent: TransactionIntent): TransactionIntent {

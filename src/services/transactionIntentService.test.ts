@@ -147,6 +147,11 @@ describe("transaction intents", () => {
 
   it("builds SeedBot allocation previews without custody or guaranteed returns", () => {
     const intent = buildSeedBotAllocationIntent({
+      access: {
+        rypBalance: 5000,
+        stakingTier: "SEED",
+        walletConnected: true,
+      },
       strategy: {
         id: "test-strategy",
         name: "Test Strategy",
@@ -189,8 +194,41 @@ describe("transaction intents", () => {
     expect(intent.accounts.some((account) => account.label.includes("Hyperliquid"))).toBe(true);
   });
 
+  it("blocks SeedBot allocation previews until wallet access context is supplied", () => {
+    const intent = buildSeedBotAllocationIntent({
+      strategy: seedBotStrategies[0],
+      walletAddress,
+    });
+
+    expect(intent.status).toBe("BLOCKED");
+    expect(intent.executionMode).toBe("PREVIEW_ONLY");
+    expect(intent.signaturePolicy).toContain("access");
+    expect(intent.riskSummary).toContain("RYP holder access is required");
+  });
+
+  it("blocks SeedBot allocation previews below the strategy tier", () => {
+    const intent = buildSeedBotAllocationIntent({
+      access: {
+        rypBalance: 0,
+        stakingTier: "SEED",
+        walletConnected: true,
+      },
+      strategy: seedBotStrategies.find((strategy) => strategy.minimumAccess === "SAPLING")!,
+      walletAddress,
+    });
+
+    expect(intent.status).toBe("BLOCKED");
+    expect(intent.executionMode).toBe("PREVIEW_ONLY");
+    expect(intent.riskSummary).toContain("SAPLING tier access is required");
+  });
+
   it("blocks SeedBot allocation previews when strategy validation fails", () => {
     const intent = buildSeedBotAllocationIntent({
+      access: {
+        rypBalance: 5000,
+        stakingTier: "SEED",
+        walletConnected: true,
+      },
       strategy: {
         ...seedBotStrategies[0],
         id: "bad-seedbot-preview",
@@ -203,7 +241,8 @@ describe("transaction intents", () => {
     expect(intent.type).toBe("SEEDBOT_ALLOCATE");
     expect(intent.status).toBe("BLOCKED");
     expect(intent.executionMode).toBe("PREVIEW_ONLY");
-    expect(intent.signaturePolicy).toContain("blocked until strategy metadata");
+    expect(intent.signaturePolicy).toContain("access");
+    expect(intent.signaturePolicy).toContain("strategy metadata");
     expect(intent.riskSummary).toContain("SeedBot route blocked");
     expect(intent.riskSummary).toContain("missing 1Y performance");
     expect(intent.accounts.some((account) => account.label.includes("route for"))).toBe(false);
