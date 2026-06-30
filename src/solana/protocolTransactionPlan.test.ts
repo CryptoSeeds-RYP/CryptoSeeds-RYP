@@ -7,8 +7,10 @@ import {
   buildClaimRewardRecordTransactionPlan,
   buildClaimRewardTokensTransactionPlan,
   buildCloseGovernanceProposalTransactionPlan,
+  buildCancelRewardEpochTransactionPlan,
   buildCreateGovernanceProposalTransactionPlan,
   buildCreateProjectDisclosureRevisionTransactionPlan,
+  buildDraftRewardEpochTransactionPlan,
   buildCreateRewardClaimRecordFromProofTransactionPlan,
   buildCreateRewardClaimRecordTransactionPlan,
   buildCreateSeedBotPermissionTransactionPlan,
@@ -28,6 +30,7 @@ import {
   buildRecordSeedBotUsageTransactionPlan,
   buildRevokeSeedBotPermissionTransactionPlan,
   buildRoutePlatformFeeTransactionPlan,
+  buildReviewRewardEpochTransactionPlan,
   buildSetModulePauseTransactionPlan,
   buildSetProjectPauseTransactionPlan,
   buildStakeRypTransactionPlan,
@@ -326,6 +329,104 @@ describe("protocol transaction plan", () => {
     expect(verifyVault.instructions[0].accounts.map((account) => account.anchorName)).toEqual(
       PROTOCOL_INSTRUCTION_SPECS.verify_reward_vault.accounts.map((account) => account.name),
     );
+  });
+
+  it("builds reward epoch admin lifecycle plans", () => {
+    const draftEpoch = buildDraftRewardEpochTransactionPlan({
+      authorityAddress: ownerAddress,
+      claimMerkleRoot: "08".repeat(32),
+      claimWindowSeconds: 604_800n,
+      distributedNetAmountBaseUnits: 700n,
+      epochCadenceSeconds: 604_800n,
+      epochId: 3n,
+      exclusionListHash: "00".repeat(32),
+      nowUnix: 1_800_000_000n,
+      reservedDeliveryCostAmountBaseUnits: 100n,
+      rewardPoolAmountBaseUnits: 1_000n,
+      rolledForwardAmountBaseUnits: 200n,
+      snapshotTakenAtUnix: 1_799_990_000n,
+    });
+    const reviewEpoch = buildReviewRewardEpochTransactionPlan({
+      authorityAddress: ownerAddress,
+      epochId: 3n,
+    });
+    const cancelEpoch = buildCancelRewardEpochTransactionPlan({
+      authorityAddress: ownerAddress,
+      epochId: 3n,
+    });
+
+    expect(draftEpoch.action).toBe("DRAFT_REWARD_EPOCH");
+    expect(draftEpoch.amountBaseUnits).toBe("1000");
+    expect(draftEpoch.instructions[0].instructionName).toBe("draft_reward_epoch");
+    expect(draftEpoch.instructions[0].dataHex).toMatch(/^2b97706f55302d500300000000000000/);
+    expect(draftEpoch.instructions[0].dataHex.endsWith(`${"00".repeat(32)}${"08".repeat(32)}`)).toBe(true);
+    expect(draftEpoch.instructions[0].accounts.map((account) => account.anchorName)).toEqual(
+      PROTOCOL_INSTRUCTION_SPECS.draft_reward_epoch.accounts.map((account) => account.name),
+    );
+    expect(reviewEpoch.action).toBe("REVIEW_REWARD_EPOCH");
+    expect(reviewEpoch.instructions[0].dataHex).toBe("6cb37850de53c2dd0300000000000000");
+    expect(reviewEpoch.instructions[0].accounts.map((account) => account.anchorName)).toEqual(
+      PROTOCOL_INSTRUCTION_SPECS.review_reward_epoch.accounts.map((account) => account.name),
+    );
+    expect(cancelEpoch.action).toBe("CANCEL_REWARD_EPOCH");
+    expect(cancelEpoch.instructions[0].dataHex).toBe("fbcec2e37706337b0300000000000000");
+    expect(cancelEpoch.instructions[0].accounts.map((account) => account.anchorName)).toEqual(
+      PROTOCOL_INSTRUCTION_SPECS.cancel_reward_epoch.accounts.map((account) => account.name),
+    );
+  });
+
+  it("rejects reward epoch drafts that would fail Rust guards", () => {
+    const validDraft = {
+      authorityAddress: ownerAddress,
+      claimMerkleRoot: "08".repeat(32),
+      claimWindowSeconds: 604_800n,
+      distributedNetAmountBaseUnits: 700n,
+      epochCadenceSeconds: 604_800n,
+      epochId: 3n,
+      exclusionListHash: "00".repeat(32),
+      nowUnix: 1_800_000_000n,
+      reservedDeliveryCostAmountBaseUnits: 100n,
+      rewardPoolAmountBaseUnits: 1_000n,
+      rolledForwardAmountBaseUnits: 200n,
+      snapshotTakenAtUnix: 1_799_990_000n,
+    };
+
+    expect(() =>
+      buildDraftRewardEpochTransactionPlan({
+        ...validDraft,
+        rewardPoolAmountBaseUnits: 0n,
+      }),
+    ).toThrow("Reward epoch pool amount");
+    expect(() =>
+      buildDraftRewardEpochTransactionPlan({
+        ...validDraft,
+        rolledForwardAmountBaseUnits: 199n,
+      }),
+    ).toThrow("accounting must balance");
+    expect(() =>
+      buildDraftRewardEpochTransactionPlan({
+        ...validDraft,
+        claimWindowSeconds: 31_622_401n,
+      }),
+    ).toThrow("claim window");
+    expect(() =>
+      buildDraftRewardEpochTransactionPlan({
+        ...validDraft,
+        snapshotTakenAtUnix: 1_800_000_001n,
+      }),
+    ).toThrow("snapshot cannot be in the future");
+    expect(() =>
+      buildDraftRewardEpochTransactionPlan({
+        ...validDraft,
+        snapshotTakenAtUnix: 1_799_395_199n,
+      }),
+    ).toThrow("older than the configured cadence");
+    expect(() =>
+      buildDraftRewardEpochTransactionPlan({
+        ...validDraft,
+        claimMerkleRoot: "00".repeat(32),
+      }),
+    ).toThrow("Hash cannot be all zeros");
   });
 
   it("builds wallet proof-backed reward claim record plans", () => {

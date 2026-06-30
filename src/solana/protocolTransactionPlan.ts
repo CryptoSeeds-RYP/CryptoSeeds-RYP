@@ -46,6 +46,7 @@ type ProtocolAddressBook = ReturnType<typeof deriveProtocolAddresses> &
   Record<string, string | undefined> & {
     authority?: string;
     claimRecord?: string;
+    deliveryCostReserveState?: string;
     governanceProposalAccount?: string;
     holderRewardVault?: string;
     holderRewardVaultState?: string;
@@ -66,6 +67,7 @@ type ProtocolAddressBook = ReturnType<typeof deriveProtocolAddresses> &
     refundRecord?: string;
     proposal?: string;
     rewardEpoch?: string;
+    rolloverVaultState?: string;
     rewardSourceVault?: string;
     rewardVault?: string;
     rewardVaultState?: string;
@@ -117,6 +119,7 @@ const I64_MAX = 2n ** 63n - 1n;
 const BPS_DENOMINATOR = 10_000n;
 const MAX_PROTOCOL_BASE_FEE_BPS = 1_000;
 const MAX_REWARD_EPOCH_CADENCE_SECONDS = 366n * 24n * 60n * 60n;
+const MAX_REWARD_CLAIM_WINDOW_SECONDS = 366n * 24n * 60n * 60n;
 const MIN_GOVERNANCE_VOTING_WINDOW_SECONDS = 1n;
 const MAX_GOVERNANCE_VOTING_WINDOW_SECONDS = 90n * 24n * 60n * 60n;
 const MAX_GOVERNANCE_MINIMUM_VOTES = 1_000_000n;
@@ -249,6 +252,26 @@ export type VerifyRewardVaultPlanInput = {
   authorityAddress: string;
   rewardRole: RewardVaultRouteRole;
   expectedMetadataHash: string | Uint8Array | number[];
+};
+
+export type DraftRewardEpochPlanInput = {
+  authorityAddress: string;
+  epochId: bigint | number | string;
+  snapshotTakenAtUnix: bigint | number | string;
+  claimWindowSeconds: bigint | number | string;
+  rewardPoolAmountBaseUnits: bigint | number | string;
+  distributedNetAmountBaseUnits: bigint | number | string;
+  reservedDeliveryCostAmountBaseUnits: bigint | number | string;
+  rolledForwardAmountBaseUnits: bigint | number | string;
+  exclusionListHash: string | Uint8Array | number[];
+  claimMerkleRoot: string | Uint8Array | number[];
+  epochCadenceSeconds: bigint | number | string;
+  nowUnix?: bigint | number | string;
+};
+
+export type RewardEpochAdminPlanInput = {
+  authorityAddress: string;
+  epochId: bigint | number | string;
 };
 
 export type UnstakePlanInput = {
@@ -648,6 +671,146 @@ export function buildVerifyRewardVaultTransactionPlan({
     warnings: [
       "Verifies the registered reward vault metadata hash before reward routing can use the vault.",
       "Verification should only follow an external custody and disclosure review.",
+    ],
+  });
+}
+
+export function buildDraftRewardEpochTransactionPlan({
+  authorityAddress,
+  claimMerkleRoot,
+  claimWindowSeconds,
+  distributedNetAmountBaseUnits,
+  epochCadenceSeconds,
+  epochId,
+  exclusionListHash,
+  nowUnix,
+  reservedDeliveryCostAmountBaseUnits,
+  rewardPoolAmountBaseUnits,
+  rolledForwardAmountBaseUnits,
+  snapshotTakenAtUnix,
+}: DraftRewardEpochPlanInput): PreparedSolanaTransactionPlan {
+  const epoch = toU64(epochId);
+  const snapshotTakenAt = toI64(snapshotTakenAtUnix);
+  const claimWindow = toI64(claimWindowSeconds);
+  const epochCadence = toI64(epochCadenceSeconds);
+  const now = nowUnix === undefined ? currentUnixTimestamp() : toI64(nowUnix);
+  const rewardPoolAmount = toU64(rewardPoolAmountBaseUnits);
+  const distributedNetAmount = toU64(distributedNetAmountBaseUnits);
+  const reservedDeliveryCostAmount = toU64(reservedDeliveryCostAmountBaseUnits);
+  const rolledForwardAmount = toU64(rolledForwardAmountBaseUnits);
+  const exclusionListHashHex = fixedBytes32Hex(exclusionListHash, "Reward exclusion list hash");
+  const claimMerkleRootHex = fixedHashHex(claimMerkleRoot);
+  assertRewardEpochDraft({
+    claimWindow,
+    distributedNetAmount,
+    epochCadence,
+    now,
+    reservedDeliveryCostAmount,
+    rewardPoolAmount,
+    rolledForwardAmount,
+    snapshotTakenAt,
+  });
+  const addresses = {
+    ...deriveProtocolAddresses(authorityAddress),
+    authority: new PublicKey(authorityAddress).toBase58(),
+    deliveryCostReserveState: deriveRewardVaultStateAddress("DELIVERY_COST_RESERVE"),
+    holderRewardVaultState: deriveRewardVaultStateAddress("HOLDER_REWARD"),
+    independentTreasuryVaultState: deriveRewardVaultStateAddress("INDEPENDENT_TREASURY"),
+    rewardEpoch: deriveRewardEpochAddress(epoch),
+    rolloverVaultState: deriveRewardVaultStateAddress("ROLLOVER"),
+    stakerRewardVaultState: deriveRewardVaultStateAddress("STAKER_REWARD"),
+  };
+  const spec = instructionSpec("draft_reward_epoch");
+  const instruction = instructionPlan({
+    accounts: accountsFromSpec(spec, addresses),
+    argDataHex: [
+      u64LeHex(epoch),
+      i64LeHex(snapshotTakenAt),
+      i64LeHex(claimWindow),
+      u64LeHex(rewardPoolAmount),
+      u64LeHex(distributedNetAmount),
+      u64LeHex(reservedDeliveryCostAmount),
+      u64LeHex(rolledForwardAmount),
+      exclusionListHashHex,
+      claimMerkleRootHex,
+    ].join(""),
+    discriminatorHex: spec.discriminatorHex,
+    instructionName: "draft_reward_epoch",
+    programId: addresses.programId,
+  });
+
+  return transactionPlan({
+    action: "DRAFT_REWARD_EPOCH",
+    addresses,
+    amountBaseUnits: rewardPoolAmount.toString(),
+    feePayer: addresses.authority,
+    instruction,
+    warnings: [
+      "Drafts a reviewed holder/staker reward epoch in execution-blocked state.",
+      "The claim Merkle root must match the reviewed holder reward packet before signing.",
+      "On-chain clock and vault-state checks still run at execution time.",
+    ],
+  });
+}
+
+export function buildReviewRewardEpochTransactionPlan({
+  authorityAddress,
+  epochId,
+}: RewardEpochAdminPlanInput): PreparedSolanaTransactionPlan {
+  const epoch = toU64(epochId);
+  const addresses = {
+    ...deriveProtocolAddresses(authorityAddress),
+    authority: new PublicKey(authorityAddress).toBase58(),
+    rewardEpoch: deriveRewardEpochAddress(epoch),
+  };
+  const spec = instructionSpec("review_reward_epoch");
+  const instruction = instructionPlan({
+    accounts: accountsFromSpec(spec, addresses),
+    argDataHex: u64LeHex(epoch),
+    discriminatorHex: spec.discriminatorHex,
+    instructionName: "review_reward_epoch",
+    programId: addresses.programId,
+  });
+
+  return transactionPlan({
+    action: "REVIEW_REWARD_EPOCH",
+    addresses,
+    feePayer: addresses.authority,
+    instruction,
+    warnings: [
+      "Approves a drafted reward epoch for wallet claim-record creation and token claims.",
+      "Only sign after inspecting the live RewardEpoch account: status Drafted, execution blocked, nonzero claim Merkle root, and zero recorded claims.",
+    ],
+  });
+}
+
+export function buildCancelRewardEpochTransactionPlan({
+  authorityAddress,
+  epochId,
+}: RewardEpochAdminPlanInput): PreparedSolanaTransactionPlan {
+  const epoch = toU64(epochId);
+  const addresses = {
+    ...deriveProtocolAddresses(authorityAddress),
+    authority: new PublicKey(authorityAddress).toBase58(),
+    rewardEpoch: deriveRewardEpochAddress(epoch),
+  };
+  const spec = instructionSpec("cancel_reward_epoch");
+  const instruction = instructionPlan({
+    accounts: accountsFromSpec(spec, addresses),
+    argDataHex: u64LeHex(epoch),
+    discriminatorHex: spec.discriminatorHex,
+    instructionName: "cancel_reward_epoch",
+    programId: addresses.programId,
+  });
+
+  return transactionPlan({
+    action: "CANCEL_REWARD_EPOCH",
+    addresses,
+    feePayer: addresses.authority,
+    instruction,
+    warnings: [
+      "Cancels a drafted or reviewed reward epoch only if no claim records or net claims have been recorded.",
+      "This does not move tokens; replacement distribution still needs a separately reviewed epoch.",
     ],
   });
 }
@@ -2230,6 +2393,8 @@ function derivedAccountReferences(addresses: ProtocolAddressBook): TransactionAc
     ["holder_reward_vault_state", "Holder reward vault state"],
     ["staker_reward_vault_state", "Staker reward vault state"],
     ["independent_treasury_vault_state", "Independent treasury vault state"],
+    ["delivery_cost_reserve_state", "Delivery cost reserve state"],
+    ["rollover_vault_state", "Rollover vault state"],
     ["holder_reward_vault", "Holder reward vault"],
     ["staker_reward_vault", "Staker reward vault"],
     ["independent_treasury_vault", "Independent treasury vault"],
@@ -2276,6 +2441,8 @@ function addressForProtocolAccountIfPresent(addresses: ProtocolAddressBook, name
       return addresses.claimRecord;
     case "config":
       return addresses.config;
+    case "delivery_cost_reserve_state":
+      return addresses.deliveryCostReserveState;
     case "disclosure_revision":
       return addresses.projectDisclosureRevision;
     case "governance_proposal_account":
@@ -2334,6 +2501,8 @@ function addressForProtocolAccountIfPresent(addresses: ProtocolAddressBook, name
       return addresses.rewardVault;
     case "reward_vault_state":
       return addresses.rewardVaultState;
+    case "rollover_vault_state":
+      return addresses.rolloverVaultState;
     case "ryp_mint":
       return addresses.rypMint;
     case "ryp_vault":
@@ -2601,6 +2770,43 @@ function assertRewardClaimAccounting({
   assertPositiveAmount(grossAllocationAmount, "Reward claim gross allocation amount");
   if (deliveryCostAmount + netClaimAmount + rolledForwardAmount !== grossAllocationAmount) {
     throw new Error("Reward claim accounting must balance.");
+  }
+}
+
+function assertRewardEpochDraft({
+  claimWindow,
+  distributedNetAmount,
+  epochCadence,
+  now,
+  reservedDeliveryCostAmount,
+  rewardPoolAmount,
+  rolledForwardAmount,
+  snapshotTakenAt,
+}: {
+  claimWindow: bigint;
+  distributedNetAmount: bigint;
+  epochCadence: bigint;
+  now: bigint;
+  reservedDeliveryCostAmount: bigint;
+  rewardPoolAmount: bigint;
+  rolledForwardAmount: bigint;
+  snapshotTakenAt: bigint;
+}) {
+  if (claimWindow <= 0n || claimWindow > MAX_REWARD_CLAIM_WINDOW_SECONDS) {
+    throw new Error("Reward claim window is outside protocol bounds.");
+  }
+  if (epochCadence <= 0n || epochCadence > MAX_REWARD_EPOCH_CADENCE_SECONDS) {
+    throw new Error("Reward epoch cadence is outside protocol bounds.");
+  }
+  assertPositiveAmount(rewardPoolAmount, "Reward epoch pool amount");
+  if (distributedNetAmount + reservedDeliveryCostAmount + rolledForwardAmount !== rewardPoolAmount) {
+    throw new Error("Reward epoch accounting must balance.");
+  }
+  if (snapshotTakenAt > now) {
+    throw new Error("Reward epoch snapshot cannot be in the future.");
+  }
+  if (now - snapshotTakenAt > epochCadence) {
+    throw new Error("Reward epoch snapshot is older than the configured cadence.");
   }
 }
 
