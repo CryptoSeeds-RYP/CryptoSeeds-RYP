@@ -295,7 +295,7 @@ export function AdminView({
         <div className="view-header">
           <div>
             {access.canOpenDashboard ? <ShieldCheck size={20} /> : <LockKeyhole size={20} />}
-            <strong>{access.canOpenDashboard ? "Testing Authority Unlocked" : "Admin Locked"}</strong>
+            <strong>{access.canOpenDashboard ? "Operator Dashboard Unlocked" : "Admin Locked"}</strong>
           </div>
           <span>Proposal-only control surface</span>
         </div>
@@ -305,8 +305,16 @@ export function AdminView({
             <strong>{access.configuredAdminAddress ?? "Not configured"}</strong>
           </div>
           <div>
+            <span>Treasury owner</span>
+            <strong>{access.configuredTreasuryAddress ?? "Not configured"}</strong>
+          </div>
+          <div>
             <span>Connected wallet</span>
             <strong>{access.walletAddress ?? "No wallet connected"}</strong>
+          </div>
+          <div>
+            <span>Access role</span>
+            <strong>{formatLabel(access.accessRole)}</strong>
           </div>
           <div>
             <span>Execution</span>

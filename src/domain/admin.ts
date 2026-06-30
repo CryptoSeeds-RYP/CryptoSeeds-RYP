@@ -31,13 +31,19 @@ export type AdminAccessStatus =
   | "DEMO_BLOCKED"
   | "MAINNET_BLOCKED";
 
+export type AdminAccessRole = "NONE" | "ADMIN_AUTHORITY" | "INDEPENDENT_TREASURY";
+
 export type AdminActionStatus = "DRAFT_ONLY" | "LOCALNET_READY" | "DEVNET_READY" | "REVIEW_GATED" | "BLOCKED";
 
 export type AdminAccess = {
   status: AdminAccessStatus;
+  accessRole: AdminAccessRole;
   configuredAdminAddress?: string;
+  configuredTreasuryAddress?: string;
   walletAddress?: string;
   walletMatches: boolean;
+  walletMatchesAdmin: boolean;
+  walletMatchesTreasury: boolean;
   canOpenDashboard: boolean;
   canDraftActions: boolean;
   canExecuteActions: false;
@@ -271,7 +277,11 @@ export function buildAdminAccess({
 }: {
   config: Pick<
     AppConfig,
-    "adminAuthorityAddress" | "cluster" | "protocolDeployment" | "solanaBroadcastEnabled"
+    | "adminAuthorityAddress"
+    | "cluster"
+    | "independentTreasuryAddress"
+    | "protocolDeployment"
+    | "solanaBroadcastEnabled"
   >;
   walletAddress?: string;
   demoMode: boolean;
@@ -279,11 +289,30 @@ export function buildAdminAccess({
   const blockers: string[] = [];
   const warnings: string[] = [];
   const configuredAdminAddress = config.adminAuthorityAddress;
-  const walletMatches = Boolean(configuredAdminAddress && walletAddress === configuredAdminAddress);
+  const configuredTreasuryAddress = config.independentTreasuryAddress;
+  const hasConfiguredOperatorWallet = Boolean(configuredAdminAddress || configuredTreasuryAddress);
+  const walletMatchesAdmin = Boolean(configuredAdminAddress && walletAddress === configuredAdminAddress);
+  const walletMatchesTreasury = Boolean(configuredTreasuryAddress && walletAddress === configuredTreasuryAddress);
+  const walletMatches = walletMatchesAdmin || walletMatchesTreasury;
+  const accessRole: AdminAccessRole = walletMatchesAdmin
+    ? "ADMIN_AUTHORITY"
+    : walletMatchesTreasury
+      ? "INDEPENDENT_TREASURY"
+      : "NONE";
 
-  if (!configuredAdminAddress) blockers.push("VITE_ADMIN_AUTHORITY_ADDRESS is not configured.");
-  if (!walletAddress) blockers.push("Connect the configured admin wallet to unlock this dashboard.");
-  if (configuredAdminAddress && walletAddress && !walletMatches) blockers.push("Connected wallet is not the configured admin authority.");
+  if (!hasConfiguredOperatorWallet) {
+    blockers.push("Configure VITE_ADMIN_AUTHORITY_ADDRESS or VITE_INDEPENDENT_TREASURY_ADDRESS.");
+  }
+  if (!walletAddress) blockers.push("Connect the configured admin or treasury wallet to unlock this dashboard.");
+  if (hasConfiguredOperatorWallet && walletAddress && !walletMatches) {
+    blockers.push("Connected wallet is not the configured admin authority or independent treasury owner.");
+  }
+  if (!configuredAdminAddress) {
+    warnings.push("Protocol transaction previews need VITE_ADMIN_AUTHORITY_ADDRESS before signing review.");
+  }
+  if (configuredAdminAddress && configuredTreasuryAddress && configuredAdminAddress === configuredTreasuryAddress) {
+    warnings.push("Admin authority and independent treasury owner reuse the same wallet; separate them before public testing.");
+  }
   if (config.cluster === "mainnet-beta" || config.protocolDeployment === "mainnet-beta") {
     blockers.push("Mainnet admin actions are blocked in the testing dashboard.");
   }
@@ -291,7 +320,7 @@ export function buildAdminAccess({
   if (demoMode) blockers.push("Demo mode must be disabled before the admin dashboard can unlock.");
 
   let status: AdminAccessStatus = "TEST_UNLOCKED";
-  if (!configuredAdminAddress) status = "UNCONFIGURED";
+  if (!hasConfiguredOperatorWallet) status = "UNCONFIGURED";
   else if (!walletAddress) status = "WALLET_REQUIRED";
   else if (!walletMatches) status = "WRONG_WALLET";
   else if (demoMode) status = "DEMO_BLOCKED";
@@ -301,9 +330,13 @@ export function buildAdminAccess({
 
   return {
     status,
+    accessRole,
     configuredAdminAddress,
+    configuredTreasuryAddress,
     walletAddress,
     walletMatches,
+    walletMatchesAdmin,
+    walletMatchesTreasury,
     canOpenDashboard,
     canDraftActions: canOpenDashboard,
     canExecuteActions: false,
@@ -729,10 +762,16 @@ function buildAdminAccessGate(access: AdminAccess): AdminReadinessGate {
     blockers: access.blockers,
     id: "admin-access",
     label: "Admin Access",
-    readySummary: "Configured admin authority is connected and dashboard drafting is unlocked.",
-    summary: "The configured admin authority must be connected before launch review actions can be prepared.",
+    readySummary: `${formatAdminAccessRole(access.accessRole)} is connected and dashboard drafting is unlocked.`,
+    summary: "A configured admin authority or independent treasury operator wallet must be connected before launch review actions can be prepared.",
     warnings: access.warnings,
   });
+}
+
+function formatAdminAccessRole(role: AdminAccessRole) {
+  if (role === "ADMIN_AUTHORITY") return "Configured admin authority";
+  if (role === "INDEPENDENT_TREASURY") return "Independent treasury owner";
+  return "Configured operator wallet";
 }
 
 function buildProtocolInspectionGate(protocol: AdminProtocolReadinessInput): AdminReadinessGate {

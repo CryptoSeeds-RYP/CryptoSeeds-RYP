@@ -27,6 +27,8 @@ CryptoSeeds should operate as a self-custodial platform and interface layer. Use
 
 No authority control should custody user funds. Any authority that can affect user rights, fee parameters, project visibility, or automation permissions should emit logs and have a public policy before launch.
 
+The Admin Dashboard can open for the independent treasury owner during local/devnet testing so the treasury operator can review labels, readiness gates, and proposal packets. That route is an access gate for the cockpit only; it does not replace the protocol authority signer, bypass wallet approval, execute treasury transfers, or grant production powers.
+
 Protocol, project, and reward authority rotation is two-step on-chain:
 
 1. Current authority nominates a pending authority.

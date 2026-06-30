@@ -9,6 +9,7 @@ import {
 } from "./admin";
 
 const adminAddress = "Admin111111111111111111111111111111111111111";
+const treasuryAddress = "Treasury111111111111111111111111111111111";
 const validAdminAddress = "11111111111111111111111111111111";
 
 describe("admin access", () => {
@@ -25,7 +26,7 @@ describe("admin access", () => {
 
     expect(access.status).toBe("UNCONFIGURED");
     expect(access.canOpenDashboard).toBe(false);
-    expect(access.blockers).toContain("VITE_ADMIN_AUTHORITY_ADDRESS is not configured.");
+    expect(access.blockers).toContain("Configure VITE_ADMIN_AUTHORITY_ADDRESS or VITE_INDEPENDENT_TREASURY_ADDRESS.");
   });
 
   it("unlocks draft-only admin mode for the configured wallet off mainnet", () => {
@@ -41,7 +42,32 @@ describe("admin access", () => {
     });
 
     expect(access.status).toBe("TEST_UNLOCKED");
+    expect(access.accessRole).toBe("ADMIN_AUTHORITY");
     expect(access.walletMatches).toBe(true);
+    expect(access.walletMatchesAdmin).toBe(true);
+    expect(access.walletMatchesTreasury).toBe(false);
+    expect(access.canDraftActions).toBe(true);
+    expect(access.canExecuteActions).toBe(false);
+  });
+
+  it("unlocks draft-only operator mode for the independent treasury wallet", () => {
+    const access = buildAdminAccess({
+      config: {
+        adminAuthorityAddress: adminAddress,
+        cluster: "devnet",
+        independentTreasuryAddress: treasuryAddress,
+        protocolDeployment: "devnet",
+        solanaBroadcastEnabled: false,
+      },
+      walletAddress: treasuryAddress,
+      demoMode: false,
+    });
+
+    expect(access.status).toBe("TEST_UNLOCKED");
+    expect(access.accessRole).toBe("INDEPENDENT_TREASURY");
+    expect(access.walletMatches).toBe(true);
+    expect(access.walletMatchesAdmin).toBe(false);
+    expect(access.walletMatchesTreasury).toBe(true);
     expect(access.canDraftActions).toBe(true);
     expect(access.canExecuteActions).toBe(false);
   });
@@ -70,8 +96,30 @@ describe("admin access", () => {
 
     expect(wrongWallet.status).toBe("WRONG_WALLET");
     expect(wrongWallet.canOpenDashboard).toBe(false);
+    expect(wrongWallet.blockers).toContain(
+      "Connected wallet is not the configured admin authority or independent treasury owner.",
+    );
     expect(mainnet.status).toBe("MAINNET_BLOCKED");
     expect(mainnet.canOpenDashboard).toBe(false);
+  });
+
+  it("warns when the admin authority and treasury owner reuse one wallet", () => {
+    const access = buildAdminAccess({
+      config: {
+        adminAuthorityAddress: adminAddress,
+        cluster: "devnet",
+        independentTreasuryAddress: adminAddress,
+        protocolDeployment: "devnet",
+        solanaBroadcastEnabled: false,
+      },
+      walletAddress: adminAddress,
+      demoMode: false,
+    });
+
+    expect(access.status).toBe("TEST_UNLOCKED");
+    expect(access.warnings).toContain(
+      "Admin authority and independent treasury owner reuse the same wallet; separate them before public testing.",
+    );
   });
 
   it("does not unlock admin actions while demo mode is active", () => {

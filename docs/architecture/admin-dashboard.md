@@ -4,16 +4,18 @@ The Admin Dashboard is a testing and operations surface for project configuratio
 
 ## MVP Rule
 
-The dashboard may unlock from a configured testing authority wallet, but it must remain proposal-only in the MVP.
+The dashboard may unlock from a configured testing authority wallet or the independent treasury owner wallet, but it must remain proposal-only in the MVP.
 
 Required gates:
 
-- `VITE_ADMIN_AUTHORITY_ADDRESS` must be configured.
-- Connected wallet must match that address.
+- At least one operator wallet must be configured through `VITE_ADMIN_AUTHORITY_ADDRESS` or `VITE_INDEPENDENT_TREASURY_ADDRESS`.
+- Connected wallet must match the configured admin authority or independent treasury owner.
 - Cluster must not be `mainnet-beta`.
 - Protocol deployment must not be `mainnet-beta`.
 - Admin actions cannot execute live from the UI.
 - Mainnet admin actions remain blocked until final launch review.
+
+The independent treasury owner route is an operator-dashboard unlock for testing and review. It does not change protocol signing authority, does not move funds, and does not enable live execution. Protocol transaction previews still require a configured admin authority before signing review.
 
 ## Why Not A God Wallet Forever
 
