@@ -19,6 +19,7 @@ const requiredScripts = [
   "devnet:readiness",
   "devnet:status",
   "devnet:vaults:prep",
+  "testnet:readiness",
   "protocol:idl:check",
   "protocol:admin:fixture:check",
   "protocol:smoke:localnet:wsl",
@@ -36,6 +37,7 @@ const requiredDocs = [
   "docs/compliance/decentralization-and-self-custody.md",
   "docs/product/master-brief.md",
   "docs/setup/devnet-deployment-status.md",
+  "docs/setup/public-testnet-readiness.md",
 ];
 
 const blockers = [];
