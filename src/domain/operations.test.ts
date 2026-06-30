@@ -25,6 +25,7 @@ describe("operations model", () => {
     expect(scripted.map((item) => item.id)).toEqual([
       "app-regression-check",
       "copy-visual-safety",
+      "ryp-mission-status",
       "ryp-token-health",
       "devnet-funding-packet",
       "devnet-protocol-state-inspection",

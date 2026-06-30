@@ -40,6 +40,16 @@ export const maintenanceRunbook: MaintenanceRunbookItem[] = [
     aiAgentBoundary: "Agent may flag risky language or asset drift; it may not approve compliance-sensitive wording by itself.",
   },
   {
+    id: "ryp-mission-status",
+    label: "RYP Mission Status",
+    cadence: "DAILY",
+    script: "npm.cmd run mission:status -- --env .env.devnet.example",
+    automationMode: "MONITOR_ONLY",
+    approvalRequired: false,
+    operatorAction: "Read the ten-point mission status, current devnet blocker, and next safe command before continuing deployment work.",
+    aiAgentBoundary: "Agent may summarize mission status and next actions; it must not execute mutation-risk steps without explicit approval.",
+  },
+  {
     id: "ryp-token-health",
     label: "RYP Token Health",
     cadence: "DAILY",

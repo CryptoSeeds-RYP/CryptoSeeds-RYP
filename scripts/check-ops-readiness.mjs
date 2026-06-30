@@ -8,6 +8,7 @@ const requiredScripts = [
   "test",
   "build",
   "copy:audit",
+  "mission:status",
   "visual:audit",
   "token:check",
   "devnet:bootstrap",
@@ -42,6 +43,7 @@ const requiredDocs = [
   "docs/product/master-brief.md",
   "docs/setup/devnet-deployment-status.md",
   "docs/setup/public-testnet-readiness.md",
+  "docs/setup/ryp-mission-status.md",
 ];
 
 const blockers = [];

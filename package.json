@@ -36,6 +36,7 @@
     "wsl:check": "powershell -ExecutionPolicy Bypass -File scripts/check-wsl-prereqs.ps1",
     "wsl:setup": "powershell -ExecutionPolicy Bypass -File scripts/setup-wsl-solana.ps1",
     "copy:audit": "node scripts/audit-copy-guardrails.mjs",
+    "mission:status": "node scripts/check-ryp-mission-status.mjs",
     "ops:check": "node scripts/check-ops-readiness.mjs",
     "rewards:claim-merkle": "node scripts/prepare-reward-claim-merkle.mjs",
     "rewards:epoch:draft": "node scripts/prepare-holder-reward-epoch.mjs docs/operations/holder-reward-epoch.example.json",
