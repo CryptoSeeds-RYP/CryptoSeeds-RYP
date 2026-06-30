@@ -171,7 +171,8 @@ export type SeedBotSignal = {
 export type ProtocolSnapshotSource =
   | "DISCONNECTED_PREVIEW"
   | "DEMO_SIMULATION"
-  | "LIVE_WALLET_READ_ONLY";
+  | "LIVE_WALLET_READ_ONLY"
+  | "LIVE_PROTOCOL_ACCOUNT";
 
 export type ProtocolSnapshot = {
   source: ProtocolSnapshotSource;
@@ -185,6 +186,7 @@ export type ProtocolSnapshot = {
 
 export function protocolSnapshotSourceLabel(source: ProtocolSnapshotSource) {
   if (source === "DEMO_SIMULATION") return "Demo simulation";
+  if (source === "LIVE_PROTOCOL_ACCOUNT") return "Live protocol account";
   if (source === "LIVE_WALLET_READ_ONLY") return "Live wallet read-only";
   return "Disconnected preview";
 }

@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { appConfig } from "../config/env";
-import { DEMO_WALLET_ADDRESS } from "../domain/demo";
+import { DEMO_WALLET_ADDRESS, isDemoWalletAddress } from "../domain/demo";
 import type { LocationKey, Project, ProtocolSnapshot, StakingTier } from "../domain/microverse";
 import { createPreparedParticipation } from "../domain/participation";
 import type { SeedBotStrategy } from "../domain/seedbot";
 import type { TransactionIntent } from "../domain/transactions";
 import { projects as projectFixtures } from "../fixtures/protocolFixtures";
 import { cryptoSeedsServices } from "../services/mockServices";
+import { applyStakePositionInspectionToSnapshot } from "../services/protocolSnapshotOverlay";
 import {
   advanceTransactionIntent,
   buildProjectParticipationIntent,
@@ -24,6 +25,7 @@ import {
   simulatePreparedSolanaTransaction,
 } from "../solana/solanaTransactionBoundary";
 import { buildSolanaBroadcastReadiness } from "../solana/solanaBroadcastReadiness";
+import { readStakePositionInspection } from "../solana/protocolStateInspection";
 
 export function useMicroVerseState() {
   const { connection } = useConnection();
@@ -49,19 +51,40 @@ export function useMicroVerseState() {
     let cancelled = false;
     setLoading(true);
     const effectiveWalletAddress = walletAddress ?? (demoMode ? DEMO_WALLET_ADDRESS : undefined);
-    cryptoSeedsServices
-      .loadProtocolSnapshot(effectiveWalletAddress, selectedTier)
-      .then((loaded) => {
-        if (!cancelled) setSnapshot(loaded);
-      })
-      .finally(() => {
+
+    async function loadSnapshot() {
+      try {
+        const loaded = await cryptoSeedsServices.loadProtocolSnapshot(effectiveWalletAddress, selectedTier);
+        if (cancelled) return;
+        setSnapshot(loaded);
+
+        const liveWalletAddress = walletAddress;
+        if (!liveWalletAddress || !shouldReadLiveStakePosition({ demoMode, walletAddress: liveWalletAddress })) return;
+
+        const inspection = await readStakePositionInspection({
+          connection,
+          ownerAddress: liveWalletAddress,
+        });
+        if (cancelled) return;
+        setSnapshot((current) => {
+          if (!current || current.user.walletAddress !== liveWalletAddress) return current;
+          return applyStakePositionInspectionToSnapshot({
+            inspection,
+            rypDecimals: appConfig.rypDecimals,
+            snapshot: current,
+          });
+        });
+      } finally {
         if (!cancelled) setLoading(false);
-      });
+      }
+    }
+
+    loadSnapshot();
 
     return () => {
       cancelled = true;
     };
-  }, [demoMode, selectedTier, walletAddress]);
+  }, [connection, demoMode, selectedTier, walletAddress]);
 
   const selectedProject = useMemo(() => {
     return snapshot?.projects.find((project) => project.id === selectedProjectId) ?? projectFixtures[0];
@@ -225,4 +248,19 @@ export function useMicroVerseState() {
     advanceIntent,
     resetIntent,
   };
+}
+
+function shouldReadLiveStakePosition({
+  demoMode,
+  walletAddress,
+}: {
+  demoMode: boolean;
+  walletAddress?: string;
+}) {
+  if (!walletAddress) return false;
+  return Boolean(
+    !demoMode &&
+      !isDemoWalletAddress(walletAddress) &&
+      appConfig.protocolDeployment !== "placeholder",
+  );
 }
