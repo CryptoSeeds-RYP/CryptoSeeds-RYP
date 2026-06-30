@@ -22,6 +22,11 @@ import {
   type RewardAccountInspection,
 } from "../solana/rewardAccountInspection";
 import {
+  buildDevnetDeploymentInspectionPreview,
+  readDevnetDeploymentInspection,
+  type DevnetDeploymentInspection,
+} from "../solana/devnetDeploymentInspection";
+import {
   buildGovernanceStateInspectionPreview,
   buildProjectStateInspectionPreview,
   buildStakePositionInspectionPreview,
@@ -71,6 +76,9 @@ export function AdminView({
   );
   const [rewardInspection, setRewardInspection] = useState<RewardAccountInspection>(() =>
     buildRewardAccountInspectionPreview({ epochId: appConfig.rewardInspectionEpochId }),
+  );
+  const [devnetDeploymentInspection, setDevnetDeploymentInspection] = useState<DevnetDeploymentInspection>(() =>
+    buildDevnetDeploymentInspectionPreview(),
   );
   const protocolReadiness = {
     activeModulePauses: protocolInspection.decoded?.activeModulePauses,
@@ -252,6 +260,33 @@ export function AdminView({
     };
   }, [connection]);
 
+  useEffect(() => {
+    let cancelled = false;
+    const preview = buildDevnetDeploymentInspectionPreview();
+    setDevnetDeploymentInspection(preview);
+
+    if (appConfig.cluster !== "devnet" || appConfig.protocolDeployment === "placeholder") return undefined;
+
+    readDevnetDeploymentInspection({ connection })
+      .then((inspection) => {
+        if (!cancelled) setDevnetDeploymentInspection(inspection);
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        setDevnetDeploymentInspection({
+          ...preview,
+          warnings: [
+            ...preview.warnings,
+            `Devnet deployment RPC read failed: ${error instanceof Error ? error.message : "unknown error"}.`,
+          ],
+        });
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [connection]);
+
   return (
     <div className="location-view admin-view">
       <ViewHeader icon={FileCog} label="Admin Dashboard" value={formatLabel(access.status)} />
@@ -386,6 +421,89 @@ export function AdminView({
               <code>{phase.command}</code>
             </article>
           ))}
+        </div>
+      </section>
+
+      <section className="governance-section devnet-deployment-inspector">
+        <div className="view-header">
+          <div>
+            <Database size={20} />
+            <strong>Devnet Deployment Inspector</strong>
+          </div>
+          <span>{formatLabel(devnetDeploymentInspection.executionMode)} / no deploy execution</span>
+        </div>
+        <div className="policy-strip reward-policy-strip">
+          <div>
+            <span>Cluster</span>
+            <strong>{formatLabel(devnetDeploymentInspection.cluster)}</strong>
+          </div>
+          <div>
+            <span>Deployment</span>
+            <strong>{formatLabel(devnetDeploymentInspection.deployment)}</strong>
+          </div>
+          <div>
+            <span>Mint SOL</span>
+            <strong>{devnetDeploymentInspection.minimumMintSolRequired}</strong>
+          </div>
+          <div>
+            <span>Deploy SOL</span>
+            <strong>{devnetDeploymentInspection.minimumDeploySolRecommended}</strong>
+          </div>
+        </div>
+        {deploymentInspectionMessages(devnetDeploymentInspection).length > 0 && (
+          <div className="policy-note-list">
+            {deploymentInspectionMessages(devnetDeploymentInspection).slice(0, 8).map((message) => (
+              <span className={message.kind === "blocker" ? "critical" : undefined} key={message.text}>
+                {message.text}
+              </span>
+            ))}
+          </div>
+        )}
+        <div className="authority-grid ops-grid reward-account-grid">
+          <article className={`authority-card reward-account-card ${devnetDeploymentInspection.authority.status.toLowerCase()}`}>
+            <div className="authority-card-top">
+              <WalletCards size={17} />
+              <span>{formatLabel(devnetDeploymentInspection.authority.status)}</span>
+            </div>
+            <strong>Authority Wallet</strong>
+            <p>{devnetDeploymentInspection.authority.message}</p>
+            <em>
+              {devnetDeploymentInspection.authority.sol !== undefined
+                ? `${formatSol(devnetDeploymentInspection.authority.sol)} SOL / ${
+                  devnetDeploymentInspection.authority.fundedForDeploy ? "deploy ready" : "funding needed"
+                }`
+                : "Balance pending"}
+            </em>
+            <code>{devnetDeploymentInspection.authority.address ?? "Authority address required"}</code>
+          </article>
+          <article className={`authority-card reward-account-card ${devnetDeploymentInspection.mint.status.toLowerCase()}`}>
+            <div className="authority-card-top">
+              <Database size={17} />
+              <span>{formatLabel(devnetDeploymentInspection.mint.status)}</span>
+            </div>
+            <strong>Devnet RYP Mint</strong>
+            <p>{devnetDeploymentInspection.mint.message}</p>
+            <em>
+              {devnetDeploymentInspection.mint.isMint
+                ? `${devnetDeploymentInspection.mint.decimals} decimals / supply ${devnetDeploymentInspection.mint.supply ?? "unknown"}`
+                : "Mint creation pending"}
+            </em>
+            <code>{devnetDeploymentInspection.mint.address}</code>
+          </article>
+          <article className={`authority-card reward-account-card ${devnetDeploymentInspection.program.status.toLowerCase()}`}>
+            <div className="authority-card-top">
+              <ShieldCheck size={17} />
+              <span>{formatLabel(devnetDeploymentInspection.program.status)}</span>
+            </div>
+            <strong>Program Account</strong>
+            <p>{devnetDeploymentInspection.program.message}</p>
+            <em>
+              {devnetDeploymentInspection.program.executable
+                ? `${devnetDeploymentInspection.program.dataLength ?? 0} bytes / executable`
+                : "Deployment pending"}
+            </em>
+            <code>{devnetDeploymentInspection.program.address}</code>
+          </article>
         </div>
       </section>
 
@@ -800,6 +918,14 @@ function stateInspectionMessages(
   });
 }
 
+function deploymentInspectionMessages(inspection: DevnetDeploymentInspection) {
+  return [
+    ...inspection.blockers.map((text) => ({ kind: "blocker" as const, text })),
+    ...inspection.warnings.map((text) => ({ kind: "warning" as const, text })),
+    ...inspection.nextActions.map((text) => ({ kind: "warning" as const, text })),
+  ];
+}
+
 function formatRypBaseUnits(value: string) {
   try {
     const decimals = BigInt(appConfig.rypDecimals);
@@ -813,4 +939,11 @@ function formatRypBaseUnits(value: string) {
   } catch {
     return `${value} base units`;
   }
+}
+
+function formatSol(value: number) {
+  return value.toLocaleString(undefined, {
+    maximumFractionDigits: 4,
+    minimumFractionDigits: value > 0 && value < 1 ? 2 : 0,
+  });
 }

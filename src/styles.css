@@ -1685,7 +1685,8 @@ button:disabled {
   white-space: nowrap;
 }
 
-.reward-account-card.decoded {
+.reward-account-card.decoded,
+.reward-account-card.present {
   border-color: rgba(128, 198, 109, 0.32);
   background: rgba(36, 69, 44, 0.36);
 }
