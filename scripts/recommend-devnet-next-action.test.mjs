@@ -135,7 +135,7 @@ describe("devnet next-action recommender", () => {
       },
       readiness: {
         blockers: [],
-        status: "READY_FOR_PUBLIC_TESTNET_REVIEW",
+        status: "READY_FOR_READ_ONLY_TESTNET_PREVIEW",
       },
       status: statusReport({
         authority: {
@@ -149,7 +149,7 @@ describe("devnet next-action recommender", () => {
 
     expect(recommendation).toMatchObject({
       id: "prepare_deployment_receipt",
-      command: "npm run devnet:deployment:receipt -- --env .env.devnet.example",
+      command: "npm run devnet:deployment:receipt -- --profile read-only --env .env.devnet.example",
       risk: "READ_ONLY",
     });
   });

@@ -233,7 +233,7 @@ describe("RYP mission status CLI", () => {
       opsReport: readyOpsReport(),
       devnetNextReport: nextAction({
         id: "prepare_deployment_receipt",
-        command: "npm run devnet:deployment:receipt -- --env .env.devnet.example",
+        command: "npm run devnet:deployment:receipt -- --profile read-only --env .env.devnet.example",
         risk: "READ_ONLY",
       }),
       readOnlyReadinessReport: {
@@ -245,6 +245,9 @@ describe("RYP mission status CLI", () => {
 
     expect(report.phases.find((phase) => phase.id === "wire_frontend_devnet_state")?.status).toBe("READY_FOR_REVIEW");
     expect(report.phases.find((phase) => phase.id === "public_ready_product_layer")?.status).toBe("READY_FOR_REVIEW");
+    expect(report.nextActions).toContain(
+      "npm run devnet:deployment:receipt -- --profile read-only --env .env.devnet.example",
+    );
     expect(report.phaseSummary.waitingOnDevnet).toBe(0);
   });
 

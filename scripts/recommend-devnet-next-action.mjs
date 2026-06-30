@@ -187,7 +187,7 @@ export function recommendDevnetNextAction({
     });
   }
 
-  if (readiness.status !== "READY_FOR_PUBLIC_TESTNET_REVIEW") {
+  if (readiness.status !== "READY_FOR_READ_ONLY_TESTNET_PREVIEW") {
     return commandRecommendation({
       id: "review_public_testnet_blockers",
       command: `npm run testnet:readiness -- --profile read-only --env ${envPath}`,
@@ -198,7 +198,7 @@ export function recommendDevnetNextAction({
 
   return commandRecommendation({
     id: "prepare_deployment_receipt",
-    command: `npm run devnet:deployment:receipt -- --env ${envPath}`,
+    command: `npm run devnet:deployment:receipt -- --profile read-only --env ${envPath}`,
     reason: "Devnet protocol and read-only readiness gates are clean; prepare the deployment receipt for review.",
     risk: "READ_ONLY",
   });
