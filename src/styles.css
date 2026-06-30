@@ -1687,6 +1687,34 @@ button:disabled {
   font-size: 0.9rem;
 }
 
+.seedbot-catalog-status {
+  display: grid;
+  gap: 4px;
+  min-height: 58px;
+  padding: 10px 12px;
+  border: 1px solid rgba(236, 218, 157, 0.13);
+  border-radius: 8px;
+  background: rgba(12, 13, 10, 0.28);
+}
+
+.seedbot-catalog-status.ready {
+  border-color: rgba(128, 198, 109, 0.28);
+}
+
+.seedbot-catalog-status.blocked {
+  border-color: rgba(234, 103, 88, 0.32);
+}
+
+.seedbot-catalog-status strong {
+  color: #fff8df;
+}
+
+.seedbot-catalog-status span {
+  color: #aeb9aa;
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
 .strategy-triangle {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1721,6 +1749,10 @@ button:disabled {
 
 .strategy-card.locked {
   opacity: 0.7;
+}
+
+.strategy-card.route-blocked {
+  border-color: rgba(234, 103, 88, 0.22);
 }
 
 .strategy-card.enabled {
@@ -1893,6 +1925,20 @@ button:disabled {
 
 .venue-route-list em {
   grid-column: 1 / -1;
+}
+
+.route-blocker-list {
+  border-color: rgba(234, 103, 88, 0.22) !important;
+  background: rgba(77, 28, 24, 0.24) !important;
+}
+
+.route-blocker-list span {
+  color: #ffd9d0;
+  font-weight: 800;
+}
+
+.route-blocker-list em {
+  color: #f0b1a5;
 }
 
 .strategy-actions {

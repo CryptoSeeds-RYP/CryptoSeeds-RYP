@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { seedBotPerformanceFeeModel, seedBotStrategies } from "../domain/seedbot";
 import { projects } from "../fixtures/protocolFixtures";
 import {
   advanceTransactionIntent,
@@ -135,6 +136,27 @@ describe("transaction intents", () => {
     expect(intent.estimatedFees).toContain("Disabled for live use");
     expect(intent.riskSummary).toContain("legal review");
     expect(intent.accounts.some((account) => account.label.includes("Hyperliquid"))).toBe(true);
+  });
+
+  it("blocks SeedBot allocation previews when strategy validation fails", () => {
+    const intent = buildSeedBotAllocationIntent({
+      strategy: {
+        ...seedBotStrategies[0],
+        id: "bad-seedbot-preview",
+        performance: seedBotStrategies[0].performance.filter((item) => item.window !== "1Y"),
+        feeModel: seedBotPerformanceFeeModel,
+      },
+      walletAddress,
+    });
+
+    expect(intent.type).toBe("SEEDBOT_ALLOCATE");
+    expect(intent.status).toBe("BLOCKED");
+    expect(intent.executionMode).toBe("PREVIEW_ONLY");
+    expect(intent.signaturePolicy).toContain("blocked until strategy metadata");
+    expect(intent.riskSummary).toContain("SeedBot route blocked");
+    expect(intent.riskSummary).toContain("missing 1Y performance");
+    expect(intent.accounts.some((account) => account.label.includes("route for"))).toBe(false);
+    expect(intent.lifecycle.find((step) => step.id === "wallet_signature")?.status).toBe("BLOCKED");
   });
 
   it("advances local lifecycle state only up to signature collection", () => {

@@ -1,5 +1,5 @@
 import { appConfig } from "../config/env";
-import type { SeedBotStrategy, SeedBotStrategyAsset } from "../domain/seedbot";
+import { validateSeedBotStrategy, type SeedBotStrategy, type SeedBotStrategyAsset } from "../domain/seedbot";
 import type { SeedBotVenueId } from "../domain/seedbotVenues";
 import { venueById } from "../domain/seedbotVenues";
 import {
@@ -47,9 +47,20 @@ export function buildSeedBotRoutePlan({
   strategy: SeedBotStrategy;
   mode?: SeedBotExecutionMode;
 }): SeedBotRoutePlan {
+  const strategyValidation = validateSeedBotStrategy(strategy);
   const requestedMode = mode;
   const executionBlocked = requestedMode === "WALLET_SIGNED" && !appConfig.seedBotSignedExecutionEnabled;
   const routeMode = executionBlocked ? "DRY_RUN" : requestedMode;
+  if (!strategyValidation.valid) {
+    return {
+      strategyId: strategy.id,
+      strategyName: strategy.name,
+      mode: routeMode,
+      routes: [],
+      blockedReasons: strategyValidation.blockers,
+    };
+  }
+
   const venueIds = Array.from(new Set(strategy.assets.map((asset) => asset.venueId)));
   const routes = venueIds
     .map((venueId) => buildVenueRoute({ strategy, venueId, mode: routeMode }))

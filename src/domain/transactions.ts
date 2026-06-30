@@ -11,6 +11,7 @@ export type TransactionIntentType =
 
 export type TransactionIntentStatus =
   | "DRAFT"
+  | "BLOCKED"
   | "READY"
   | "AWAITING_SIGNATURE"
   | "SIGNED"

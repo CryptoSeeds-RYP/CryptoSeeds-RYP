@@ -174,6 +174,7 @@ export function buildSeedBotAllocationIntent({
   const routeSummary = routePlan.routes
     .map((route) => `${route.venueName}: ${route.assets.map((asset) => asset.symbol).join("/")}`)
     .join("; ");
+  const routeBlocked = routePlan.blockedReasons.length > 0;
 
   return buildIntent({
     id: `seedbot-allocation-${strategy.id}-${mode.toLowerCase()}`,
@@ -185,9 +186,11 @@ export function buildSeedBotAllocationIntent({
     chain: chainForSeedBotRoutePlan(routePlan),
     estimatedFees: seedBotFeeDisclosure(strategy.feeModel),
     slippage: "User-controlled per route",
-    status: "DRAFT",
+    status: routeBlocked ? "BLOCKED" : "DRAFT",
     executionMode: "PREVIEW_ONLY",
-    signaturePolicy: "Self-custodial allocation preview. Phantom or MetaMask approval is required per route.",
+    signaturePolicy: routeBlocked
+      ? "SeedBot allocation preview is blocked until strategy metadata and route checks pass."
+      : "Self-custodial allocation preview. Phantom or MetaMask approval is required per route.",
     programs: [
       {
         label: "SeedBot strategy adapter",
@@ -205,8 +208,12 @@ export function buildSeedBotAllocationIntent({
         writable: false,
       }))),
     ],
-    riskSummary: `Historical strategy performance only. Past performance does not guarantee future results. Preferred venue: ${venue?.name ?? strategy.preferredVenueId}. Route mode: ${routePlan.mode}. Profit-based fee preview is disabled for live use until legal review.`,
-    expectedResult: "Wallet-approved allocation route is prepared; no funds move until the user signs.",
+    riskSummary: routeBlocked
+      ? `SeedBot route blocked: ${routePlan.blockedReasons.join(" ")}`
+      : `Historical strategy performance only. Past performance does not guarantee future results. Preferred venue: ${venue?.name ?? strategy.preferredVenueId}. Route mode: ${routePlan.mode}. Profit-based fee preview is disabled for live use until legal review.`,
+    expectedResult: routeBlocked
+      ? "No allocation route is prepared until SeedBot validation blockers are cleared."
+      : "Wallet-approved allocation route is prepared; no funds move until the user signs.",
   });
 }
 
@@ -267,6 +274,15 @@ function chainForSeedBotRoutePlan(routePlan: ReturnType<typeof buildSeedBotRoute
 }
 
 function buildLifecycle(status: TransactionIntentStatus): TransactionLifecycleStep[] {
+  if (status === "BLOCKED") {
+    return [
+      { id: "review", label: "Review", status: "CURRENT" },
+      { id: "wallet_signature", label: "Wallet Signature", status: "BLOCKED" },
+      { id: "broadcast", label: "Broadcast", status: "BLOCKED" },
+      { id: "confirmation", label: "Confirmation", status: "BLOCKED" },
+    ];
+  }
+
   if (status === "FAILED") {
     return [
       { id: "review", label: "Review", status: "COMPLETE" },
@@ -314,6 +330,7 @@ function buildLifecycle(status: TransactionIntentStatus): TransactionLifecycleSt
 
 function nextLifecycleStatus(status: TransactionIntentStatus): TransactionIntentStatus {
   if (status === "DRAFT") return "DRAFT";
+  if (status === "BLOCKED") return "BLOCKED";
   if (status === "READY") return "AWAITING_SIGNATURE";
   if (status === "AWAITING_SIGNATURE") return "SIGNED";
   if (status === "SIGNED") return "SIGNED";

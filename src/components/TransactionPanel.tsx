@@ -22,7 +22,11 @@ export function TransactionPanel({
 }) {
   const signatureCollected = intent.solanaSignature?.status === "SIGNED";
   const canAdvance =
-    !signatureCollected && intent.status !== "DRAFT" && intent.status !== "CONFIRMED" && intent.status !== "FAILED";
+    !signatureCollected &&
+    intent.status !== "DRAFT" &&
+    intent.status !== "BLOCKED" &&
+    intent.status !== "CONFIRMED" &&
+    intent.status !== "FAILED";
   const actionLabel = signatureCollected
     ? "Broadcast Disabled"
     : intent.status === "CONFIRMED"

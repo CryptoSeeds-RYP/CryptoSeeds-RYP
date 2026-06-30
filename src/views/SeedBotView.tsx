@@ -13,6 +13,7 @@ import {
   type SeedBotPerformanceWindow,
   type SeedBotPerformanceWindowName,
   type SeedBotStrategy,
+  validateSeedBotStrategyCatalog,
 } from "../domain/seedbot";
 import { recommendedSeedBotVenue, venueById } from "../domain/seedbotVenues";
 import { shortEvmAddress } from "../evm/useMetaMaskWallet";
@@ -46,6 +47,7 @@ export function SeedBotView({
 }) {
   const capabilities = buildSeedBotCapabilities({ walletConnected, stakingTier: activeTier, rypBalance });
   const recommendedVenue = recommendedSeedBotVenue();
+  const catalogValidation = validateSeedBotStrategyCatalog(seedBotStrategies);
   const [selectedWindows, setSelectedWindows] = useState<Record<string, SeedBotPerformanceWindowName>>(
     Object.fromEntries(seedBotStrategies.map((strategy) => [strategy.id, "30D"])),
   );
@@ -214,6 +216,14 @@ export function SeedBotView({
             <strong>Public Strategy Collection</strong>
           </div>
           <p className="terminal-disclaimer">{seedBotPerformanceDisclaimer}</p>
+          <div className={`seedbot-catalog-status ${catalogValidation.valid ? "ready" : "blocked"}`}>
+            <strong>{catalogValidation.valid ? "Strategy catalog validated" : "Strategy catalog blocked"}</strong>
+            <span>
+              {catalogValidation.valid
+                ? `${seedBotStrategies.length} public strategies include all required history windows and route checks.`
+                : catalogValidation.blockers.join(" ")}
+            </span>
+          </div>
           <div className="strategy-triangle">
             {seedBotStrategies.map((strategy, index) => {
               const accessible = canAccessSeedBotStrategy({
@@ -226,10 +236,13 @@ export function SeedBotView({
               const selectedPerformance = performanceForWindow(strategy, selectedWindow);
               const venue = venueById(strategy.preferredVenueId);
               const routePlan = buildSeedBotRoutePlan({ strategy });
+              const routeBlocked = routePlan.blockedReasons.length > 0;
 
               return (
                 <article
-                  className={`strategy-card strategy-card-${index + 1} ${accessible ? "enabled" : "locked"}`}
+                  className={`strategy-card strategy-card-${index + 1} ${
+                    accessible && !routeBlocked ? "enabled" : "locked"
+                  } ${routeBlocked ? "route-blocked" : ""}`}
                   key={strategy.id}
                 >
                   <div className="strategy-card-header">
@@ -276,13 +289,21 @@ export function SeedBotView({
                         <em>{route.assets.map((asset) => asset.symbol).join(" / ")}</em>
                       </div>
                     ))}
+                    {routeBlocked && (
+                      <div className="route-blocker-list">
+                        <span>Route blocked</span>
+                        {routePlan.blockedReasons.map((reason) => (
+                          <em key={`${strategy.id}-${reason}`}>{reason}</em>
+                        ))}
+                      </div>
+                    )}
                   </div>
                   <p>{seedBotFeeDisclosure(strategy.feeModel)}</p>
                   <div className="strategy-actions">
-                    <button disabled={!accessible} onClick={() => onPrepareAllocation(strategy, "BASKET")}>
+                    <button disabled={!accessible || routeBlocked} onClick={() => onPrepareAllocation(strategy, "BASKET")}>
                       Allocate Basket
                     </button>
-                    <button disabled={!accessible} onClick={() => onPrepareAllocation(strategy, "PER_ASSET")}>
+                    <button disabled={!accessible || routeBlocked} onClick={() => onPrepareAllocation(strategy, "PER_ASSET")}>
                       Per-Asset Routes
                     </button>
                   </div>

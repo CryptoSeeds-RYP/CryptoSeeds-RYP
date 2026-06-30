@@ -75,7 +75,7 @@ describe("seedbot venue router", () => {
       risk: "HIGH",
       minimumAccess: "FRUIT",
       preferredVenueId: "ANTARCTIC",
-      performance: [{ window: "7D", returnPercent: 0, points: [0, 0] }],
+      performance: seedBotStrategies[0].performance,
       feeModel: seedBotPerformanceFeeModel,
       allocationModes: ["BASKET"],
       assets: [
@@ -95,6 +95,19 @@ describe("seedbot venue router", () => {
     expect(plan.routes[0].orderPreview).toEqual([]);
   });
 
+  it("fails closed when strategy metadata does not pass domain validation", () => {
+    const strategy: SeedBotStrategy = {
+      ...seedBotStrategies[0],
+      id: "missing-history",
+      performance: seedBotStrategies[0].performance.filter((item) => item.window !== "1Y"),
+    };
+
+    const plan = buildSeedBotRoutePlan({ strategy });
+
+    expect(plan.routes).toEqual([]);
+    expect(plan.blockedReasons).toContain("SeedBot strategy missing-history is missing 1Y performance.");
+  });
+
   it("downgrades signed execution requests while the feature flag is disabled", () => {
     const strategy = seedBotStrategies.find((item) => item.preferredVenueId === "HYPERLIQUID")!;
     const plan = buildSeedBotRoutePlan({ strategy, mode: "WALLET_SIGNED" });
@@ -112,7 +125,7 @@ describe("seedbot venue router", () => {
       risk: "HIGH",
       minimumAccess: "FRUIT",
       preferredVenueId: "JUPITER",
-      performance: [{ window: "7D", returnPercent: 0, points: [0, 0] }],
+      performance: seedBotStrategies[0].performance,
       feeModel: seedBotPerformanceFeeModel,
       allocationModes: ["BASKET"],
       assets: [
@@ -135,6 +148,7 @@ describe("seedbot venue router", () => {
 
     const plan = buildSeedBotRoutePlan({ strategy });
 
-    expect(plan.blockedReasons).toContain("SeedBot strategy target weights must total 100%; received 90%.");
+    expect(plan.routes).toEqual([]);
+    expect(plan.blockedReasons).toContain("SeedBot strategy bad-weights target weights must total 100%.");
   });
 });
