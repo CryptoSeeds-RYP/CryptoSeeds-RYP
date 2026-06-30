@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { Connection, Keypair, LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
+import { buildDevnetOperatorHandoff, recommendDevnetNextAction } from "./recommend-devnet-next-action.mjs";
 
 const TOKEN_PROGRAM_ID = new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
 const ASSOCIATED_TOKEN_PROGRAM_ID = new PublicKey("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL");
@@ -70,7 +71,7 @@ const protocolTargets = buildProtocolTargets();
 const chain = await readDevnetChainStatus();
 validateChainStatus(chain);
 
-const report = {
+const baseReport = {
   status: blockers.length === 0 ? "READY_FOR_DEPLOYMENT_STEPS" : "BLOCKED",
   envSource,
   config: {
@@ -91,6 +92,11 @@ const report = {
   blockers,
   warnings,
   nextActions: nextActions(),
+};
+const recommendation = recommendDevnetNextAction({ envPath: envSource, status: baseReport });
+const report = {
+  ...baseReport,
+  operatorHandoff: buildDevnetOperatorHandoff({ envPath: envSource, recommendation }),
 };
 
 console.log(JSON.stringify(report, null, 2));

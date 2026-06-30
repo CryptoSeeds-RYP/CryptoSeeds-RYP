@@ -35,6 +35,14 @@ type CheckResult = {
   errorMessage?: string;
 };
 
+type OperatorHandoff = {
+  activeStep: string;
+  command: string;
+  requiresExplicitApproval: boolean;
+  requiresExternalAction: boolean;
+  risk: string;
+};
+
 type ProgramArtifact = {
   exists: boolean;
   path: string | null;
@@ -60,6 +68,7 @@ type DevnetDeploymentReceipt = {
     blockers: string[];
     warnings: string[];
   } | null;
+  operatorHandoff: OperatorHandoff | null;
   blockers: string[];
   safetyAttestation: {
     devnetOnly: boolean;
@@ -133,6 +142,7 @@ describe("devnet deployment receipt CLI", () => {
           status: "BLOCKED",
           blockers: ["Devnet authority has 0 SOL."],
           nextActions: ["Fund the devnet authority wallet."],
+          operatorHandoff: fundingHandoff(),
         }),
       ],
       envSource: ".env.devnet.example",
@@ -141,6 +151,12 @@ describe("devnet deployment receipt CLI", () => {
 
     expect(report.status).toBe("BLOCKED");
     expect(report.blockers).toEqual(["Devnet status: Devnet authority has 0 SOL."]);
+    expect(report.operatorHandoff).toMatchObject({
+      activeStep: "fund_devnet_authority",
+      command: "npm run devnet:funding:packet -- --env .env.devnet.example",
+      requiresExternalAction: true,
+      risk: "READ_ONLY",
+    });
   });
 
   it("does not duplicate child blockers through the aggregate readiness check", () => {
@@ -208,5 +224,15 @@ function programArtifact(): ProgramArtifact {
     path: "programs/cryptoseeds_protocol/target/deploy/cryptoseeds_protocol.so",
     sha256: "abc123",
     sizeBytes: 100,
+  };
+}
+
+function fundingHandoff(): OperatorHandoff {
+  return {
+    activeStep: "fund_devnet_authority",
+    command: "npm run devnet:funding:packet -- --env .env.devnet.example",
+    requiresExplicitApproval: false,
+    requiresExternalAction: true,
+    risk: "READ_ONLY",
   };
 }

@@ -23,6 +23,8 @@ describe("devnet operator next actions", () => {
     expect(statusScript).toContain("npm run devnet:vaults:prep -- --env ${envSource}");
     expect(statusScript).toContain("npm run devnet:next -- --env ${envSource}");
     expect(statusScript).toContain("npm run devnet:bootstrap -- --env ${envSource} --deploy --init-plan");
+    expect(statusScript).toContain("recommendDevnetNextAction({ envPath: envSource, status: baseReport })");
+    expect(statusScript).toContain("operatorHandoff: buildDevnetOperatorHandoff({ envPath: envSource, recommendation })");
     expect(statusScript).not.toContain("Run npm run devnet:prep -- --env ${envSource}.");
     expect(statusScript).not.toContain("Run npm run devnet:deploy:wsl -- -EnvPath .env.devnet.example.");
 

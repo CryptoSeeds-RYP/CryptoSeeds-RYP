@@ -16,6 +16,8 @@ The default profile is `wallet-execution`. It runs the existing readiness gates 
 
 It does not create accounts, deploy programs, initialize protocol state, send transactions, or enable frontend broadcast.
 
+When a child devnet check exposes `operatorHandoff`, the readiness report preserves it at the top level. This keeps the active next command, approval requirement, external-action requirement, and risk level attached to the readiness artifact.
+
 The report intentionally includes the broadcast readiness gate. If the only remaining blocker is `VITE_SOLANA_BROADCAST_ENABLED is false`, the system may be ready for a read-only devnet preview, but it is not ready for wallet-enabled public testnet flows.
 
 For a read-only public preview gate, run:
@@ -37,6 +39,8 @@ npm run devnet:deployment:receipt -- --profile wallet-execution --env .env.devne
 ```
 
 The receipt is read-only and does not authorize launch by itself.
+
+Deployment receipts also preserve the active `operatorHandoff` so release-review archives show the same safe next step that the operator saw in readiness and status reports.
 
 The read-only profile checks ops readiness, devnet status, devnet program inspection, and devnet protocol state inspection. It intentionally excludes the broadcast readiness gate because no wallet execution path should be enabled for that profile.
 

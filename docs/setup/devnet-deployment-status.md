@@ -34,7 +34,7 @@ Repo-side devnet prep is partially complete:
 - `npm run devnet:funding:packet -- --env .env.devnet.example` is available to create a read-only funding handoff packet with the public authority address, minimum/recommended devnet SOL amounts, faucet/manual transfer options, and post-funding command sequence.
 - `npm run devnet:next -- --env .env.devnet.example` is available as a read-only operator recommender. It inspects devnet status and, when useful, protocol/readiness status, then prints the single next command plus the reason and risk level.
 - The `devnet:next` report also includes `operatorHandoff`, which states whether the command is read-only, requires external funding, or needs explicit approval before a devnet/local-key mutation.
-- `npm run devnet:status -- --env .env.devnet.example` is available to inspect local keypair presence, reward-vault keypair readiness, deterministic protocol targets, authority SOL, mint status, program status, and next actions in one read-only report.
+- `npm run devnet:status -- --env .env.devnet.example` is available to inspect local keypair presence, reward-vault keypair readiness, deterministic protocol targets, authority SOL, mint status, program status, next actions, and the same structured operator handoff in one read-only report.
 - The devnet status report includes the compiled program `.so` relative path, SHA-256 checksum, and byte size for pre-deployment artifact review.
 - `npm run devnet:vaults:prep -- --env .env.devnet.example` is available to create missing ignored reward-vault keypairs before funding/deployment, without RPC calls, signing, or broadcasting.
 - `npm run devnet:program:check -- --env .env.devnet.example` is available to verify whether the configured program is deployed on devnet.
@@ -44,6 +44,8 @@ Repo-side devnet prep is partially complete:
 - `npm run devnet:inspect:protocol -- --env .env.devnet.example` is available to read and validate the deployed program, protocol config, reward config, and reward vault state accounts before any public preview or wallet execution review.
 
 The status report now includes a `protocolTargets` block before funding/deployment. This lets the team review the deterministic config PDA, reward config PDA, staking vault ATA, treasury reward ATA, and reward-vault state PDAs before any transaction is sent. Program-controlled reward vault token accounts use ignored local keypairs under `target/devnet/reward-vaults`; `devnet:vaults:prep` creates those local keypairs early so their public addresses and metadata hashes can be reviewed before protocol initialization.
+
+Read-only public readiness and deployment receipt reports preserve the active `operatorHandoff` from `devnet:status`, so archived review artifacts show the exact next step, command, approval requirement, external-action requirement, and risk level that operators saw at the time of review.
 
 External blocker:
 

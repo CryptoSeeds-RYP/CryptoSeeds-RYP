@@ -36,8 +36,17 @@ type CheckResult = {
     blockers?: string[];
     warnings?: string[];
     nextActions?: string[];
+    operatorHandoff?: OperatorHandoff;
   } | null;
   errorMessage?: string;
+};
+
+type OperatorHandoff = {
+  activeStep: string;
+  command: string;
+  requiresExplicitApproval: boolean;
+  requiresExternalAction: boolean;
+  risk: string;
 };
 
 type PublicTestnetReadinessReport = {
@@ -47,6 +56,7 @@ type PublicTestnetReadinessReport = {
   blockers: string[];
   warnings: string[];
   nextActions: string[];
+  operatorHandoff: OperatorHandoff | null;
   checks: Array<{
     id: string;
     status: "READY" | "BLOCKED";
@@ -123,6 +133,7 @@ describe("public testnet readiness CLI", () => {
             blockers: ["Authority wallet has 0 SOL."],
             warnings: ["Treasury defaults to admin authority on devnet."],
             nextActions: ["Fund the devnet authority wallet."],
+            operatorHandoff: fundingHandoff(),
           },
         },
       ],
@@ -134,6 +145,12 @@ describe("public testnet readiness CLI", () => {
       "Devnet status: Treasury defaults to admin authority on devnet.",
     ]);
     expect(report.nextActions).toEqual(["Fund the devnet authority wallet."]);
+    expect(report.operatorHandoff).toMatchObject({
+      activeStep: "fund_devnet_authority",
+      command: "npm run devnet:funding:packet -- --env .env.devnet.example",
+      requiresExternalAction: true,
+      risk: "READ_ONLY",
+    });
   });
 
   it("blocks when a child check fails without parseable JSON", () => {
@@ -198,5 +215,15 @@ function readyCheck(id: string, label: string): CheckResult {
       warnings: [],
       nextActions: [],
     },
+  };
+}
+
+function fundingHandoff(): OperatorHandoff {
+  return {
+    activeStep: "fund_devnet_authority",
+    command: "npm run devnet:funding:packet -- --env .env.devnet.example",
+    requiresExplicitApproval: false,
+    requiresExternalAction: true,
+    risk: "READ_ONLY",
   };
 }

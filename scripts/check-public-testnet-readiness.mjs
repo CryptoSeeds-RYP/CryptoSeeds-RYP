@@ -51,6 +51,7 @@ export function buildPublicTestnetReadinessReport({
   const nextActions = dedupe(
     normalizedChecks.flatMap((check) => check.nextActions),
   );
+  const operatorHandoff = normalizedChecks.find((check) => check.operatorHandoff)?.operatorHandoff ?? null;
 
   return {
     exportVersion: "public-testnet-readiness/v1",
@@ -61,6 +62,7 @@ export function buildPublicTestnetReadinessReport({
     checks: normalizedChecks,
     blockers,
     warnings,
+    operatorHandoff,
     nextActions: blockers.length > 0
       ? nextActions
       : readyNextActionsForProfile(profile),
@@ -165,6 +167,7 @@ function normalizeCheckResult(check) {
   const parsedNextActions = Array.isArray(parsed?.nextActions)
     ? parsed.nextActions.map(String)
     : [];
+  const parsedOperatorHandoff = isRecord(parsed?.operatorHandoff) ? parsed.operatorHandoff : null;
 
   const commandBlockers = [];
   if (!parsed) {
@@ -193,7 +196,12 @@ function normalizeCheckResult(check) {
     blockers,
     warnings: parsedWarnings,
     nextActions: parsedNextActions,
+    operatorHandoff: parsedOperatorHandoff,
   };
+}
+
+function isRecord(value) {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
 function parseArgs(args) {

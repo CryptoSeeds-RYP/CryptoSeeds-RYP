@@ -90,6 +90,7 @@ export function buildDevnetDeploymentReceipt({
   const devnetStatus = parsedCheck(checkResults, "devnet-status");
   const protocolState = parsedCheck(checkResults, "devnet-protocol-state");
   const readiness = parsedCheck(checkResults, "public-testnet-readiness");
+  const operatorHandoff = devnetStatus?.operatorHandoff ?? readiness?.operatorHandoff ?? null;
   const allChecksReady = normalizedChecks.every((check) => check.status === "READY");
 
   return {
@@ -115,6 +116,7 @@ export function buildDevnetDeploymentReceipt({
           warnings: Array.isArray(readiness.warnings) ? readiness.warnings : [],
         }
       : null,
+    operatorHandoff,
     checks: normalizedChecks,
     blockers,
     warnings,
