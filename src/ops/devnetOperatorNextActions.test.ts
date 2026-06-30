@@ -18,6 +18,8 @@ describe("devnet operator next actions", () => {
   it("keeps status and program inspection reports env-aware", async () => {
     const statusScript = await readScript("scripts/check-devnet-status.mjs");
     const programScript = await readScript("scripts/check-devnet-program.mjs");
+    const initScript = await readScript("scripts/initialize-devnet-protocol.mjs");
+    const vaultPrepScript = await readScript("scripts/prepare-devnet-reward-vault-keypairs.mjs");
 
     expect(statusScript).toContain("envSource = path.relative(repoRoot, envPath)");
     expect(statusScript).toContain("target/devnet/independent-treasury.json");
@@ -36,6 +38,22 @@ describe("devnet operator next actions", () => {
     expect(programScript).toContain("npm run devnet:bootstrap -- --env ${envSource} --deploy --init-plan");
     expect(programScript).toContain("npm run devnet:init:protocol -- --env ${envSource}");
     expect(programScript).not.toContain("Run npm run devnet:deploy:wsl -- -EnvPath .env.devnet.example.");
+
+    expect(initScript).toContain("target/devnet/independent-treasury.json");
+    expect(initScript).toContain("--treasury");
+    expect(initScript).toContain("VITE_INDEPENDENT_TREASURY_ADDRESS must be set for protocol initialization.");
+    expect(initScript).toContain("Independent treasury address must be distinct from the admin authority wallet.");
+    expect(initScript).toContain("Independent treasury keypair address");
+    expect(initScript).toContain("assertExpectedPublicKey(");
+    expect(initScript).not.toContain(
+      "warnings.push(\"VITE_INDEPENDENT_TREASURY_ADDRESS is not set; devnet treasury vault will use the admin authority wallet.\")",
+    );
+
+    expect(vaultPrepScript).toContain("target/devnet/independent-treasury.json");
+    expect(vaultPrepScript).toContain("--treasury");
+    expect(vaultPrepScript).toContain("VITE_INDEPENDENT_TREASURY_ADDRESS must be set for reward vault prep.");
+    expect(vaultPrepScript).toContain("Independent treasury address must be distinct from the admin authority wallet.");
+    expect(vaultPrepScript).toContain("Independent treasury keypair address");
   });
 
   it("keeps devnet deployment docs on the staged wrapper route", async () => {

@@ -17,6 +17,10 @@ The script reads the devnet env file and checks:
 - demo mode is off,
 - frontend broadcast remains disabled,
 - authority keypair matches `VITE_ADMIN_AUTHORITY_ADDRESS`,
+- `VITE_INDEPENDENT_TREASURY_ADDRESS` is configured,
+- independent treasury address is distinct from the admin authority wallet,
+- independent treasury keypair exists under ignored `target/devnet/independent-treasury.json`,
+- independent treasury keypair matches `VITE_INDEPENDENT_TREASURY_ADDRESS`,
 - configured program account exists and is executable,
 - configured devnet RYP test mint exists with expected decimals,
 - authority wallet has enough devnet SOL for initialization.
@@ -39,7 +43,8 @@ With `--execute`, it initializes:
 - Keypair contents are not printed.
 - Reward vault token account keypairs are generated under ignored `target/devnet/reward-vaults`.
 - The independent treasury vault uses `VITE_INDEPENDENT_TREASURY_ADDRESS`; the checked-in devnet example sets it to a treasury owner distinct from the admin authority.
+- The initializer blocks rather than falling back to the admin authority when the independent treasury address or owner keypair is missing.
 
 ## Current Blocker
 
-The script currently blocks because the devnet program and devnet test mint are not deployed yet.
+The script currently blocks because the devnet program and devnet test mint are not deployed yet, and it will keep blocking if the local independent treasury owner keypair no longer matches the configured treasury address.

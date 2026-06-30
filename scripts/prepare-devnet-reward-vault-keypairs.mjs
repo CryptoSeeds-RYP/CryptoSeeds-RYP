@@ -20,13 +20,16 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."
 const options = parseArgs(process.argv.slice(2));
 const envPath = path.resolve(repoRoot, options.envPath ?? ".env.devnet.example");
 const env = { ...parseEnvFile(envPath), ...process.env };
+const treasuryPath = path.resolve(repoRoot, options.treasuryPath ?? "target/devnet/independent-treasury.json");
 const vaultKeypairDir = path.resolve(repoRoot, options.vaultKeypairDir ?? "target/devnet/reward-vaults");
 
 const config = {
+  adminAuthorityAddress: env.VITE_ADMIN_AUTHORITY_ADDRESS,
   cluster: env.VITE_SOLANA_CLUSTER ?? "localnet",
   deployment: env.VITE_CRYPTOSEEDS_PROGRAM_DEPLOYMENT ?? "placeholder",
   programId: env.VITE_CRYPTOSEEDS_PROGRAM_ID ?? PLACEHOLDER_PROGRAM_ID,
   rypMintAddress: env.VITE_RYP_MINT_ADDRESS ?? MAINNET_RYP_MINT,
+  independentTreasuryAddress: env.VITE_INDEPENDENT_TREASURY_ADDRESS,
   treasuryAddress: env.VITE_INDEPENDENT_TREASURY_ADDRESS || env.VITE_ADMIN_AUTHORITY_ADDRESS,
 };
 const blockers = [];
@@ -53,7 +56,7 @@ if (blockers.length > 0) {
 function prepareRewardVaultKeypairs() {
   const programId = new PublicKey(config.programId);
   const rypMint = new PublicKey(config.rypMintAddress);
-  const treasuryOwner = new PublicKey(config.treasuryAddress);
+  const treasuryOwner = readKeypair(treasuryPath, "independent treasury keypair").publicKey;
   const rewardConfig = derivePda(programId, ["reward-config"]);
   const treasuryRewardVault = deriveAssociatedTokenAddress({ mint: rypMint, owner: treasuryOwner });
   const roles = [];
@@ -104,7 +107,22 @@ function validateConfig() {
   if (config.programId === PLACEHOLDER_PROGRAM_ID) blockers.push("Program id is still the development placeholder.");
   if (!isValidPublicKey(config.rypMintAddress)) blockers.push("VITE_RYP_MINT_ADDRESS is not a valid public key.");
   if (config.rypMintAddress === MAINNET_RYP_MINT) blockers.push("Devnet reward vault prep must use a devnet test RYP mint.");
+  if (!isValidPublicKey(config.adminAuthorityAddress)) blockers.push("VITE_ADMIN_AUTHORITY_ADDRESS is not a valid public key.");
+  if (!config.independentTreasuryAddress) blockers.push("VITE_INDEPENDENT_TREASURY_ADDRESS must be set for reward vault prep.");
   if (!isValidPublicKey(config.treasuryAddress)) blockers.push("Treasury address is not a valid public key.");
+  if (config.treasuryAddress === config.adminAuthorityAddress) {
+    blockers.push("Independent treasury address must be distinct from the admin authority wallet.");
+  }
+  if (!existsSync(treasuryPath)) {
+    blockers.push(`Independent treasury keypair file not found: ${path.relative(repoRoot, treasuryPath)}`);
+  } else if (config.independentTreasuryAddress) {
+    const treasuryKeypair = readKeypair(treasuryPath, "independent treasury keypair");
+    if (treasuryKeypair.publicKey.toBase58() !== config.independentTreasuryAddress) {
+      blockers.push(
+        `Independent treasury keypair address ${treasuryKeypair.publicKey.toBase58()} does not match VITE_INDEPENDENT_TREASURY_ADDRESS ${config.independentTreasuryAddress}.`,
+      );
+    }
+  }
 }
 
 function buildReport(status, plan) {
@@ -112,11 +130,14 @@ function buildReport(status, plan) {
     status,
     envSource: path.relative(repoRoot, envPath),
     config: {
+      adminAuthorityAddress: config.adminAuthorityAddress ?? null,
       cluster: config.cluster,
       deployment: config.deployment,
+      independentTreasuryAddress: config.independentTreasuryAddress ?? null,
       programId: config.programId,
       rypMintAddress: config.rypMintAddress,
       treasuryAddress: config.treasuryAddress ?? null,
+      treasuryKeypairPath: path.relative(repoRoot, treasuryPath),
     },
     blockers,
     warnings,
@@ -137,7 +158,7 @@ function buildReport(status, plan) {
 
 function readOrCreateKeypair(filePath) {
   if (existsSync(filePath)) {
-    return { created: false, keypair: readKeypair(filePath) };
+    return { created: false, keypair: readKeypair(filePath, "reward vault keypair") };
   }
 
   mkdirSync(path.dirname(filePath), { recursive: true });
@@ -146,17 +167,18 @@ function readOrCreateKeypair(filePath) {
   return { created: true, keypair };
 }
 
-function readKeypair(filePath) {
+function readKeypair(filePath, label = "keypair") {
   try {
     return Keypair.fromSecretKey(Uint8Array.from(JSON.parse(readFileSync(filePath, "utf8"))));
   } catch (error) {
-    throw new Error(`Could not read reward vault keypair ${path.relative(repoRoot, filePath)}: ${error instanceof Error ? error.message : "unknown error"}`);
+    throw new Error(`Could not read ${label} ${path.relative(repoRoot, filePath)}: ${error instanceof Error ? error.message : "unknown error"}`);
   }
 }
 
 function parseArgs(args) {
   const parsed = {
     envPath: undefined,
+    treasuryPath: undefined,
     vaultKeypairDir: undefined,
   };
 
@@ -169,6 +191,15 @@ function parseArgs(args) {
     }
     if (arg?.startsWith("--env=")) {
       parsed.envPath = arg.slice("--env=".length);
+      continue;
+    }
+    if (arg === "--treasury") {
+      parsed.treasuryPath = requireValue(args, index, "--treasury");
+      index += 1;
+      continue;
+    }
+    if (arg?.startsWith("--treasury=")) {
+      parsed.treasuryPath = arg.slice("--treasury=".length);
       continue;
     }
     if (arg === "--vault-keypair-dir") {

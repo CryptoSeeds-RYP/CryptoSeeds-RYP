@@ -60,10 +60,12 @@ const config = {
   rpcUrl: env.VITE_SOLANA_RPC_URL ?? "https://api.devnet.solana.com",
   rypDecimals: Number(env.VITE_RYP_DECIMALS ?? 6),
   rypMintAddress: env.VITE_RYP_MINT_ADDRESS,
+  independentTreasuryAddress: env.VITE_INDEPENDENT_TREASURY_ADDRESS,
   treasuryAddress: env.VITE_INDEPENDENT_TREASURY_ADDRESS || env.VITE_ADMIN_AUTHORITY_ADDRESS,
 };
 
 const authorityPath = path.resolve(repoRoot, options.authorityPath ?? "target/devnet/devnet-authority.json");
+const treasuryPath = path.resolve(repoRoot, options.treasuryPath ?? "target/devnet/independent-treasury.json");
 const vaultKeypairDir = path.resolve(repoRoot, options.vaultKeypairDir ?? "target/devnet/reward-vaults");
 const connection = new Connection(config.rpcUrl, "confirmed");
 const blockers = [];
@@ -75,14 +77,21 @@ validateStaticConfig();
 let authority = null;
 let programId = null;
 let rypMint = null;
+let treasuryKeypair = null;
 let treasuryOwner = null;
 
 if (blockers.length === 0) {
   authority = readKeypair(authorityPath);
+  treasuryKeypair = readKeypair(treasuryPath);
   assertExpectedPublicKey("VITE_ADMIN_AUTHORITY_ADDRESS", authority.publicKey, config.adminAuthorityAddress);
+  assertExpectedPublicKey(
+    "VITE_INDEPENDENT_TREASURY_ADDRESS",
+    treasuryKeypair.publicKey,
+    config.independentTreasuryAddress,
+  );
   programId = new PublicKey(config.programId);
   rypMint = new PublicKey(config.rypMintAddress);
-  treasuryOwner = new PublicKey(config.treasuryAddress);
+  treasuryOwner = treasuryKeypair.publicKey;
   await validateDevnetAccounts();
 }
 
@@ -112,6 +121,7 @@ function parseArgs(args) {
     envPath: undefined,
     execute: false,
     strict: false,
+    treasuryPath: undefined,
     vaultKeypairDir: undefined,
   };
 
@@ -141,6 +151,15 @@ function parseArgs(args) {
     }
     if (arg?.startsWith("--authority=")) {
       parsed.authorityPath = arg.slice("--authority=".length);
+      continue;
+    }
+    if (arg === "--treasury") {
+      parsed.treasuryPath = requireValue(args, index, "--treasury");
+      index += 1;
+      continue;
+    }
+    if (arg?.startsWith("--treasury=")) {
+      parsed.treasuryPath = arg.slice("--treasury=".length);
       continue;
     }
     if (arg === "--vault-keypair-dir") {
@@ -205,14 +224,30 @@ function validateStaticConfig() {
   if (!isValidPublicKey(config.programId)) blockers.push("VITE_CRYPTOSEEDS_PROGRAM_ID is not a valid public key.");
   if (!isValidPublicKey(config.rypMintAddress)) blockers.push("VITE_RYP_MINT_ADDRESS is not a valid public key.");
   if (!isValidPublicKey(config.adminAuthorityAddress)) blockers.push("VITE_ADMIN_AUTHORITY_ADDRESS is not a valid public key.");
+  if (!config.independentTreasuryAddress) {
+    blockers.push("VITE_INDEPENDENT_TREASURY_ADDRESS must be set for protocol initialization.");
+  }
   if (!isValidPublicKey(config.treasuryAddress)) blockers.push("Treasury address is not a valid public key.");
   if (!Number.isInteger(config.rypDecimals) || config.rypDecimals < 0 || config.rypDecimals > 18) {
     blockers.push("VITE_RYP_DECIMALS must be an integer between 0 and 18.");
   }
   if (config.treasuryAddress === config.adminAuthorityAddress) {
-    warnings.push("VITE_INDEPENDENT_TREASURY_ADDRESS is not set; devnet treasury vault will use the admin authority wallet.");
+    blockers.push("Independent treasury address must be distinct from the admin authority wallet.");
   }
   if (!existsSync(authorityPath)) blockers.push(`Authority keypair file not found: ${path.relative(repoRoot, authorityPath)}`);
+  if (!existsSync(treasuryPath)) {
+    blockers.push(`Independent treasury keypair file not found: ${path.relative(repoRoot, treasuryPath)}`);
+  } else if (config.independentTreasuryAddress) {
+    const treasuryKeypairStatus = readLocalKeypairForValidation(treasuryPath, "independent treasury keypair");
+    if (
+      treasuryKeypairStatus &&
+      treasuryKeypairStatus.publicKey.toBase58() !== config.independentTreasuryAddress
+    ) {
+      blockers.push(
+        `Independent treasury keypair address ${treasuryKeypairStatus.publicKey.toBase58()} does not match VITE_INDEPENDENT_TREASURY_ADDRESS ${config.independentTreasuryAddress}.`,
+      );
+    }
+  }
 }
 
 async function validateDevnetAccounts() {
@@ -628,6 +663,17 @@ function readKeypair(filePath) {
   return Keypair.fromSecretKey(Uint8Array.from(JSON.parse(readFileSync(filePath, "utf8"))));
 }
 
+function readLocalKeypairForValidation(filePath, label) {
+  try {
+    return readKeypair(filePath);
+  } catch (error) {
+    blockers.push(
+      `Could not read ${label} ${path.relative(repoRoot, filePath)}: ${error instanceof Error ? error.message : "unknown error"}`,
+    );
+    return null;
+  }
+}
+
 function readOrCreateKeypair(filePath) {
   if (existsSync(filePath)) {
     return { created: false, keypair: readKeypair(filePath) };
@@ -672,7 +718,9 @@ function buildReport(status, plan) {
       rpcUrl: config.rpcUrl,
       rypMintAddress: config.rypMintAddress,
       rypDecimals: config.rypDecimals,
+      independentTreasuryAddress: config.independentTreasuryAddress ?? null,
       treasuryAddress: config.treasuryAddress,
+      treasuryKeypairPath: path.relative(repoRoot, treasuryPath),
     },
     blockers,
     warnings,
@@ -683,12 +731,12 @@ function buildReport(status, plan) {
           "Fund the devnet authority wallet.",
           "Create the configured devnet test mint.",
           "Deploy the configured program to devnet.",
-          "Re-run npm run devnet:init:protocol -- --env .env.devnet.example.",
+          `Re-run npm run devnet:init:protocol -- --env ${path.relative(repoRoot, envPath)}.`,
         ]
       : status === "PLAN_ONLY"
         ? [
             "Review the derived config, reward vault, and treasury addresses.",
-            "Run npm run devnet:init:protocol -- --env .env.devnet.example --execute after review.",
+            `Run npm run devnet:init:protocol -- --env ${path.relative(repoRoot, envPath)} --execute after review.`,
             "Run read-only reward account inspection after initialization.",
           ]
         : [

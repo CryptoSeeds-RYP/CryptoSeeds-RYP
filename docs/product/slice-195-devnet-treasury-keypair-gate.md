@@ -5,6 +5,7 @@
 - Added a default `target/devnet/independent-treasury.json` keypair check to `devnet:status`.
 - Added `--treasury` as an override for the devnet treasury owner keypair path.
 - Made missing `VITE_INDEPENDENT_TREASURY_ADDRESS` or admin/treasury address reuse a devnet status blocker.
+- Extended the same explicit treasury owner requirement into vault prep and protocol initialization.
 - Updated docs and operator tests for the stronger treasury ownership gate.
 
 ## Reason
@@ -13,4 +14,4 @@ The protocol can derive the treasury ATA from a public owner address, but deploy
 
 ## Safety Boundary
 
-The status command reads only local ignored keypair files and prints public addresses. It does not print secret material, fund wallets, create accounts, deploy programs, initialize protocol state, sign transactions, or enable wallet broadcast.
+The status and vault-prep commands read only local ignored keypair files and print public addresses. The initializer also reads the treasury owner keypair before planning or executing protocol setup. None of these paths print secret material or enable frontend wallet broadcast.
