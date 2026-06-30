@@ -407,7 +407,7 @@ export function buildAdminMissionControl({
         : authorityFundedForDeploy
           ? "Authority has deployment headroom for the devnet sequence."
           : "Authority has mint funding; top-up is still recommended before deployment.",
-      command: "npm run devnet:next -- --env .env.devnet.example",
+      command: "npm run devnet:funding:packet -- --env .env.devnet.example",
       blockers: fundingBlocked ? ["Fund the devnet authority if mission:status reports fund_devnet_authority."] : [],
     }),
     missionPhase({
@@ -437,13 +437,15 @@ export function buildAdminMissionControl({
     missionPhase({
       id: "devnet-protocol",
       label: "Devnet Protocol",
-      status: protocolDecoded ? "READY_FOR_REVIEW" : "WAITING_ON_DEVNET",
+      status: protocolDecoded ? "READY_FOR_REVIEW" : protocolWaiting ? "REVIEW_REQUIRED" : "WAITING_ON_DEVNET",
       summary: protocolDecoded
         ? "Protocol config decodes from the selected deployment and can be reviewed."
         : protocolWaiting
           ? "Program is deployed; initialize and inspect protocol accounts."
           : "Protocol initialization waits on funding, mint, and program deployment.",
-      command: "npm run devnet:inspect:protocol -- --env .env.devnet.example",
+      command: protocolWaiting
+        ? "npm run devnet:init:protocol -- --env .env.devnet.example"
+        : "npm run devnet:inspect:protocol -- --env .env.devnet.example",
       blockers: protocol.blockers,
     }),
     missionPhase({

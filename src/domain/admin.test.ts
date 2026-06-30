@@ -367,6 +367,9 @@ describe("admin access", () => {
     expect(mission.phases.find((phase) => phase.id === "devnet-mint")?.status).toBe("WAITING_ON_DEVNET");
     expect(mission.phases.find((phase) => phase.id === "devnet-program")?.status).toBe("WAITING_ON_DEVNET");
     expect(mission.phases.find((phase) => phase.id === "devnet-protocol")?.status).toBe("WAITING_ON_DEVNET");
+    expect(mission.phases.find((phase) => phase.id === "devnet-funding")?.command).toBe(
+      "npm run devnet:funding:packet -- --env .env.devnet.example",
+    );
     expect(mission.nextActions[0]).toBe("npm run devnet:funding:packet -- --env .env.devnet.example");
     expect(mission.nextActions).toContain("npm run mission:status -- --env .env.devnet.example");
   });
@@ -459,7 +462,7 @@ describe("admin access", () => {
     expect(mission.nextActions[0]).toBe("npm run devnet:mint:test -- --env .env.devnet.example");
   });
 
-  it("advances mission next action to protocol inspection after program deployment", () => {
+  it("advances mission next action to protocol initialization after program deployment", () => {
     const access = buildAdminAccess({
       config: {
         adminAuthorityAddress: validAdminAddress,
@@ -553,7 +556,11 @@ describe("admin access", () => {
     expect(mission.phases.find((phase) => phase.id === "devnet-funding")?.status).toBe("LOCAL_READY");
     expect(mission.phases.find((phase) => phase.id === "devnet-mint")?.status).toBe("READY_FOR_REVIEW");
     expect(mission.phases.find((phase) => phase.id === "devnet-program")?.status).toBe("READY_FOR_REVIEW");
+    expect(mission.phases.find((phase) => phase.id === "devnet-protocol")?.status).toBe("REVIEW_REQUIRED");
     expect(mission.phases.find((phase) => phase.id === "devnet-protocol")?.summary).toContain("initialize");
+    expect(mission.phases.find((phase) => phase.id === "devnet-protocol")?.command).toBe(
+      "npm run devnet:init:protocol -- --env .env.devnet.example",
+    );
     expect(mission.nextActions[0]).toBe("npm run devnet:init:protocol -- --env .env.devnet.example");
   });
 
