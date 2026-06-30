@@ -28,6 +28,7 @@
     "protocol:build": "anchor build --ignore-keys",
     "protocol:build:wsl": "powershell -ExecutionPolicy Bypass -File scripts/build-anchor-wsl.ps1",
     "protocol:check:win": "powershell -ExecutionPolicy Bypass -File scripts/check-anchor-windows.ps1",
+    "protocol:lint": "cargo clippy --manifest-path programs/cryptoseeds_protocol/Cargo.toml --all-targets --all-features -- -D warnings",
     "protocol:idl:check": "node scripts/check-protocol-idl-drift.mjs",
     "protocol:admin:fixture:wsl": "powershell -ExecutionPolicy Bypass -File scripts/write-localnet-admin-fixture-wsl.ps1",
     "protocol:admin:fixture:check": "node scripts/check-localnet-admin-fixture.mjs",

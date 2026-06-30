@@ -1,3 +1,5 @@
+#![allow(clippy::diverging_sub_expression, clippy::too_many_arguments)]
+
 use anchor_lang::prelude::*;
 use anchor_spl::{
     associated_token::AssociatedToken,
@@ -4849,7 +4851,7 @@ fn calculate_indexed_merkle_root(
     proof: &[[u8; 32]],
 ) -> Result<[u8; 32]> {
     for sibling in proof {
-        node = if leaf_index % 2 == 0 {
+        node = if leaf_index.is_multiple_of(2) {
             keccak_hashv(&[b"cryptoseeds-merkle-node-v1", &node, sibling])
         } else {
             keccak_hashv(&[b"cryptoseeds-merkle-node-v1", sibling, &node])
@@ -5610,7 +5612,10 @@ mod tests {
     #[test]
     fn floors_tiny_transfer_fee_quotes_without_overflowing() {
         assert_eq!(calculate_ryp_token_transfer_fee_amount(99).unwrap(), 0);
-        assert_eq!(calculate_ryp_platform_transfer_amounts(99).unwrap(), (0, 99));
+        assert_eq!(
+            calculate_ryp_platform_transfer_amounts(99).unwrap(),
+            (0, 99)
+        );
         assert_eq!(
             calculate_ryp_token_transfer_fee_amount(u64::MAX).unwrap(),
             184_467_440_737_095_516
@@ -6161,8 +6166,9 @@ mod tests {
         let mut config = protocol_config(authority);
 
         assert!(validate_module_pause_flags(PAUSE_MODULE_STAKING).is_ok());
-        assert!(validate_module_pause_flags(PAUSE_MODULE_STAKING | PAUSE_MODULE_FEE_ROUTING)
-            .is_ok());
+        assert!(
+            validate_module_pause_flags(PAUSE_MODULE_STAKING | PAUSE_MODULE_FEE_ROUTING).is_ok()
+        );
         assert!(validate_module_pause_flags(0).is_err());
         assert!(validate_module_pause_flags(PAUSE_MODULE_MASK | 32).is_err());
 

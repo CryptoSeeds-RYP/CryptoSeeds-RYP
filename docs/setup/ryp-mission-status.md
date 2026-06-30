@@ -42,6 +42,14 @@ npm run verify:ci
 
 That CI command intentionally excludes generated Anchor IDL drift and disposable-validator smoke checks; those remain in `verify:local` before deployment work.
 
+The protocol CI job separately runs:
+
+```bash
+npm run protocol:lint
+```
+
+This keeps Anchor/Rust warnings from entering the smart-contract lane.
+
 Use strict mode when a blocked mission should fail automation:
 
 ```bash

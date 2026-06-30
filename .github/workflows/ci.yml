@@ -40,10 +40,13 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Rust
-        run: rustup toolchain install stable --profile minimal --component rustfmt
+        run: rustup toolchain install stable --profile minimal --component rustfmt --component clippy
 
       - name: Check protocol formatting
         run: cargo fmt --manifest-path programs/cryptoseeds_protocol/Cargo.toml -- --check
+
+      - name: Lint protocol
+        run: cargo clippy --manifest-path programs/cryptoseeds_protocol/Cargo.toml --all-targets --all-features -- -D warnings
 
       - name: Run protocol unit tests
         run: cargo test --manifest-path programs/cryptoseeds_protocol/Cargo.toml

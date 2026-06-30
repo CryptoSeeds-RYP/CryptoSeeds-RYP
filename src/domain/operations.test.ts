@@ -36,6 +36,7 @@ describe("operations model", () => {
       "public-readonly-testnet-gate",
       "devnet-broadcast-gate",
       "protocol-drift-gate",
+      "protocol-lint-gate",
       "protocol-localnet-smoke-gate",
       "reward-epoch-admin-plan",
     ]);
@@ -49,6 +50,15 @@ describe("operations model", () => {
     expect(smoke?.approvalRequired).toBe(false);
     expect(smoke?.script).toBe("npm.cmd run protocol:smoke:localnet:wsl");
     expect(smoke?.aiAgentBoundary).toContain("must not treat a localnet pass as devnet deployment approval");
+  });
+
+  it("keeps protocol lint monitor-only and review-bound", () => {
+    const lint = maintenanceRunbook.find((item) => item.id === "protocol-lint-gate");
+
+    expect(lint?.automationMode).toBe("MONITOR_ONLY");
+    expect(lint?.approvalRequired).toBe(false);
+    expect(lint?.script).toBe("npm.cmd run protocol:lint");
+    expect(lint?.aiAgentBoundary).toContain("must not change protocol behavior");
   });
 
   it("provides a one-command full local verification gate", () => {

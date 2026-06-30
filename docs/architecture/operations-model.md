@@ -27,6 +27,7 @@ CryptoSeeds should be advanced internally and simple operationally. The target i
 | Read-only public testnet gate | Before launch | `npm.cmd run testnet:readiness -- --profile read-only --env .env.devnet.example` | Draft only | Yes |
 | Broadcast readiness gate | Before launch | `npm.cmd run testnet:readiness -- --profile wallet-execution --env .env.devnet.example` | Approval required | Yes |
 | Protocol drift gate | Every commit | `npm.cmd run protocol:idl:check` | Monitor only | No |
+| Protocol lint gate | Every commit | `npm.cmd run protocol:lint` | Monitor only | No |
 | Protocol localnet smoke gate | Every commit | `npm.cmd run protocol:smoke:localnet:wsl` | Monitor only | No |
 | Reward epoch draft check | Weekly | `npm.cmd run rewards:epoch:draft` | Draft only | Yes |
 | Reward epoch admin plan | Weekly | `npm.cmd run rewards:epoch:admin-plan -- <epoch-input.json> <epoch-id> --authority <admin-authority-pubkey>` | Draft only | Yes |

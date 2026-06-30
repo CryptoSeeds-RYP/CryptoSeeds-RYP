@@ -150,6 +150,16 @@ export const maintenanceRunbook: MaintenanceRunbookItem[] = [
     aiAgentBoundary: "Agent may identify drift and propose patches; protocol id or IDL changes need review.",
   },
   {
+    id: "protocol-lint-gate",
+    label: "Protocol Lint Gate",
+    cadence: "EVERY_COMMIT",
+    script: "npm.cmd run protocol:lint",
+    automationMode: "MONITOR_ONLY",
+    approvalRequired: false,
+    operatorAction: "Run clippy with warnings denied for the Anchor program before protocol-facing changes are merged.",
+    aiAgentBoundary: "Agent may run lint and fix mechanical warnings; it must not change protocol behavior to silence lint without review.",
+  },
+  {
     id: "protocol-localnet-smoke-gate",
     label: "Protocol Localnet Smoke Gate",
     cadence: "EVERY_COMMIT",

@@ -22,3 +22,5 @@
 ## Boundary
 
 `verify:ci` is portable and does not require WSL, Solana validator, Anchor CLI, devnet funds, or generated local IDL artifacts. It does not replace `verify:local` before deployment because `verify:local` also runs the generated Anchor IDL drift check and WSL localnet smoke gate.
+
+The separate protocol CI job still runs Rust formatting, `protocol:lint`, and protocol unit tests.

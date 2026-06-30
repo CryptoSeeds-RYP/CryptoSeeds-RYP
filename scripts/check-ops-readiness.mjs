@@ -28,6 +28,7 @@ const requiredScripts = [
   "devnet:status",
   "devnet:vaults:prep",
   "testnet:readiness",
+  "protocol:lint",
   "protocol:idl:check",
   "protocol:admin:fixture:check",
   "protocol:smoke:localnet:wsl",
