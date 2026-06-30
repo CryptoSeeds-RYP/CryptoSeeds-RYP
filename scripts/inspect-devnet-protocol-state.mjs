@@ -175,6 +175,7 @@ export function buildDevnetProtocolInspectionReport({
       cluster: config.cluster,
       deployment: config.deployment,
       demoMode: config.demoMode,
+      independentTreasuryAddress: config.independentTreasuryAddress ?? null,
       programId: config.programId ?? null,
       rpcUrl: config.rpcUrl,
       rypMintAddress: config.rypMintAddress ?? null,
@@ -192,11 +193,11 @@ export function buildDevnetProtocolInspectionReport({
           "Fund the devnet authority if needed.",
           "Create the configured devnet RYP test mint.",
           "Deploy the configured program to devnet.",
-          "Run npm run devnet:init:protocol -- --env .env.devnet.example --execute after plan review.",
-          "Re-run npm run devnet:inspect:protocol -- --env .env.devnet.example.",
+          `Run npm run devnet:init:protocol -- --env ${envSource} --execute after plan review.`,
+          `Re-run npm run devnet:inspect:protocol -- --env ${envSource}.`,
         ]
       : [
-          "Run npm run testnet:readiness -- --profile read-only --env .env.devnet.example.",
+          `Run npm run testnet:readiness -- --profile read-only --env ${envSource}.`,
           "Keep wallet execution blocked until the wallet-execution profile passes review.",
         ],
   };
@@ -456,7 +457,13 @@ function validateStaticConfig(config, blockers, warnings) {
   if (!isValidPublicKey(config.programId)) blockers.push("VITE_CRYPTOSEEDS_PROGRAM_ID is not a valid public key.");
   if (!isValidPublicKey(config.rypMintAddress)) blockers.push("VITE_RYP_MINT_ADDRESS is not a valid public key.");
   if (!isValidPublicKey(config.adminAuthorityAddress)) blockers.push("VITE_ADMIN_AUTHORITY_ADDRESS is not a valid public key.");
+  if (!config.independentTreasuryAddress) {
+    blockers.push("VITE_INDEPENDENT_TREASURY_ADDRESS must be set for protocol inspection.");
+  }
   if (!isValidPublicKey(config.treasuryAddress)) blockers.push("Treasury address is not a valid public key.");
+  if (config.treasuryAddress === config.adminAuthorityAddress) {
+    blockers.push("Independent treasury address must be distinct from the admin authority wallet.");
+  }
 }
 
 function readDevnetConfig(env) {
@@ -469,7 +476,8 @@ function readDevnetConfig(env) {
     programId: env.VITE_CRYPTOSEEDS_PROGRAM_ID,
     rpcUrl: env.VITE_SOLANA_RPC_URL ?? "https://api.devnet.solana.com",
     rypMintAddress: env.VITE_RYP_MINT_ADDRESS,
-    treasuryAddress: env.VITE_INDEPENDENT_TREASURY_ADDRESS || env.VITE_ADMIN_AUTHORITY_ADDRESS,
+    independentTreasuryAddress: env.VITE_INDEPENDENT_TREASURY_ADDRESS,
+    treasuryAddress: env.VITE_INDEPENDENT_TREASURY_ADDRESS,
   };
 }
 

@@ -19,6 +19,7 @@ describe("devnet operator next actions", () => {
     const statusScript = await readScript("scripts/check-devnet-status.mjs");
     const programScript = await readScript("scripts/check-devnet-program.mjs");
     const initScript = await readScript("scripts/initialize-devnet-protocol.mjs");
+    const inspectionScript = await readScript("scripts/inspect-devnet-protocol-state.mjs");
     const vaultPrepScript = await readScript("scripts/prepare-devnet-reward-vault-keypairs.mjs");
 
     expect(statusScript).toContain("envSource = path.relative(repoRoot, envPath)");
@@ -48,6 +49,11 @@ describe("devnet operator next actions", () => {
     expect(initScript).not.toContain(
       "warnings.push(\"VITE_INDEPENDENT_TREASURY_ADDRESS is not set; devnet treasury vault will use the admin authority wallet.\")",
     );
+
+    expect(inspectionScript).toContain("VITE_INDEPENDENT_TREASURY_ADDRESS must be set for protocol inspection.");
+    expect(inspectionScript).toContain("Independent treasury address must be distinct from the admin authority wallet.");
+    expect(inspectionScript).toContain("treasuryAddress: env.VITE_INDEPENDENT_TREASURY_ADDRESS");
+    expect(inspectionScript).not.toContain("treasuryAddress: env.VITE_INDEPENDENT_TREASURY_ADDRESS || env.VITE_ADMIN_AUTHORITY_ADDRESS");
 
     expect(vaultPrepScript).toContain("target/devnet/independent-treasury.json");
     expect(vaultPrepScript).toContain("--treasury");

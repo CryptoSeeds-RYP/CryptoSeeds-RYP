@@ -9,6 +9,7 @@ This slice adds a standalone read-only devnet protocol-state inspection command.
 - Added `scripts/inspect-devnet-protocol-state.mjs`.
 - Added `npm run devnet:inspect:protocol`.
 - The inspector derives the same protocol config, reward config, RYP vault, treasury vault, and reward-vault state targets used by devnet initialization.
+- The inspector requires `VITE_INDEPENDENT_TREASURY_ADDRESS` and blocks if it reuses the admin authority wallet.
 - The inspector reads devnet RPC state without signing or broadcasting.
 - It decodes and validates:
   - deployed program account,

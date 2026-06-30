@@ -29,6 +29,7 @@ type DevnetInspectionConfig = {
   cluster: string;
   demoMode: boolean;
   deployment: string;
+  independentTreasuryAddress: string;
   programId: string;
   rpcUrl: string;
   rypMintAddress: string;
@@ -136,11 +137,30 @@ describe("devnet protocol inspection CLI", () => {
     expect(report.blockers).toContain("ProtocolConfig account is missing.");
     expect(report.blockers).toContain("RewardConfig account is missing.");
   });
+
+  it("blocks admin authority reuse as the independent treasury owner", () => {
+    const fixture = readyFixture();
+    const report = buildDevnetProtocolInspectionReport({
+      accounts: fixture.accounts,
+      config: {
+        ...fixture.config,
+        independentTreasuryAddress: fixture.config.adminAuthorityAddress,
+        treasuryAddress: fixture.config.adminAuthorityAddress,
+      },
+      envSource: ".env.devnet.example",
+      generatedAt: "2026-06-30T00:00:00.000Z",
+      targets: fixture.targets,
+    });
+
+    expect(report.status).toBe("BLOCKED");
+    expect(report.blockers).toContain("Independent treasury address must be distinct from the admin authority wallet.");
+  });
 });
 
 function readyFixture() {
   const programId = Keypair.generate().publicKey.toBase58();
   const adminAuthorityAddress = Keypair.generate().publicKey.toBase58();
+  const independentTreasuryAddress = Keypair.generate().publicKey.toBase58();
   const rypMintAddress = Keypair.generate().publicKey.toBase58();
   const config: DevnetInspectionConfig = {
     adminAuthorityAddress,
@@ -148,10 +168,11 @@ function readyFixture() {
     cluster: "devnet",
     demoMode: false,
     deployment: "devnet",
+    independentTreasuryAddress,
     programId,
     rpcUrl: "https://api.devnet.solana.com",
     rypMintAddress,
-    treasuryAddress: adminAuthorityAddress,
+    treasuryAddress: independentTreasuryAddress,
   };
   const rewardVaultKeypairs = {
     delivery: { address: Keypair.generate().publicKey.toBase58() },
