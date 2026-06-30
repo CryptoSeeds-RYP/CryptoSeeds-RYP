@@ -25,6 +25,7 @@ describe("devnet operator next actions", () => {
     expect(statusScript).toContain("envSource = path.relative(repoRoot, envPath)");
     expect(statusScript).toContain("target/devnet/independent-treasury.json");
     expect(statusScript).toContain("--treasury");
+    expect(statusScript).toContain("treasuryAddress: env.VITE_INDEPENDENT_TREASURY_ADDRESS");
     expect(statusScript).toContain("VITE_INDEPENDENT_TREASURY_ADDRESS must be set for devnet work.");
     expect(statusScript).toContain("Independent treasury address must be distinct from the admin authority wallet.");
     expect(statusScript).toContain("npm run devnet:vaults:prep -- --env ${envSource}");
@@ -32,6 +33,7 @@ describe("devnet operator next actions", () => {
     expect(statusScript).toContain("npm run devnet:bootstrap -- --env ${envSource} --deploy --init-plan");
     expect(statusScript).toContain("recommendDevnetNextAction({ envPath: envSource, status: baseReport })");
     expect(statusScript).toContain("operatorHandoff: buildDevnetOperatorHandoff({ envPath: envSource, recommendation })");
+    expect(statusScript).not.toContain("treasuryAddress: env.VITE_INDEPENDENT_TREASURY_ADDRESS || env.VITE_ADMIN_AUTHORITY_ADDRESS");
     expect(statusScript).not.toContain("Run npm run devnet:prep -- --env ${envSource}.");
     expect(statusScript).not.toContain("Run npm run devnet:deploy:wsl -- -EnvPath .env.devnet.example.");
 
@@ -42,10 +44,13 @@ describe("devnet operator next actions", () => {
 
     expect(initScript).toContain("target/devnet/independent-treasury.json");
     expect(initScript).toContain("--treasury");
+    expect(initScript).toContain("treasuryAddress: env.VITE_INDEPENDENT_TREASURY_ADDRESS");
     expect(initScript).toContain("VITE_INDEPENDENT_TREASURY_ADDRESS must be set for protocol initialization.");
     expect(initScript).toContain("Independent treasury address must be distinct from the admin authority wallet.");
     expect(initScript).toContain("Independent treasury keypair address");
     expect(initScript).toContain("assertExpectedPublicKey(");
+    expect(initScript).toContain("npm run devnet:program:check -- --env ${envSource}");
+    expect(initScript).not.toContain("treasuryAddress: env.VITE_INDEPENDENT_TREASURY_ADDRESS || env.VITE_ADMIN_AUTHORITY_ADDRESS");
     expect(initScript).not.toContain(
       "warnings.push(\"VITE_INDEPENDENT_TREASURY_ADDRESS is not set; devnet treasury vault will use the admin authority wallet.\")",
     );
@@ -57,9 +62,13 @@ describe("devnet operator next actions", () => {
 
     expect(vaultPrepScript).toContain("target/devnet/independent-treasury.json");
     expect(vaultPrepScript).toContain("--treasury");
+    expect(vaultPrepScript).toContain("treasuryAddress: env.VITE_INDEPENDENT_TREASURY_ADDRESS");
     expect(vaultPrepScript).toContain("VITE_INDEPENDENT_TREASURY_ADDRESS must be set for reward vault prep.");
     expect(vaultPrepScript).toContain("Independent treasury address must be distinct from the admin authority wallet.");
     expect(vaultPrepScript).toContain("Independent treasury keypair address");
+    expect(vaultPrepScript).toContain("npm run devnet:status -- --env ${envSource}");
+    expect(vaultPrepScript).toContain("npm run devnet:vaults:prep -- --env ${envSource}");
+    expect(vaultPrepScript).not.toContain("treasuryAddress: env.VITE_INDEPENDENT_TREASURY_ADDRESS || env.VITE_ADMIN_AUTHORITY_ADDRESS");
   });
 
   it("keeps devnet deployment docs on the staged wrapper route", async () => {

@@ -19,6 +19,7 @@ const REWARD_ROLES = [
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const options = parseArgs(process.argv.slice(2));
 const envPath = path.resolve(repoRoot, options.envPath ?? ".env.devnet.example");
+const envSource = path.relative(repoRoot, envPath);
 const env = { ...parseEnvFile(envPath), ...process.env };
 const treasuryPath = path.resolve(repoRoot, options.treasuryPath ?? "target/devnet/independent-treasury.json");
 const vaultKeypairDir = path.resolve(repoRoot, options.vaultKeypairDir ?? "target/devnet/reward-vaults");
@@ -30,7 +31,7 @@ const config = {
   programId: env.VITE_CRYPTOSEEDS_PROGRAM_ID ?? PLACEHOLDER_PROGRAM_ID,
   rypMintAddress: env.VITE_RYP_MINT_ADDRESS ?? MAINNET_RYP_MINT,
   independentTreasuryAddress: env.VITE_INDEPENDENT_TREASURY_ADDRESS,
-  treasuryAddress: env.VITE_INDEPENDENT_TREASURY_ADDRESS || env.VITE_ADMIN_AUTHORITY_ADDRESS,
+  treasuryAddress: env.VITE_INDEPENDENT_TREASURY_ADDRESS,
 };
 const blockers = [];
 const warnings = [
@@ -128,7 +129,7 @@ function validateConfig() {
 function buildReport(status, plan) {
   return {
     status,
-    envSource: path.relative(repoRoot, envPath),
+    envSource,
     config: {
       adminAuthorityAddress: config.adminAuthorityAddress ?? null,
       cluster: config.cluster,
@@ -145,13 +146,13 @@ function buildReport(status, plan) {
     nextActions:
       status === "READY"
         ? [
-            "Run npm run devnet:status -- --env .env.devnet.example to confirm reward vault keypair readiness.",
+            `Run npm run devnet:status -- --env ${envSource} to confirm reward vault keypair readiness.`,
             "Review reward vault public addresses and metadata hashes before protocol initialization.",
-            "Fund devnet authority, create mint, deploy program, then run npm run devnet:init:protocol -- --env .env.devnet.example.",
+            `Fund devnet authority, create mint, deploy program, then run npm run devnet:init:protocol -- --env ${envSource}.`,
           ]
         : [
             "Fix devnet environment values.",
-            "Re-run npm run devnet:vaults:prep -- --env .env.devnet.example.",
+            `Re-run npm run devnet:vaults:prep -- --env ${envSource}.`,
           ],
   };
 }

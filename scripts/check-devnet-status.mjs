@@ -47,7 +47,7 @@ const config = {
   rypDecimals: Number(env.VITE_RYP_DECIMALS ?? 6),
   rypMintAddress: env.VITE_RYP_MINT_ADDRESS ?? MAINNET_RYP_MINT,
   independentTreasuryAddress: env.VITE_INDEPENDENT_TREASURY_ADDRESS,
-  treasuryAddress: env.VITE_INDEPENDENT_TREASURY_ADDRESS || env.VITE_ADMIN_AUTHORITY_ADDRESS,
+  treasuryAddress: env.VITE_INDEPENDENT_TREASURY_ADDRESS,
 };
 
 const blockers = [];

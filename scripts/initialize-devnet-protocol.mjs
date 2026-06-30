@@ -47,6 +47,7 @@ const REWARD_ROLES = [
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const options = parseArgs(process.argv.slice(2));
 const envPath = path.resolve(repoRoot, options.envPath ?? ".env.devnet.example");
+const envSource = path.relative(repoRoot, envPath);
 const env = { ...parseEnvFile(envPath), ...process.env };
 const instructionSpecs = JSON.parse(readFileSync(path.join(repoRoot, "src", "solana", "protocolInstructionSpecs.json"), "utf8"));
 
@@ -61,7 +62,7 @@ const config = {
   rypDecimals: Number(env.VITE_RYP_DECIMALS ?? 6),
   rypMintAddress: env.VITE_RYP_MINT_ADDRESS,
   independentTreasuryAddress: env.VITE_INDEPENDENT_TREASURY_ADDRESS,
-  treasuryAddress: env.VITE_INDEPENDENT_TREASURY_ADDRESS || env.VITE_ADMIN_AUTHORITY_ADDRESS,
+  treasuryAddress: env.VITE_INDEPENDENT_TREASURY_ADDRESS,
 };
 
 const authorityPath = path.resolve(repoRoot, options.authorityPath ?? "target/devnet/devnet-authority.json");
@@ -704,7 +705,7 @@ function accountMeta(pubkey, isSigner, isWritable) {
 function buildReport(status, plan) {
   return {
     status,
-    envSource: path.relative(repoRoot, envPath),
+    envSource,
     execute: options.execute,
     config: {
       adminAuthorityAddress: config.adminAuthorityAddress,
@@ -731,16 +732,16 @@ function buildReport(status, plan) {
           "Fund the devnet authority wallet.",
           "Create the configured devnet test mint.",
           "Deploy the configured program to devnet.",
-          `Re-run npm run devnet:init:protocol -- --env ${path.relative(repoRoot, envPath)}.`,
+          `Re-run npm run devnet:init:protocol -- --env ${envSource}.`,
         ]
       : status === "PLAN_ONLY"
         ? [
             "Review the derived config, reward vault, and treasury addresses.",
-            `Run npm run devnet:init:protocol -- --env ${path.relative(repoRoot, envPath)} --execute after review.`,
+            `Run npm run devnet:init:protocol -- --env ${envSource} --execute after review.`,
             "Run read-only reward account inspection after initialization.",
           ]
         : [
-            "Run npm run devnet:program:check -- --env .env.devnet.example.",
+            `Run npm run devnet:program:check -- --env ${envSource}.`,
             "Run read-only reward account inspection and devnet readiness checks.",
           ],
   };

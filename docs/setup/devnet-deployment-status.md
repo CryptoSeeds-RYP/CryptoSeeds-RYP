@@ -47,6 +47,8 @@ Repo-side devnet prep is partially complete:
 
 The status report now includes a `protocolTargets` block before funding/deployment. This lets the team review the deterministic config PDA, reward config PDA, staking vault ATA, treasury reward ATA, and reward-vault state PDAs before any transaction is sent. The independent treasury owner is configured separately from the admin authority, and its owner keypair is ignored under `target/devnet/independent-treasury.json` for devnet testing. `devnet:status`, `devnet:vaults:prep`, and `devnet:init:protocol` block if that treasury keypair is missing or does not match `VITE_INDEPENDENT_TREASURY_ADDRESS`. `devnet:inspect:protocol` is read-only and does not require the treasury secret, but it blocks if the independent treasury address is missing or reuses the admin authority. Program-controlled reward vault token accounts use ignored local keypairs under `target/devnet/reward-vaults`; `devnet:vaults:prep` creates those local keypairs early so their public addresses and metadata hashes can be reviewed before protocol initialization.
 
+No devnet deployment script derives the treasury owner from the admin authority when `VITE_INDEPENDENT_TREASURY_ADDRESS` is missing. Missing treasury configuration is always a blocker.
+
 Read-only public readiness and deployment receipt reports preserve the active `operatorHandoff` from `devnet:status`, so archived review artifacts show the exact next step, command, approval requirement, external-action requirement, and risk level that operators saw at the time of review.
 
 External blocker:
