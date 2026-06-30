@@ -51,6 +51,7 @@ The current synced localnet/devnet program id in `Anchor.toml` and `declare_id!`
 
 The matching devnet program keypair is generated locally under ignored `target/devnet/cryptoseeds_protocol-keypair.json`.
 The devnet authority keypair is generated locally under ignored `target/devnet/devnet-authority.json`.
+The devnet independent treasury keypair is generated locally under ignored `target/devnet/independent-treasury.json`.
 The planned devnet test RYP mint keypair is generated locally under ignored `target/devnet/ryp-test-mint-keypair.json`.
 
 For the current development stage, use:

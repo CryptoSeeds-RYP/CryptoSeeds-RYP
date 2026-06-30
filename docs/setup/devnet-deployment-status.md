@@ -6,6 +6,7 @@ Date: 2026-06-30
 
 - Program id: `5RWpGEGB9Yr7cmaoWZJQ9t263Wb8K18GrcMDqHByLXSb`
 - Devnet authority wallet: `Hqt69SbbvfkTbdC23ysWAxCZrTf9mYCMe8uuVDPdjPHe`
+- Independent treasury owner: `G49ypzSyTs9LUHTeL7ARr44DaFPDwrhVEr9AcvDdYvZN`
 - Planned devnet RYP test mint: `B2Q92Qns3cukkNhtG4kbE1PVcUyjcKMs79HJtCJT9Eq7`
 
 ## Local Secret Files
@@ -14,6 +15,7 @@ These files are generated locally and ignored by git:
 
 - `target/devnet/cryptoseeds_protocol-keypair.json`
 - `target/devnet/devnet-authority.json`
+- `target/devnet/independent-treasury.json`
 - `target/devnet/ryp-test-mint-keypair.json`
 
 Do not commit, paste, upload, or share these keypair files.
@@ -25,7 +27,7 @@ Repo-side devnet prep is partially complete:
 - `Anchor.toml` localnet/devnet program id is synced.
 - `declare_id!` is synced.
 - `.env.example` uses the synced program id.
-- `.env.devnet.example` contains the devnet prep values.
+- `.env.devnet.example` contains the devnet prep values, including a treasury owner distinct from the admin authority.
 - Anchor build and IDL drift checks pass with the synced program id.
 - Localnet smoke passes with the synced program id.
 - `npm run devnet:bootstrap -- --env .env.devnet.example` is available as a safe orchestration wrapper. By default it runs strict read-only funding/status/prep/program checks and prints the blockers without creating accounts, deploying, or initializing protocol state.
@@ -43,7 +45,7 @@ Repo-side devnet prep is partially complete:
 - `npm run devnet:init:protocol -- --env .env.devnet.example --execute` initializes config, reward config, and reward vault states only after reviewed execution.
 - `npm run devnet:inspect:protocol -- --env .env.devnet.example` is available to read and validate the deployed program, protocol config, reward config, and reward vault state accounts before any public preview or wallet execution review.
 
-The status report now includes a `protocolTargets` block before funding/deployment. This lets the team review the deterministic config PDA, reward config PDA, staking vault ATA, treasury reward ATA, and reward-vault state PDAs before any transaction is sent. Program-controlled reward vault token accounts use ignored local keypairs under `target/devnet/reward-vaults`; `devnet:vaults:prep` creates those local keypairs early so their public addresses and metadata hashes can be reviewed before protocol initialization.
+The status report now includes a `protocolTargets` block before funding/deployment. This lets the team review the deterministic config PDA, reward config PDA, staking vault ATA, treasury reward ATA, and reward-vault state PDAs before any transaction is sent. The independent treasury owner is configured separately from the admin authority, and its owner keypair is ignored under `target/devnet/independent-treasury.json` for devnet testing. Program-controlled reward vault token accounts use ignored local keypairs under `target/devnet/reward-vaults`; `devnet:vaults:prep` creates those local keypairs early so their public addresses and metadata hashes can be reviewed before protocol initialization.
 
 Read-only public readiness and deployment receipt reports preserve the active `operatorHandoff` from `devnet:status`, so archived review artifacts show the exact next step, command, approval requirement, external-action requirement, and risk level that operators saw at the time of review.
 

@@ -38,7 +38,7 @@ With `--execute`, it initializes:
 - The script blocks when devnet mint or program accounts are missing.
 - Keypair contents are not printed.
 - Reward vault token account keypairs are generated under ignored `target/devnet/reward-vaults`.
-- The independent treasury vault uses `VITE_INDEPENDENT_TREASURY_ADDRESS` when set; otherwise devnet falls back to the admin authority wallet with a warning.
+- The independent treasury vault uses `VITE_INDEPENDENT_TREASURY_ADDRESS`; the checked-in devnet example sets it to a treasury owner distinct from the admin authority.
 
 ## Current Blocker
 
