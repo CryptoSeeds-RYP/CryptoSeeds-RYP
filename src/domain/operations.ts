@@ -70,6 +70,16 @@ export const maintenanceRunbook: MaintenanceRunbookItem[] = [
     aiAgentBoundary: "Agent may run read-only inspection and summarize blockers; it must not initialize accounts or enable execution.",
   },
   {
+    id: "devnet-deployment-receipt",
+    label: "Devnet Deployment Receipt",
+    cadence: "BEFORE_LAUNCH",
+    script: "npm.cmd run devnet:deployment:receipt -- --profile read-only --env .env.devnet.example",
+    automationMode: "DRAFT_ONLY",
+    approvalRequired: true,
+    operatorAction: "Prepare the release-review handoff with deployed account status, readiness profile, and local program artifact hash.",
+    aiAgentBoundary: "Agent may prepare the receipt and summarize blockers; it must not treat the receipt as launch approval or enable broadcast.",
+  },
+  {
     id: "public-readonly-testnet-gate",
     label: "Read-only Public Testnet Gate",
     cadence: "BEFORE_LAUNCH",

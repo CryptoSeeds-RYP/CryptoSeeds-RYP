@@ -45,7 +45,7 @@ export function GovernanceView({ votingActive }: { votingActive: boolean }) {
           <span>Non-specialist operator mode</span>
         </div>
         <div className="authority-grid ops-grid">
-          {maintenanceRunbook.slice(0, 6).map((item) => (
+          {maintenanceRunbook.map((item) => (
             <article className={`authority-card ops-card ${item.automationMode.toLowerCase()}`} key={item.id}>
               <div className="authority-card-top">
                 <ListChecks size={17} />
