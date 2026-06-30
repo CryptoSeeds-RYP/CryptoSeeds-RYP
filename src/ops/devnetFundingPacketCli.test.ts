@@ -54,9 +54,7 @@ describe("devnet funding packet CLI", () => {
       address: config.authorityAddress,
       url: "https://faucet.solana.com",
     });
-    expect(packet.afterFundingCommands).toContain(
-      "npm run devnet:inspect:protocol -- --env .env.devnet.example",
-    );
+    expect(packet.afterFundingCommands).toContain("npm run devnet:bootstrap -- --env .env.devnet.example --execute-init");
   });
 
   it("separates mint-ready funding from deploy-ready funding", () => {

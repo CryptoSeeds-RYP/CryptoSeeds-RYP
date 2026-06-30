@@ -62,6 +62,28 @@ if (options.initPlan || options.executeInit) {
   });
 }
 
+if (options.inspectProtocol || options.executeInit) {
+  await runStep({
+    args: ["scripts/inspect-devnet-protocol-state.mjs", "--env", envPath],
+    label: "inspect_protocol_state",
+    required: options.inspectProtocol || options.executeInit,
+  });
+}
+
+if (options.readOnlyReady || options.executeInit) {
+  await runStep({
+    args: [
+      "scripts/check-public-testnet-readiness.mjs",
+      "--profile",
+      "read-only",
+      "--env",
+      envPath,
+    ],
+    label: "read_only_testnet_readiness",
+    required: options.readOnlyReady || options.executeInit,
+  });
+}
+
 const blockers = steps.filter((step) => step.exitCode !== 0);
 const report = {
   status: blockers.length === 0 ? "BOOTSTRAP_CHECK_COMPLETE" : "BOOTSTRAP_BLOCKED",
@@ -71,7 +93,9 @@ const report = {
     executeInit: options.executeInit,
     fund: options.fund,
     initPlan: options.initPlan,
+    inspectProtocol: options.inspectProtocol,
     mint: options.mint,
+    readOnlyReady: options.readOnlyReady,
   },
   steps,
   blockers: blockers.map((step) => `${step.label} exited with code ${step.exitCode}.`),
@@ -145,12 +169,15 @@ function runCommand(command, args) {
 }
 
 function parseJsonStatus(output) {
-  try {
-    const parsed = JSON.parse(output);
-    return typeof parsed.status === "string" ? parsed.status : undefined;
-  } catch {
-    return undefined;
+  for (const candidate of jsonObjectCandidates(output).reverse()) {
+    try {
+      const parsed = JSON.parse(candidate);
+      if (typeof parsed.status === "string") return parsed.status;
+    } catch {
+      // Try the next candidate; child commands can print non-JSON progress text.
+    }
   }
+  return undefined;
 }
 
 function nextActions(blockers) {
@@ -172,10 +199,29 @@ function nextActions(blockers) {
       "Run npm run devnet:bootstrap -- --env .env.devnet.example --deploy --init-plan.",
     ];
   }
+  if (blockers.some((step) => step.label === "inspect_protocol_state")) {
+    return [
+      "Initialize protocol state after deploy plan review.",
+      "Run npm run devnet:bootstrap -- --env .env.devnet.example --execute-init.",
+    ];
+  }
+  if (blockers.some((step) => step.label === "read_only_testnet_readiness")) {
+    return [
+      "Review devnet protocol-state inspection blockers.",
+      "Re-run npm run devnet:bootstrap -- --env .env.devnet.example --read-only-ready.",
+    ];
+  }
   if (blockers.length > 0) {
     return ["Review the failed step output above, fix the blocker, and rerun the bootstrap command."];
   }
-  if (!options.mint && !options.deploy && !options.initPlan && !options.executeInit) {
+  if (
+    !options.mint &&
+    !options.deploy &&
+    !options.initPlan &&
+    !options.executeInit &&
+    !options.inspectProtocol &&
+    !options.readOnlyReady
+  ) {
     return [
       "When authority funding is available, run with --mint to create the devnet test mint.",
       "After mint/prep pass, run with --deploy --init-plan.",
@@ -192,7 +238,9 @@ function parseArgs(args) {
     executeInit: false,
     fund: false,
     initPlan: false,
+    inspectProtocol: false,
     mint: false,
+    readOnlyReady: false,
     strict: false,
   };
 
@@ -205,6 +253,8 @@ function parseArgs(args) {
     if (arg === "--execute-init") {
       parsed.executeInit = true;
       parsed.initPlan = true;
+      parsed.inspectProtocol = true;
+      parsed.readOnlyReady = true;
       continue;
     }
     if (arg === "--fund") {
@@ -215,8 +265,17 @@ function parseArgs(args) {
       parsed.initPlan = true;
       continue;
     }
+    if (arg === "--inspect-protocol") {
+      parsed.inspectProtocol = true;
+      continue;
+    }
     if (arg === "--mint") {
       parsed.mint = true;
+      continue;
+    }
+    if (arg === "--read-only-ready") {
+      parsed.readOnlyReady = true;
+      parsed.inspectProtocol = true;
       continue;
     }
     if (arg === "--strict") {
@@ -247,4 +306,46 @@ function requireValue(args, index, name) {
     throw new Error(`${name} requires a file path.`);
   }
   return args[index + 1];
+}
+
+function jsonObjectCandidates(output) {
+  const text = String(output ?? "");
+  const candidates = [];
+  const stack = [];
+  let start = -1;
+  let inString = false;
+  let escaped = false;
+
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (char === "\\") {
+        escaped = true;
+      } else if (char === '"') {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (char === '"') {
+      inString = true;
+      continue;
+    }
+    if (char === "{") {
+      if (stack.length === 0) start = index;
+      stack.push(char);
+      continue;
+    }
+    if (char === "}" && stack.length > 0) {
+      stack.pop();
+      if (stack.length === 0 && start >= 0) {
+        candidates.push(text.slice(start, index + 1));
+        start = -1;
+      }
+    }
+  }
+
+  return candidates;
 }

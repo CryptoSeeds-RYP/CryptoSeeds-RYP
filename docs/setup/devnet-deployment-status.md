@@ -123,7 +123,7 @@ Inspect current program deployment state:
 npm run devnet:program:check -- --env .env.devnet.example
 ```
 
-When prep is ready, deploy through WSL:
+When prep is ready, deploy through WSL and print the initialization plan:
 
 ```bash
 npm run devnet:bootstrap -- --env .env.devnet.example --deploy --init-plan
@@ -141,7 +141,7 @@ Review the protocol initialization plan:
 npm run devnet:init:protocol -- --env .env.devnet.example
 ```
 
-After the derived accounts and vault custody are reviewed, initialize the protocol:
+After the derived accounts and vault custody are reviewed, initialize the protocol through the bootstrap wrapper. This now runs protocol-state inspection and the read-only public testnet readiness gate after initialization:
 
 ```bash
 npm run devnet:bootstrap -- --env .env.devnet.example --execute-init
@@ -153,10 +153,16 @@ Equivalent direct initialization command:
 npm run devnet:init:protocol -- --env .env.devnet.example --execute
 ```
 
-Inspect initialized protocol state:
+Inspect initialized protocol state directly:
 
 ```bash
 npm run devnet:inspect:protocol -- --env .env.devnet.example
+```
+
+Run the read-only public testnet readiness gate directly:
+
+```bash
+npm run testnet:readiness -- --profile read-only --env .env.devnet.example
 ```
 
 Only after protocol initialization and read-only account inspection pass should frontend transaction broadcast be reviewed. The Admin Dashboard now exposes protocol config, stake position, governance proposal/vote, project/participation, and reward account inspectors so the deployment state can be checked from decoded on-chain accounts before any signed frontend flow is enabled.
