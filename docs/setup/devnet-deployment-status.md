@@ -1,6 +1,6 @@
 # Devnet Deployment Status
 
-Date: 2026-06-20
+Date: 2026-06-30
 
 ## Public Devnet IDs
 
@@ -29,6 +29,7 @@ Repo-side devnet prep is partially complete:
 - Anchor build and IDL drift checks pass with the synced program id.
 - Localnet smoke passes with the synced program id.
 - `npm run devnet:mint:test -- --env .env.devnet.example` is available to create the configured devnet test mint from ignored local keypairs.
+- `npm run devnet:fund:authority -- --env .env.devnet.example` is available to check authority balance and try staged devnet airdrops before mint/deploy steps.
 - `npm run devnet:status -- --env .env.devnet.example` is available to inspect local keypair presence, reward-vault keypair readiness, deterministic protocol targets, authority SOL, mint status, program status, and next actions in one read-only report.
 - The devnet status report includes the compiled program `.so` relative path, SHA-256 checksum, and byte size for pre-deployment artifact review.
 - `npm run devnet:vaults:prep -- --env .env.devnet.example` is available to create missing ignored reward-vault keypairs before funding/deployment, without RPC calls, signing, or broadcasting.
@@ -42,6 +43,7 @@ The status report now includes a `protocolTargets` block before funding/deployme
 External blocker:
 
 - Devnet faucet rejected airdrop requests for the generated authority wallet, including 2026-06-20 attempts for `3 SOL`, `0.5 SOL`, and `0.1 SOL` with rate-limit errors.
+- Devnet faucet also rejected 2026-06-30 attempts for `3 SOL`, `1 SOL`, and `0.1 SOL` with rate-limit errors.
 - Because the authority wallet has `0 SOL`, the devnet test RYP mint has not been created yet.
 - `npm run devnet:status -- --env .env.devnet.example` currently reports this exact blocker.
 - `npm run devnet:prep -- --env .env.devnet.example` is correctly blocked until the devnet test mint account exists.
@@ -53,6 +55,18 @@ External blocker:
 After funding `Hqt69SbbvfkTbdC23ysWAxCZrTf9mYCMe8uuVDPdjPHe` on devnet, create the test mint with the local keypair.
 
 Minimum funding to create the mint is `0.1 SOL`; `3 SOL` is recommended before program deployment.
+
+Check balance and try staged devnet airdrops:
+
+```bash
+npm run devnet:fund:authority -- --env .env.devnet.example
+```
+
+For a read-only balance check without requesting airdrops:
+
+```bash
+npm run devnet:fund:authority -- --env .env.devnet.example --check-only
+```
 
 ```bash
 npm run devnet:mint:test -- --env .env.devnet.example
