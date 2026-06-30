@@ -53,6 +53,7 @@ type MissionStatusReport = {
     waitingOnDevnet: number;
   };
   phases: Array<{
+    command: string;
     id: string;
     status: string;
     manualAction?: string | null;
@@ -90,6 +91,9 @@ describe("RYP mission status CLI", () => {
     expect(report.status).toBe("MISSION_BLOCKED");
     expect(report.phaseSummary.blocked).toBe(1);
     expect(report.phases.find((phase) => phase.id === "fund_devnet_authority")?.status).toBe("BLOCKED");
+    expect(report.phases.find((phase) => phase.id === "create_devnet_test_mint")?.status).toBe("WAITING_ON_DEVNET");
+    expect(report.phases.find((phase) => phase.id === "deploy_devnet_program")?.status).toBe("WAITING_ON_DEVNET");
+    expect(report.phases.find((phase) => phase.id === "initialize_devnet_protocol")?.status).toBe("WAITING_ON_DEVNET");
     expect(report.nextActions).toContain(
       "Fund Hqt69SbbvfkTbdC23ysWAxCZrTf9mYCMe8uuVDPdjPHe with at least 0.1 devnet SOL.",
     );
@@ -121,8 +125,106 @@ describe("RYP mission status CLI", () => {
     });
 
     expect(report.phases.find((phase) => phase.id === "fund_devnet_authority")?.status).toBe("LOCAL_READY");
-    expect(report.phases.find((phase) => phase.id === "deploy_devnet_protocol")?.status).toBe("READY_FOR_REVIEW");
+    expect(report.phases.find((phase) => phase.id === "create_devnet_test_mint")?.status).toBe("REVIEW_REQUIRED");
+    expect(report.phases.find((phase) => phase.id === "deploy_devnet_program")?.status).toBe("WAITING_ON_DEVNET");
+    expect(report.phases.find((phase) => phase.id === "initialize_devnet_protocol")?.status).toBe("WAITING_ON_DEVNET");
     expect(report.nextActions).toContain("npm run devnet:mint:test -- --env .env.devnet.example");
+  });
+
+  it("moves program deployment to review after the test mint exists", () => {
+    const report = buildRypMissionStatusReport({
+      envSource,
+      opsReport: readyOpsReport(),
+      devnetNextReport: nextAction({
+        id: "deploy_program_and_plan_init",
+        command: "npm run devnet:bootstrap -- --env .env.devnet.example --deploy --init-plan",
+        risk: "DEVNET_MUTATION",
+      }),
+      readOnlyReadinessReport: {
+        status: "BLOCKED",
+        blockers: ["Devnet program account does not exist."],
+      },
+    });
+
+    expect(report.phases.find((phase) => phase.id === "create_devnet_test_mint")?.status).toBe("READY_FOR_REVIEW");
+    expect(report.phases.find((phase) => phase.id === "deploy_devnet_program")?.status).toBe("REVIEW_REQUIRED");
+    expect(report.phases.find((phase) => phase.id === "initialize_devnet_protocol")?.status).toBe("WAITING_ON_DEVNET");
+    expect(report.nextActions).toContain(
+      "npm run devnet:bootstrap -- --env .env.devnet.example --deploy --init-plan",
+    );
+  });
+
+  it("keeps funding phase command scoped when deployment needs a top-up", () => {
+    const report = buildRypMissionStatusReport({
+      envSource,
+      opsReport: readyOpsReport(),
+      devnetNextReport: nextAction({
+        id: "top_up_devnet_authority",
+        command: "npm run devnet:funding:packet -- --env .env.devnet.example",
+        manualAction: "Top up authority toward 3 devnet SOL before deployment.",
+        risk: "READ_ONLY",
+      }),
+      readOnlyReadinessReport: {
+        status: "BLOCKED",
+        blockers: ["Devnet program account does not exist."],
+      },
+    });
+
+    const fundingPhase = report.phases.find((phase) => phase.id === "fund_devnet_authority");
+    const programPhase = report.phases.find((phase) => phase.id === "deploy_devnet_program");
+
+    expect(fundingPhase?.status).toBe("LOCAL_READY");
+    expect(fundingPhase?.manualAction).toBeNull();
+    expect(fundingPhase?.command).toBe("npm run devnet:funding:packet -- --env .env.devnet.example");
+    expect(programPhase?.status).toBe("BLOCKED");
+    expect(programPhase?.command).toBe("npm run devnet:funding:packet -- --env .env.devnet.example");
+    expect(report.blockers).toContain(
+      "Deploy Devnet Program: Top up authority toward 3 devnet SOL before deployment.",
+    );
+  });
+
+  it("routes protocol phase to inspection before initialization planning", () => {
+    const report = buildRypMissionStatusReport({
+      envSource,
+      opsReport: readyOpsReport(),
+      devnetNextReport: nextAction({
+        id: "inspect_protocol_state",
+        command: "npm run devnet:inspect:protocol -- --env .env.devnet.example",
+        risk: "READ_ONLY",
+      }),
+      readOnlyReadinessReport: {
+        status: "BLOCKED",
+        blockers: ["Protocol state has not been inspected."],
+      },
+    });
+
+    const protocolPhase = report.phases.find((phase) => phase.id === "initialize_devnet_protocol");
+
+    expect(report.phases.find((phase) => phase.id === "create_devnet_test_mint")?.status).toBe("READY_FOR_REVIEW");
+    expect(report.phases.find((phase) => phase.id === "deploy_devnet_program")?.status).toBe("READY_FOR_REVIEW");
+    expect(protocolPhase?.status).toBe("REVIEW_REQUIRED");
+    expect(protocolPhase?.command).toBe("npm run devnet:inspect:protocol -- --env .env.devnet.example");
+  });
+
+  it("moves protocol initialization to review after program deployment", () => {
+    const report = buildRypMissionStatusReport({
+      envSource,
+      opsReport: readyOpsReport(),
+      devnetNextReport: nextAction({
+        id: "plan_protocol_initialization",
+        command: "npm run devnet:init:protocol -- --env .env.devnet.example",
+        risk: "READ_ONLY",
+      }),
+      readOnlyReadinessReport: {
+        status: "BLOCKED",
+        blockers: ["ProtocolConfig account is missing."],
+      },
+    });
+
+    expect(report.phases.find((phase) => phase.id === "create_devnet_test_mint")?.status).toBe("READY_FOR_REVIEW");
+    expect(report.phases.find((phase) => phase.id === "deploy_devnet_program")?.status).toBe("READY_FOR_REVIEW");
+    expect(report.phases.find((phase) => phase.id === "initialize_devnet_protocol")?.status).toBe("REVIEW_REQUIRED");
+    expect(report.nextActions).toContain("npm run devnet:init:protocol -- --env .env.devnet.example");
   });
 
   it("marks frontend and public product phases ready for review when read-only readiness passes", () => {

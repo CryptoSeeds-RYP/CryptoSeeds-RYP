@@ -15,6 +15,14 @@ It aggregates:
 - the current blocker,
 - the next safe command or manual action.
 
+The devnet deployment lane is split into separate phases so the terminal report and Admin Dashboard advance through the same sequence:
+
+- authority funding,
+- devnet test mint creation,
+- devnet program deployment,
+- protocol initialization,
+- read-only frontend/public preview readiness.
+
 It does not create wallets, create mints, deploy programs, initialize protocol accounts, broadcast wallet transactions, or mutate protocol state.
 
 Use strict mode when a blocked mission should fail automation:

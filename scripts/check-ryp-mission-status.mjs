@@ -52,6 +52,14 @@ export function buildRypMissionStatusReport({
   const nextActionId = nextRecommendation?.id ?? null;
   const readOnlyReady = readOnlyReadinessReport?.status === "READY_FOR_READ_ONLY_TESTNET_PREVIEW";
   const primaryFundingBlocker = nextActionId === "fund_devnet_authority";
+  const devnetFundingCommand = `npm run devnet:funding:packet -- --env ${envSource}`;
+  const devnetMintCommand = `npm run devnet:mint:test -- --env ${envSource}`;
+  const devnetBootstrapCommand = `npm run devnet:bootstrap -- --env ${envSource} --deploy --init-plan`;
+  const devnetProtocolInspectCommand = `npm run devnet:inspect:protocol -- --env ${envSource}`;
+  const devnetProtocolInitCommand = `npm run devnet:init:protocol -- --env ${envSource}`;
+  const testnetReadinessCommand = `npm run testnet:readiness -- --profile read-only --env ${envSource}`;
+  const deploymentReceiptCommand = `npm run devnet:deployment:receipt -- --profile read-only --env ${envSource}`;
+  const devnetNextCommand = `npm run devnet:next -- --env ${envSource}`;
   const childBlockers = collectChildBlockers(commandResults, {
     opsReport,
     devnetNextReport,
@@ -116,18 +124,53 @@ export function buildRypMissionStatusReport({
       summary: nextActionId === "fund_devnet_authority"
         ? "Devnet cannot mutate until the authority wallet receives devnet SOL."
         : "Devnet authority funding is no longer the active next-action blocker.",
-      command: nextRecommendation?.command ?? "npm run devnet:next -- --env .env.devnet.example",
-      manualAction: nextRecommendation?.manualAction ?? null,
+      command: nextActionId === "fund_devnet_authority"
+        ? nextRecommendation?.command ?? devnetFundingCommand
+        : devnetFundingCommand,
+      manualAction: nextActionId === "fund_devnet_authority"
+        ? nextRecommendation?.manualAction ?? null
+        : null,
       blockers: nextActionId === "fund_devnet_authority"
         ? [nextRecommendation?.manualAction ?? "Fund the devnet authority wallet."]
         : [],
     }),
     phase({
-      id: "deploy_devnet_protocol",
-      label: "Deploy Devnet Protocol",
+      id: "create_devnet_test_mint",
+      label: "Create Devnet Test Mint",
+      status: devnetMintPhaseStatus(nextActionId),
+      summary: devnetMintPhaseSummary(nextActionId),
+      command: nextActionId === "create_devnet_test_mint"
+        ? nextRecommendation?.command ?? devnetMintCommand
+        : devnetMintCommand,
+      blockers: nextActionId === "investigate_invalid_mint"
+        ? ["Configured devnet RYP address exists but is not a valid SPL mint."]
+        : [],
+    }),
+    phase({
+      id: "deploy_devnet_program",
+      label: "Deploy Devnet Program",
+      status: devnetProgramPhaseStatus(nextActionId),
+      summary: devnetProgramPhaseSummary(nextActionId),
+      command: nextActionId === "deploy_program_and_plan_init" || nextActionId === "top_up_devnet_authority"
+        ? nextRecommendation?.command ?? devnetBootstrapCommand
+        : devnetBootstrapCommand,
+      blockers: nextActionId === "top_up_devnet_authority"
+        ? [nextRecommendation?.manualAction ?? "Top up the devnet authority before program deployment."]
+        : [],
+    }),
+    phase({
+      id: "initialize_devnet_protocol",
+      label: "Initialize Devnet Protocol",
       status: devnetProtocolPhaseStatus(nextActionId),
       summary: devnetProtocolPhaseSummary(nextActionId),
-      command: nextRecommendation?.command ?? "npm run devnet:next -- --env .env.devnet.example",
+      command: nextActionId === "inspect_protocol_state" || nextActionId === "review_protocol_inspection_blockers"
+        ? nextRecommendation?.command ?? devnetProtocolInspectCommand
+        : nextActionId === "plan_protocol_initialization"
+          ? nextRecommendation?.command ?? devnetProtocolInitCommand
+          : devnetProtocolInitCommand,
+      blockers: nextActionId === "review_protocol_inspection_blockers"
+        ? ["Protocol inspection blockers must be reviewed before initialization or public preview."]
+        : [],
     }),
     phase({
       id: "wire_frontend_devnet_state",
@@ -136,7 +179,7 @@ export function buildRypMissionStatusReport({
       summary: readOnlyReady
         ? "Read-only public preview gates are clean enough for human release review."
         : "Frontend read-only mirrors are implemented locally, but live devnet account inspection is still blocked.",
-      command: "npm run testnet:readiness -- --profile read-only --env .env.devnet.example",
+      command: testnetReadinessCommand,
     }),
     phase({
       id: "fee_and_holder_rewards",
@@ -163,8 +206,8 @@ export function buildRypMissionStatusReport({
         ? "Prepare the read-only deployment receipt and human release checklist."
         : "Admin cockpit, MicroVerse state mirrors, and locked future districts are local-ready; public preview waits on devnet.",
       command: readOnlyReady
-        ? "npm run devnet:deployment:receipt -- --profile read-only --env .env.devnet.example"
-        : "npm run devnet:next -- --env .env.devnet.example",
+        ? deploymentReceiptCommand
+        : devnetNextCommand,
     }),
   ];
 
@@ -231,31 +274,89 @@ function phase({ blockers = [], command, id, label, manualAction = null, status,
 }
 
 function devnetProtocolPhaseStatus(nextActionId) {
-  if (nextActionId === "fund_devnet_authority") return "WAITING_ON_DEVNET";
   if (
+    nextActionId === "fund_devnet_authority" ||
     nextActionId === "create_devnet_test_mint" ||
-    nextActionId === "deploy_program_and_plan_init" ||
-    nextActionId === "plan_protocol_initialization"
-  ) {
-    return "READY_FOR_REVIEW";
-  }
-  return "LOCAL_READY";
+    nextActionId === "investigate_invalid_mint" ||
+    nextActionId === "top_up_devnet_authority" ||
+    nextActionId === "deploy_program_and_plan_init"
+  ) return "WAITING_ON_DEVNET";
+  if (nextActionId === "inspect_protocol_state") return "REVIEW_REQUIRED";
+  if (nextActionId === "plan_protocol_initialization") return "REVIEW_REQUIRED";
+  if (nextActionId === "review_protocol_inspection_blockers") return "BLOCKED";
+  if (
+    nextActionId === "run_read_only_testnet_readiness" ||
+    nextActionId === "review_public_testnet_blockers" ||
+    nextActionId === "prepare_deployment_receipt"
+  ) return "READY_FOR_REVIEW";
+  return "WAITING_ON_DEVNET";
 }
 
 function devnetProtocolPhaseSummary(nextActionId) {
-  if (nextActionId === "fund_devnet_authority") {
-    return "Deployment sequence is prepared, but no devnet mutation is possible until funding lands.";
-  }
-  if (nextActionId === "create_devnet_test_mint") {
-    return "Authority funding is present; review and create the devnet test mint next.";
-  }
-  if (nextActionId === "deploy_program_and_plan_init") {
-    return "Mint exists and deploy funding is ready; deploy and print the initialization plan.";
-  }
   if (nextActionId === "plan_protocol_initialization") {
     return "Program exists; review the protocol initialization plan before executing it.";
   }
-  return "Devnet deployment is no longer the active mission blocker.";
+  if (nextActionId === "inspect_protocol_state") {
+    return "Program exists; run read-only protocol state inspection before initialization.";
+  }
+  if (nextActionId === "review_protocol_inspection_blockers") {
+    return "Protocol inspection found blockers that must be reviewed before initialization or preview.";
+  }
+  if (
+    nextActionId === "run_read_only_testnet_readiness" ||
+    nextActionId === "review_public_testnet_blockers" ||
+    nextActionId === "prepare_deployment_receipt"
+  ) {
+    return "Protocol accounts are initialized enough for read-only readiness and receipt review.";
+  }
+  return "Protocol initialization waits on authority funding, test mint creation, and program deployment.";
+}
+
+function devnetMintPhaseStatus(nextActionId) {
+  if (nextActionId === "fund_devnet_authority") return "WAITING_ON_DEVNET";
+  if (nextActionId === "create_devnet_test_mint") return "REVIEW_REQUIRED";
+  if (nextActionId === "investigate_invalid_mint") return "BLOCKED";
+  return "READY_FOR_REVIEW";
+}
+
+function devnetMintPhaseSummary(nextActionId) {
+  if (nextActionId === "fund_devnet_authority") {
+    return "Test mint creation waits on devnet authority funding.";
+  }
+  if (nextActionId === "create_devnet_test_mint") {
+    return "Authority funding is present; review and create the configured devnet RYP test mint.";
+  }
+  if (nextActionId === "investigate_invalid_mint") {
+    return "Configured devnet RYP address exists but is not a parsed SPL mint.";
+  }
+  return "Configured devnet RYP test mint is no longer the active blocker.";
+}
+
+function devnetProgramPhaseStatus(nextActionId) {
+  if (
+    nextActionId === "fund_devnet_authority" ||
+    nextActionId === "create_devnet_test_mint" ||
+    nextActionId === "investigate_invalid_mint"
+  ) return "WAITING_ON_DEVNET";
+  if (nextActionId === "top_up_devnet_authority") return "BLOCKED";
+  if (nextActionId === "deploy_program_and_plan_init") return "REVIEW_REQUIRED";
+  return "READY_FOR_REVIEW";
+}
+
+function devnetProgramPhaseSummary(nextActionId) {
+  if (nextActionId === "fund_devnet_authority") {
+    return "Program deployment waits on authority funding.";
+  }
+  if (nextActionId === "create_devnet_test_mint" || nextActionId === "investigate_invalid_mint") {
+    return "Program deployment waits on a valid devnet RYP test mint.";
+  }
+  if (nextActionId === "top_up_devnet_authority") {
+    return "Test mint exists, but deployment should wait for authority top-up.";
+  }
+  if (nextActionId === "deploy_program_and_plan_init") {
+    return "Mint exists and deploy funding is ready; deploy the program and print the initialization plan.";
+  }
+  return "Devnet program is deployed enough for protocol initialization review.";
 }
 
 function collectChildBlockers(commandResults, reports, options = {}) {
