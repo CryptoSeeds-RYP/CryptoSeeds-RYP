@@ -104,6 +104,43 @@ describe("protocol transaction plan", () => {
     );
   });
 
+  it("rejects protocol initialization values that would fail Rust guards", () => {
+    expect(() =>
+      buildInitializeConfigTransactionPlan({
+        authorityAddress: ownerAddress,
+        baseFeeBps: 1_001,
+        tierFeeReductionBps: [0, 35, 70, 105, 140],
+        tierThresholdsBaseUnits: [5_000_000_000n, 20_000_000_000n, 50_000_000_000n, 100_000_000_000n, 150_000_000_000n],
+      }),
+    ).toThrow("Base fee cannot exceed 1000");
+    expect(() =>
+      buildInitializeConfigTransactionPlan({
+        authorityAddress: ownerAddress,
+        baseFeeBps: 350,
+        tierFeeReductionBps: [0, 35, 34, 105, 140],
+        tierThresholdsBaseUnits: [5_000_000_000n, 20_000_000_000n, 50_000_000_000n, 100_000_000_000n, 150_000_000_000n],
+      }),
+    ).toThrow("nondecreasing");
+    expect(() =>
+      buildInitializeRewardConfigTransactionPlan({
+        authorityAddress: ownerAddress,
+        epochCadenceSeconds: 0n,
+        holderSplitBps: 3_334,
+        stakerSplitBps: 3_333,
+        treasurySplitBps: 3_333,
+      }),
+    ).toThrow("Reward epoch cadence");
+    expect(() =>
+      buildInitializeRewardConfigTransactionPlan({
+        authorityAddress: ownerAddress,
+        epochCadenceSeconds: 604_800n,
+        holderSplitBps: 3_334,
+        stakerSplitBps: 3_333,
+        treasurySplitBps: 3_334,
+      }),
+    ).toThrow("Reward split must total 10000");
+  });
+
   it("builds an Anchor-compatible stake instruction plan", () => {
     const plan = buildStakeRypTransactionPlan({ ownerAddress, tier: "SEED" });
     const instruction = plan.instructions[0];
@@ -662,6 +699,7 @@ describe("protocol transaction plan", () => {
       maxDailyTrades: 3,
       maxSlippageBps: 100,
       maxTradeAmountBaseUnits: 500n,
+      nowUnix: 1_799_999_000n,
       ownerAddress,
       permissionHash: new Uint8Array(32).fill(7),
     });
@@ -672,6 +710,7 @@ describe("protocol transaction plan", () => {
       maxDailyTrades: 4,
       maxSlippageBps: 125,
       maxTradeAmountBaseUnits: 600n,
+      nowUnix: 1_799_999_000n,
       ownerAddress,
       permissionHash: new Uint8Array(32).fill(8),
     });
@@ -716,5 +755,134 @@ describe("protocol transaction plan", () => {
         projectId: 1n,
       }),
     ).toThrow("all zeros");
+  });
+
+  it("rejects unsafe project registration and value-move plans before encoding", () => {
+    const validProjectRegistration = {
+      authorityAddress: ownerAddress,
+      fundingModel: "RECORD_ONLY" as const,
+      governanceProposalAddress: "11111111111111111111111111111111",
+      maxWalletParticipationAmountBaseUnits: 600n,
+      maxTotalParticipationAmountBaseUnits: 1_000n,
+      metadataHash: "ef".repeat(32),
+      minParticipationAmountBaseUnits: 100n,
+      participationEndsAtUnix: 1_700_604_800n,
+      participationStartsAtUnix: 1_700_000_000n,
+      projectId: 9n,
+      receivingAccountAddress: "So11111111111111111111111111111111111111112",
+      requiredTier: "SPROUT" as const,
+      riskLevel: "MEDIUM" as const,
+      status: "OPEN" as const,
+    };
+
+    expect(() =>
+      buildRegisterProjectTransactionPlan({
+        ...validProjectRegistration,
+        fundingModel: "PROGRAM_ESCROW",
+      }),
+    ).toThrow("Program escrow");
+    expect(() =>
+      buildRegisterProjectTransactionPlan({
+        ...validProjectRegistration,
+        minParticipationAmountBaseUnits: 0n,
+      }),
+    ).toThrow("participation bounds");
+    expect(() =>
+      buildRegisterProjectTransactionPlan({
+        ...validProjectRegistration,
+        maxTotalParticipationAmountBaseUnits: 599n,
+      }),
+    ).toThrow("wallet cap");
+    expect(() =>
+      buildRegisterProjectTransactionPlan({
+        ...validProjectRegistration,
+        participationEndsAtUnix: 1_700_000_000n,
+      }),
+    ).toThrow("window");
+    expect(() =>
+      buildRegisterProjectTransactionPlan({
+        ...validProjectRegistration,
+        status: "COMPLETED",
+      }),
+    ).toThrow("terminal status");
+    expect(() =>
+      buildRoutePlatformFeeTransactionPlan({
+        feeAmountBaseUnits: 0n,
+        holderRewardVaultAddress: "So11111111111111111111111111111111111111112",
+        payerAddress: ownerAddress,
+        stakerRewardVaultAddress: "11111111111111111111111111111111",
+        treasuryVaultAddress: "SysvarC1ock11111111111111111111111111111111",
+      }),
+    ).toThrow("Platform fee amount");
+    expect(() =>
+      buildProjectDirectSettlementParticipationTransactionPlan({
+        disclosureHash: "ab".repeat(32),
+        disclosureRevisionId: 1n,
+        ownerAddress,
+        participationAmountBaseUnits: 0n,
+        projectId: 9n,
+        projectReceivingAccountAddress: "So11111111111111111111111111111111111111112",
+      }),
+    ).toThrow("Project participation amount");
+  });
+
+  it("rejects SeedBot permission and usage plans outside protocol limits", () => {
+    const validSeedBotPermission = {
+      expiresAtUnix: 1_800_000_000n,
+      maxDailyVolumeAmountBaseUnits: 1_500n,
+      maxDailyTrades: 3,
+      maxSlippageBps: 100,
+      maxTradeAmountBaseUnits: 500n,
+      nowUnix: 1_799_999_000n,
+      ownerAddress,
+      permissionHash: new Uint8Array(32).fill(7),
+    };
+
+    expect(() =>
+      buildCreateSeedBotPermissionTransactionPlan({
+        ...validSeedBotPermission,
+        expiresAtUnix: 1_799_999_000n,
+      }),
+    ).toThrow("expiry must be in the future");
+    expect(() =>
+      buildCreateSeedBotPermissionTransactionPlan({
+        ...validSeedBotPermission,
+        expiresAtUnix: 1_802_591_001n,
+      }),
+    ).toThrow("cannot exceed 30 days");
+    expect(() =>
+      buildCreateSeedBotPermissionTransactionPlan({
+        ...validSeedBotPermission,
+        maxDailyVolumeAmountBaseUnits: 499n,
+      }),
+    ).toThrow("daily volume cap");
+    expect(() =>
+      buildUpdateSeedBotPermissionTransactionPlan({
+        ...validSeedBotPermission,
+        maxDailyTrades: 51,
+      }),
+    ).toThrow("daily trade cap");
+    expect(() =>
+      buildUpdateSeedBotPermissionTransactionPlan({
+        ...validSeedBotPermission,
+        maxSlippageBps: 501,
+      }),
+    ).toThrow("slippage cap");
+    expect(() =>
+      buildRecordSeedBotUsageTransactionPlan({
+        executionHash: new Uint8Array(32).fill(9),
+        ownerAddress,
+        slippageBps: 100,
+        tradeAmountBaseUnits: 0n,
+      }),
+    ).toThrow("SeedBot usage trade amount");
+    expect(() =>
+      buildRecordSeedBotUsageTransactionPlan({
+        executionHash: new Uint8Array(32).fill(9),
+        ownerAddress,
+        slippageBps: 501,
+        tradeAmountBaseUnits: 1n,
+      }),
+    ).toThrow("usage slippage");
   });
 });

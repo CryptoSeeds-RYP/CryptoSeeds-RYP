@@ -115,6 +115,11 @@ const U64_MAX = 2n ** 64n - 1n;
 const I64_MIN = -(2n ** 63n);
 const I64_MAX = 2n ** 63n - 1n;
 const BPS_DENOMINATOR = 10_000n;
+const MAX_PROTOCOL_BASE_FEE_BPS = 1_000;
+const MAX_REWARD_EPOCH_CADENCE_SECONDS = 366n * 24n * 60n * 60n;
+const MAX_SEEDBOT_PERMISSION_SECONDS = 30n * 24n * 60n * 60n;
+const MAX_SEEDBOT_DAILY_TRADES = 50;
+const MAX_SEEDBOT_SLIPPAGE_BPS = 500;
 export const RYP_TOKEN_TRANSFER_FEE_BPS = 100n;
 export const MAX_REWARD_MERKLE_PROOF_NODES = 32;
 export const PROJECT_OPERATOR_PERMISSION_STATUS = 1;
@@ -443,6 +448,7 @@ export type SeedBotPermissionPlanInput = {
   ownerAddress: string;
   permissionHash: string | Uint8Array | number[];
   expiresAtUnix: bigint | number | string;
+  nowUnix?: bigint | number | string;
   maxTradeAmountBaseUnits: bigint | number | string;
   maxDailyVolumeAmountBaseUnits: bigint | number | string;
   maxDailyTrades: number;
@@ -498,6 +504,9 @@ export function buildInitializeConfigTransactionPlan({
   tierThresholdsBaseUnits,
   tierFeeReductionBps,
 }: InitializeConfigPlanInput): PreparedSolanaTransactionPlan {
+  const tierThresholds = tierThresholdsBaseUnits.map((threshold) => toU64(threshold));
+  assertTierThresholds(tierThresholds);
+  assertFeeReductions(baseFeeBps, tierFeeReductionBps);
   const addresses = {
     ...deriveProtocolAddresses(authorityAddress),
     authority: new PublicKey(authorityAddress).toBase58(),
@@ -507,7 +516,7 @@ export function buildInitializeConfigTransactionPlan({
     accounts: accountsFromSpec(spec, addresses),
     argDataHex: [
       u16LeHex(baseFeeBps),
-      ...tierThresholdsBaseUnits.map((threshold) => u64LeHex(toU64(threshold))),
+      ...tierThresholds.map((threshold) => u64LeHex(threshold)),
       ...tierFeeReductionBps.map(u16LeHex),
     ].join(""),
     discriminatorHex: spec.discriminatorHex,
@@ -534,6 +543,9 @@ export function buildInitializeRewardConfigTransactionPlan({
   stakerSplitBps,
   treasurySplitBps,
 }: InitializeRewardConfigPlanInput): PreparedSolanaTransactionPlan {
+  const epochCadence = toI64(epochCadenceSeconds);
+  assertRewardCadence(epochCadence);
+  assertRewardSplit(holderSplitBps, stakerSplitBps, treasurySplitBps);
   const addresses = {
     ...deriveProtocolAddresses(authorityAddress),
     authority: new PublicKey(authorityAddress).toBase58(),
@@ -542,7 +554,7 @@ export function buildInitializeRewardConfigTransactionPlan({
   const instruction = instructionPlan({
     accounts: accountsFromSpec(spec, addresses),
     argDataHex: [
-      i64LeHex(toI64(epochCadenceSeconds)),
+      i64LeHex(epochCadence),
       u16LeHex(holderSplitBps),
       u16LeHex(stakerSplitBps),
       u16LeHex(treasurySplitBps),
@@ -893,6 +905,7 @@ export function buildRoutePlatformFeeTransactionPlan({
   treasuryVaultAddress,
 }: RoutePlatformFeePlanInput): PreparedSolanaTransactionPlan {
   const feeAmount = toU64(feeAmountBaseUnits);
+  assertPositiveAmount(feeAmount, "Platform fee amount");
   const payer = new PublicKey(payerAddress);
   const addresses = {
     ...deriveProtocolAddresses(payerAddress),
@@ -1202,6 +1215,16 @@ export function buildRegisterProjectTransactionPlan({
   const maxTotalParticipationAmount = toU64(maxTotalParticipationAmountBaseUnits);
   const participationStartsAt = toI64(participationStartsAtUnix);
   const participationEndsAt = toI64(participationEndsAtUnix);
+  assertProjectRegistrationPlan({
+    fundingModel,
+    maxTotalParticipationAmount,
+    maxWalletParticipationAmount,
+    minParticipationAmount,
+    participationEndsAt,
+    participationStartsAt,
+    receivingAccount,
+    status,
+  });
   const addresses = {
     ...deriveProtocolAddresses(authorityAddress),
     authority: new PublicKey(authorityAddress).toBase58(),
@@ -1504,6 +1527,7 @@ export function buildCancelProjectTransactionPlan({
 }: CancelProjectPlanInput): PreparedSolanaTransactionPlan {
   const project = toU64(projectId);
   const refundPoolAmount = toU64(refundPoolAmountBaseUnits);
+  assertPositiveAmount(refundPoolAmount, "Project refund pool amount");
   const addresses = {
     ...deriveProtocolAddresses(authorityAddress),
     authority: new PublicKey(authorityAddress).toBase58(),
@@ -1539,6 +1563,7 @@ export function buildRecordProjectRefundTransactionPlan({
 }: RecordProjectRefundPlanInput): PreparedSolanaTransactionPlan {
   const project = toU64(projectId);
   const refundAmount = toU64(refundAmountBaseUnits);
+  assertPositiveAmount(refundAmount, "Project refund amount");
   const addresses = {
     ...deriveProtocolAddresses(authorityAddress),
     authority: new PublicKey(authorityAddress).toBase58(),
@@ -1575,6 +1600,7 @@ export function buildRecordProjectParticipantRefundTransactionPlan({
 }: RecordProjectParticipantRefundPlanInput): PreparedSolanaTransactionPlan {
   const project = toU64(projectId);
   const refundAmount = toU64(refundAmountBaseUnits);
+  assertPositiveAmount(refundAmount, "Project participant refund amount");
   const addresses = {
     ...deriveProtocolAddresses(authorityAddress),
     authority: new PublicKey(authorityAddress).toBase58(),
@@ -1615,6 +1641,7 @@ export function buildProjectParticipationTransactionPlan({
   const project = toU64(projectId);
   const disclosureRevision = toU64(disclosureRevisionId);
   const amount = toU64(participationAmountBaseUnits);
+  assertPositiveAmount(amount, "Project participation amount");
   const addresses = {
     ...deriveProtocolAddresses(ownerAddress),
     participation: deriveProjectParticipationAddress({ projectId: project, walletAddress: ownerAddress }),
@@ -1653,6 +1680,7 @@ export function buildProjectDirectSettlementParticipationTransactionPlan({
   const project = toU64(projectId);
   const disclosureRevision = toU64(disclosureRevisionId);
   const amount = toU64(participationAmountBaseUnits);
+  assertPositiveAmount(amount, "Project participation amount");
   const addresses = {
     ...deriveProtocolAddresses(ownerAddress),
     participation: deriveProjectParticipationAddress({ projectId: project, walletAddress: ownerAddress }),
@@ -1688,9 +1716,22 @@ export function buildCreateSeedBotPermissionTransactionPlan({
   maxDailyTrades,
   maxSlippageBps,
   maxTradeAmountBaseUnits,
+  nowUnix,
   ownerAddress,
   permissionHash,
 }: SeedBotPermissionPlanInput): PreparedSolanaTransactionPlan {
+  const expiresAt = toI64(expiresAtUnix);
+  const maxTradeAmount = toU64(maxTradeAmountBaseUnits);
+  const maxDailyVolumeAmount = toU64(maxDailyVolumeAmountBaseUnits);
+  const now = nowUnix === undefined ? currentUnixTimestamp() : toI64(nowUnix);
+  assertSeedBotPermissionLimits({
+    expiresAt,
+    maxDailyTrades,
+    maxDailyVolumeAmount,
+    maxSlippageBps,
+    maxTradeAmount,
+    now,
+  });
   const addresses = {
     ...deriveProtocolAddresses(ownerAddress),
     permission: deriveSeedBotPermissionAddress(ownerAddress),
@@ -1700,9 +1741,9 @@ export function buildCreateSeedBotPermissionTransactionPlan({
     accounts: accountsFromSpec(spec, addresses),
     argDataHex: [
       fixedHashHex(permissionHash),
-      i64LeHex(toI64(expiresAtUnix)),
-      u64LeHex(toU64(maxTradeAmountBaseUnits)),
-      u64LeHex(toU64(maxDailyVolumeAmountBaseUnits)),
+      i64LeHex(expiresAt),
+      u64LeHex(maxTradeAmount),
+      u64LeHex(maxDailyVolumeAmount),
       u16LeHex(maxDailyTrades),
       u16LeHex(maxSlippageBps),
     ].join(""),
@@ -1728,9 +1769,22 @@ export function buildUpdateSeedBotPermissionTransactionPlan({
   maxDailyTrades,
   maxSlippageBps,
   maxTradeAmountBaseUnits,
+  nowUnix,
   ownerAddress,
   permissionHash,
 }: SeedBotPermissionPlanInput): PreparedSolanaTransactionPlan {
+  const expiresAt = toI64(expiresAtUnix);
+  const maxTradeAmount = toU64(maxTradeAmountBaseUnits);
+  const maxDailyVolumeAmount = toU64(maxDailyVolumeAmountBaseUnits);
+  const now = nowUnix === undefined ? currentUnixTimestamp() : toI64(nowUnix);
+  assertSeedBotPermissionLimits({
+    expiresAt,
+    maxDailyTrades,
+    maxDailyVolumeAmount,
+    maxSlippageBps,
+    maxTradeAmount,
+    now,
+  });
   const addresses = {
     ...deriveProtocolAddresses(ownerAddress),
     permission: deriveSeedBotPermissionAddress(ownerAddress),
@@ -1740,9 +1794,9 @@ export function buildUpdateSeedBotPermissionTransactionPlan({
     accounts: accountsFromSpec(spec, addresses),
     argDataHex: [
       fixedHashHex(permissionHash),
-      i64LeHex(toI64(expiresAtUnix)),
-      u64LeHex(toU64(maxTradeAmountBaseUnits)),
-      u64LeHex(toU64(maxDailyVolumeAmountBaseUnits)),
+      i64LeHex(expiresAt),
+      u64LeHex(maxTradeAmount),
+      u64LeHex(maxDailyVolumeAmount),
       u16LeHex(maxDailyTrades),
       u16LeHex(maxSlippageBps),
     ].join(""),
@@ -1791,6 +1845,11 @@ export function buildRecordSeedBotUsageTransactionPlan({
   slippageBps,
   tradeAmountBaseUnits,
 }: SeedBotUsagePlanInput): PreparedSolanaTransactionPlan {
+  const tradeAmount = toU64(tradeAmountBaseUnits);
+  assertPositiveAmount(tradeAmount, "SeedBot usage trade amount");
+  if (slippageBps > MAX_SEEDBOT_SLIPPAGE_BPS) {
+    throw new Error("SeedBot usage slippage exceeds the protocol maximum.");
+  }
   const addresses = {
     ...deriveProtocolAddresses(ownerAddress),
     permission: deriveSeedBotPermissionAddress(ownerAddress),
@@ -1798,7 +1857,7 @@ export function buildRecordSeedBotUsageTransactionPlan({
   const spec = instructionSpec("record_seedbot_usage");
   const instruction = instructionPlan({
     accounts: accountsFromSpec(spec, addresses),
-    argDataHex: [fixedHashHex(executionHash), u64LeHex(toU64(tradeAmountBaseUnits)), u16LeHex(slippageBps)].join(""),
+    argDataHex: [fixedHashHex(executionHash), u64LeHex(tradeAmount), u16LeHex(slippageBps)].join(""),
     discriminatorHex: spec.discriminatorHex,
     instructionName: "record_seedbot_usage",
     programId: addresses.programId,
@@ -1807,7 +1866,7 @@ export function buildRecordSeedBotUsageTransactionPlan({
   return transactionPlan({
     action: "RECORD_SEEDBOT_USAGE",
     addresses,
-    amountBaseUnits: toU64(tradeAmountBaseUnits).toString(),
+    amountBaseUnits: tradeAmount.toString(),
     instruction,
     warnings: [
       "Records wallet-signed SeedBot usage against the on-chain permission caps.",
@@ -1821,6 +1880,7 @@ export function buildUpdateFeeConfigTransactionPlan({
   baseFeeBps,
   tierFeeReductionBps,
 }: FeeConfigPlanInput): PreparedSolanaTransactionPlan {
+  assertFeeReductions(baseFeeBps, tierFeeReductionBps);
   const addresses = {
     ...deriveProtocolAddresses(authorityAddress),
     authority: new PublicKey(authorityAddress).toBase58(),
@@ -2443,6 +2503,131 @@ function assertU16(value: number) {
   }
 }
 
+function assertTierThresholds(thresholds: bigint[]) {
+  if (thresholds.length !== 5) {
+    throw new Error("Tier thresholds must include exactly five entries.");
+  }
+  if (thresholds[0] <= 0n) {
+    throw new Error("Tier thresholds must start above zero.");
+  }
+  for (let index = 1; index < thresholds.length; index += 1) {
+    if (thresholds[index] <= thresholds[index - 1]) {
+      throw new Error("Tier thresholds must be strictly increasing.");
+    }
+  }
+}
+
+function assertFeeReductions(baseFeeBps: number, reductions: readonly number[]) {
+  assertU16(baseFeeBps);
+  if (baseFeeBps > MAX_PROTOCOL_BASE_FEE_BPS) {
+    throw new Error("Base fee cannot exceed 1000 basis points.");
+  }
+  if (reductions.length !== 5) {
+    throw new Error("Tier fee reductions must include exactly five entries.");
+  }
+
+  reductions.forEach((reduction, index) => {
+    assertU16(reduction);
+    if (reduction > baseFeeBps) {
+      throw new Error("Tier fee reductions cannot exceed the base fee.");
+    }
+    if (index > 0 && reduction < reductions[index - 1]) {
+      throw new Error("Tier fee reductions must be nondecreasing.");
+    }
+  });
+}
+
+function assertRewardCadence(epochCadenceSeconds: bigint) {
+  if (epochCadenceSeconds <= 0n || epochCadenceSeconds > MAX_REWARD_EPOCH_CADENCE_SECONDS) {
+    throw new Error("Reward epoch cadence is outside protocol bounds.");
+  }
+}
+
+function assertRewardSplit(holderSplitBps: number, stakerSplitBps: number, treasurySplitBps: number) {
+  assertU16(holderSplitBps);
+  assertU16(stakerSplitBps);
+  assertU16(treasurySplitBps);
+  if (BigInt(holderSplitBps) + BigInt(stakerSplitBps) + BigInt(treasurySplitBps) !== BPS_DENOMINATOR) {
+    throw new Error("Reward split must total 10000 basis points.");
+  }
+}
+
+function assertProjectRegistrationPlan({
+  fundingModel,
+  maxTotalParticipationAmount,
+  maxWalletParticipationAmount,
+  minParticipationAmount,
+  participationEndsAt,
+  participationStartsAt,
+  receivingAccount,
+  status,
+}: {
+  fundingModel: ProjectFundingModel;
+  maxTotalParticipationAmount: bigint;
+  maxWalletParticipationAmount: bigint;
+  minParticipationAmount: bigint;
+  participationEndsAt: bigint;
+  participationStartsAt: bigint;
+  receivingAccount: PublicKey;
+  status: ProjectLifecycleStatus;
+}) {
+  if (fundingModel === "PROGRAM_ESCROW") {
+    throw new Error("Program escrow project funding is not supported by the current protocol.");
+  }
+  if (minParticipationAmount <= 0n || maxWalletParticipationAmount < minParticipationAmount) {
+    throw new Error("Project participation bounds are invalid.");
+  }
+  if (maxTotalParticipationAmount < maxWalletParticipationAmount) {
+    throw new Error("Project total participation cap cannot be below the wallet cap.");
+  }
+  if (participationEndsAt <= participationStartsAt) {
+    throw new Error("Project participation window must end after it starts.");
+  }
+  if (status === "COMPLETED" || status === "CANCELLED") {
+    throw new Error("Project cannot be registered in a terminal status.");
+  }
+  if (receivingAccount.equals(PublicKey.default)) {
+    throw new Error("Project receiving account cannot be the default public key.");
+  }
+}
+
+function assertSeedBotPermissionLimits({
+  expiresAt,
+  maxDailyTrades,
+  maxDailyVolumeAmount,
+  maxSlippageBps,
+  maxTradeAmount,
+  now,
+}: {
+  expiresAt: bigint;
+  maxDailyTrades: number;
+  maxDailyVolumeAmount: bigint;
+  maxSlippageBps: number;
+  maxTradeAmount: bigint;
+  now: bigint;
+}) {
+  assertU16(maxDailyTrades);
+  assertU16(maxSlippageBps);
+  if (expiresAt <= now) {
+    throw new Error("SeedBot permission expiry must be in the future.");
+  }
+  if (expiresAt - now > MAX_SEEDBOT_PERMISSION_SECONDS) {
+    throw new Error("SeedBot permission expiry cannot exceed 30 days.");
+  }
+  if (maxTradeAmount <= 0n) {
+    throw new Error("SeedBot max trade amount must be greater than zero.");
+  }
+  if (maxDailyVolumeAmount < maxTradeAmount) {
+    throw new Error("SeedBot daily volume cap cannot be below the trade cap.");
+  }
+  if (maxDailyTrades <= 0 || maxDailyTrades > MAX_SEEDBOT_DAILY_TRADES) {
+    throw new Error("SeedBot daily trade cap is outside protocol bounds.");
+  }
+  if (maxSlippageBps > MAX_SEEDBOT_SLIPPAGE_BPS) {
+    throw new Error("SeedBot slippage cap is outside protocol bounds.");
+  }
+}
+
 function assertProjectOperatorPermissions(permissions: number) {
   assertU16(permissions);
   if (permissions <= 0 || (permissions & ~PROJECT_OPERATOR_PERMISSION_MASK) !== 0) {
@@ -2469,6 +2654,12 @@ function assertU64(value: bigint) {
   }
 }
 
+function assertPositiveAmount(value: bigint, label: string) {
+  if (value <= 0n) {
+    throw new Error(`${label} must be greater than zero.`);
+  }
+}
+
 function assertI64(value: bigint) {
   if (value < I64_MIN || value > I64_MAX) {
     throw new Error("Value exceeds Solana i64 bounds");
@@ -2477,4 +2668,8 @@ function assertI64(value: bigint) {
 
 function bytesToHex(bytes: Uint8Array | number[]) {
   return [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+function currentUnixTimestamp() {
+  return BigInt(Math.floor(Date.now() / 1000));
 }
