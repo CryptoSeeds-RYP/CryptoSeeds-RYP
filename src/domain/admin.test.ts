@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { adminActionPreviews, buildAdminAccess, buildAdminProtocolPreviews } from "./admin";
+import { PLACEHOLDER_PROTOCOL_PROGRAM_ID } from "../config/env";
+import { adminActionPreviews, buildAdminAccess, buildAdminLaunchReadiness, buildAdminProtocolPreviews } from "./admin";
 
 const adminAddress = "Admin111111111111111111111111111111111111111";
 const validAdminAddress = "11111111111111111111111111111111";
@@ -139,5 +140,135 @@ describe("admin access", () => {
 
     expect(previews.filter((preview) => preview.status === "READY")).toHaveLength(0);
     expect(previews.every((preview) => preview.blockers.length > 0)).toBe(true);
+  });
+
+  it("summarizes public testnet blockers for placeholder or demo state", () => {
+    const access = buildAdminAccess({
+      config: {
+        cluster: "localnet",
+        protocolDeployment: "placeholder",
+        solanaBroadcastEnabled: false,
+      },
+      walletAddress: undefined,
+      demoMode: true,
+    });
+    const readiness = buildAdminLaunchReadiness({
+      access,
+      config: {
+        adminAuthorityAddress: undefined,
+        cluster: "localnet",
+        demoMode: true,
+        protocolDeployment: "placeholder",
+        protocolProgramId: PLACEHOLDER_PROTOCOL_PROGRAM_ID,
+        rypMintAddress: "CFPzKkPYqpyfNJp3WDB4dykMemfhwYrV9cgNUy7nsoPD",
+        solanaBroadcastEnabled: false,
+      },
+      protocol: {
+        status: "PREVIEW_ONLY",
+        blockers: [],
+        warnings: [],
+      },
+      reward: {
+        rewardConfigStatus: "PREVIEW_ONLY",
+        epochStatus: "PREVIEW_ONLY",
+        blockers: [],
+        warnings: [],
+      },
+    });
+
+    expect(readiness.status).toBe("BLOCKED");
+    expect(readiness.blockedCount).toBeGreaterThan(0);
+    expect(readiness.blockers).toContain("Public testnet readiness requires VITE_SOLANA_CLUSTER=devnet.");
+    expect(readiness.blockers).toContain("Protocol program id is still the placeholder.");
+    expect(readiness.blockers).toContain("Reward config must decode from devnet before public reward inspection review.");
+    expect(readiness.gates.find((gate) => gate.id === "broadcast-boundary")?.status).toBe("REVIEW_REQUIRED");
+  });
+
+  it("marks clean devnet state as ready for review while broadcast remains disabled", () => {
+    const access = buildAdminAccess({
+      config: {
+        adminAuthorityAddress: validAdminAddress,
+        cluster: "devnet",
+        protocolDeployment: "devnet",
+        solanaBroadcastEnabled: false,
+      },
+      walletAddress: validAdminAddress,
+      demoMode: false,
+    });
+    const readiness = buildAdminLaunchReadiness({
+      access,
+      config: {
+        adminAuthorityAddress: validAdminAddress,
+        cluster: "devnet",
+        demoMode: false,
+        protocolDeployment: "devnet",
+        protocolProgramId: "5RWpGEGB9Yr7cmaoWZJQ9t263Wb8K18GrcMDqHByLXSb",
+        rypMintAddress: "B2Q92Qns3cukkNhtG4kbE1PVcUyjcKMs79HJtCJT9Eq7",
+        solanaBroadcastEnabled: false,
+      },
+      protocol: {
+        status: "DECODED",
+        blockers: [],
+        warnings: [],
+        activeModulePauses: [],
+      },
+      reward: {
+        rewardConfigStatus: "DECODED",
+        epochStatus: "PREVIEW_ONLY",
+        blockers: [],
+        warnings: [],
+      },
+    });
+
+    expect(readiness.status).toBe("READY_FOR_REVIEW");
+    expect(readiness.blockedCount).toBe(0);
+    expect(readiness.reviewCount).toBe(1);
+    expect(readiness.warnings).toContain(
+      "Broadcast remains disabled until devnet account inspection and wallet simulation review pass.",
+    );
+  });
+
+  it("blocks launch readiness when module pauses or reward blockers are active", () => {
+    const access = buildAdminAccess({
+      config: {
+        adminAuthorityAddress: validAdminAddress,
+        cluster: "devnet",
+        protocolDeployment: "devnet",
+        solanaBroadcastEnabled: false,
+      },
+      walletAddress: validAdminAddress,
+      demoMode: false,
+    });
+    const readiness = buildAdminLaunchReadiness({
+      access,
+      config: {
+        adminAuthorityAddress: validAdminAddress,
+        cluster: "devnet",
+        demoMode: false,
+        protocolDeployment: "devnet",
+        protocolProgramId: "5RWpGEGB9Yr7cmaoWZJQ9t263Wb8K18GrcMDqHByLXSb",
+        rypMintAddress: "B2Q92Qns3cukkNhtG4kbE1PVcUyjcKMs79HJtCJT9Eq7",
+        solanaBroadcastEnabled: false,
+      },
+      protocol: {
+        status: "DECODED",
+        blockers: [],
+        warnings: [],
+        activeModulePauses: ["staking", "projects"],
+      },
+      reward: {
+        rewardConfigStatus: "DECODED",
+        epochStatus: "DECODE_ERROR",
+        blockers: ["Reward epoch account must decode before admin reward inspection is considered ready."],
+        warnings: [],
+      },
+    });
+
+    expect(readiness.status).toBe("BLOCKED");
+    expect(readiness.blockers).toContain("staking module pause is active.");
+    expect(readiness.blockers).toContain("projects module pause is active.");
+    expect(readiness.blockers).toContain(
+      "Reward epoch account must decode before admin reward inspection is considered ready.",
+    );
   });
 });

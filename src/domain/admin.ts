@@ -1,5 +1,6 @@
 import { sha256 } from "@noble/hashes/sha2";
-import type { AppConfig } from "../config/env";
+import { PLACEHOLDER_PROTOCOL_PROGRAM_ID, type AppConfig } from "../config/env";
+import { RYP_MINT_ADDRESS } from "./token";
 import type { PreparedSolanaTransactionPlan } from "./transactions";
 import {
   BPS_DENOMINATOR,
@@ -67,6 +68,41 @@ export type AdminProtocolPreview = {
   description: string;
   executionRule: string;
   plan?: PreparedSolanaTransactionPlan;
+  blockers: string[];
+  warnings: string[];
+};
+
+export type AdminReadinessGateStatus = "READY" | "REVIEW_REQUIRED" | "BLOCKED";
+
+export type AdminReadinessGate = {
+  id: string;
+  label: string;
+  status: AdminReadinessGateStatus;
+  summary: string;
+  blockers: string[];
+  warnings: string[];
+};
+
+export type AdminLaunchReadiness = {
+  status: "BLOCKED" | "READY_FOR_REVIEW";
+  gates: AdminReadinessGate[];
+  readyCount: number;
+  reviewCount: number;
+  blockedCount: number;
+  blockers: string[];
+  warnings: string[];
+};
+
+export type AdminProtocolReadinessInput = {
+  status: string;
+  blockers: string[];
+  warnings: string[];
+  activeModulePauses?: string[];
+};
+
+export type AdminRewardReadinessInput = {
+  rewardConfigStatus: string;
+  epochStatus: string;
   blockers: string[];
   warnings: string[];
 };
@@ -232,6 +268,51 @@ export function adminActionsExecutableInMvp() {
   return adminActionPreviews.every((action) => action.status !== "LOCALNET_READY" || action.executionRule.includes("preview"));
 }
 
+export function buildAdminLaunchReadiness({
+  access,
+  config,
+  protocol,
+  reward,
+}: {
+  access: AdminAccess;
+  config: Pick<
+    AppConfig,
+    | "adminAuthorityAddress"
+    | "cluster"
+    | "demoMode"
+    | "protocolDeployment"
+    | "protocolProgramId"
+    | "rypMintAddress"
+    | "solanaBroadcastEnabled"
+  >;
+  protocol: AdminProtocolReadinessInput;
+  reward: AdminRewardReadinessInput;
+}): AdminLaunchReadiness {
+  const gates: AdminReadinessGate[] = [
+    buildEnvironmentGate(config),
+    buildAdminAccessGate(access),
+    buildProtocolInspectionGate(protocol),
+    buildModulePauseGate(protocol.activeModulePauses ?? []),
+    buildRewardInspectionGate(reward),
+    buildBroadcastGate(config),
+  ];
+  const blockers = uniqueMessages(gates.flatMap((gate) => gate.blockers));
+  const warnings = uniqueMessages(gates.flatMap((gate) => gate.warnings));
+  const readyCount = gates.filter((gate) => gate.status === "READY").length;
+  const reviewCount = gates.filter((gate) => gate.status === "REVIEW_REQUIRED").length;
+  const blockedCount = gates.filter((gate) => gate.status === "BLOCKED").length;
+
+  return {
+    status: blockedCount > 0 ? "BLOCKED" : "READY_FOR_REVIEW",
+    gates,
+    readyCount,
+    reviewCount,
+    blockedCount,
+    blockers,
+    warnings,
+  };
+}
+
 export function buildAdminProtocolPreviews({
   authorityAddress,
   independentTreasuryAddress,
@@ -384,6 +465,154 @@ export function buildAdminProtocolPreviews({
   ];
 }
 
+function buildEnvironmentGate(
+  config: Pick<
+    AppConfig,
+    "cluster" | "demoMode" | "protocolDeployment" | "protocolProgramId" | "rypMintAddress"
+  >,
+): AdminReadinessGate {
+  const blockers: string[] = [];
+  const warnings: string[] = [];
+
+  if (config.cluster !== "devnet") blockers.push("Public testnet readiness requires VITE_SOLANA_CLUSTER=devnet.");
+  if (config.protocolDeployment !== "devnet") {
+    blockers.push("Public testnet readiness requires VITE_CRYPTOSEEDS_PROGRAM_DEPLOYMENT=devnet.");
+  }
+  if (config.protocolProgramId === PLACEHOLDER_PROTOCOL_PROGRAM_ID) {
+    blockers.push("Protocol program id is still the placeholder.");
+  }
+  if (config.demoMode) blockers.push("Demo mode must be disabled for public testnet review.");
+  if (config.cluster === "devnet" && config.rypMintAddress === RYP_MINT_ADDRESS) {
+    blockers.push("Devnet must use the configured devnet RYP test mint, not the mainnet RYP mint.");
+  }
+  if (config.cluster === "mainnet-beta" || config.protocolDeployment === "mainnet-beta") {
+    blockers.push("Mainnet is blocked until final launch review.");
+  }
+  if (config.cluster === "localnet") {
+    warnings.push("Localnet is valid for development smoke tests, not public testnet launch review.");
+  }
+
+  return readinessGate({
+    blockers,
+    id: "environment",
+    label: "Environment",
+    readySummary: "Devnet environment is selected with a reviewed program id and test mint.",
+    summary: "Cluster, deployment mode, program id, demo mode, and RYP mint must match the public testnet lane.",
+    warnings,
+  });
+}
+
+function buildAdminAccessGate(access: AdminAccess): AdminReadinessGate {
+  return readinessGate({
+    blockers: access.blockers,
+    id: "admin-access",
+    label: "Admin Access",
+    readySummary: "Configured admin authority is connected and dashboard drafting is unlocked.",
+    summary: "The configured admin authority must be connected before launch review actions can be prepared.",
+    warnings: access.warnings,
+  });
+}
+
+function buildProtocolInspectionGate(protocol: AdminProtocolReadinessInput): AdminReadinessGate {
+  const blockers = [...protocol.blockers];
+  const warnings = [...protocol.warnings];
+  if (protocol.status !== "DECODED") {
+    blockers.push("Protocol config must decode from the selected devnet program before public testnet review.");
+  }
+
+  return readinessGate({
+    blockers,
+    id: "protocol-inspection",
+    label: "Protocol Inspection",
+    readySummary: "Protocol config decodes cleanly and has no inspection blockers.",
+    summary: "Protocol config, tier policy, authorities, and vault address must be readable from devnet.",
+    warnings,
+  });
+}
+
+function buildModulePauseGate(activeModulePauses: string[]): AdminReadinessGate {
+  const blockers = activeModulePauses.map((module) => `${module} module pause is active.`);
+
+  return readinessGate({
+    blockers,
+    id: "module-pauses",
+    label: "Module Pauses",
+    readySummary: "No scoped protocol module pause is active.",
+    summary: "Public testnet review should not start while staking, governance, projects, SeedBot, or fee routing is paused.",
+    warnings: [],
+  });
+}
+
+function buildRewardInspectionGate(reward: AdminRewardReadinessInput): AdminReadinessGate {
+  const blockers = [...reward.blockers];
+  const warnings = [...reward.warnings];
+  if (reward.rewardConfigStatus !== "DECODED") {
+    blockers.push("Reward config must decode from devnet before public reward inspection review.");
+  }
+  if (reward.epochStatus !== "DECODED" && reward.epochStatus !== "PREVIEW_ONLY") {
+    blockers.push("Reward epoch inspection must be decoded or preview-only before public testnet review.");
+  }
+
+  return readinessGate({
+    blockers,
+    id: "reward-inspection",
+    label: "Reward Inspection",
+    readySummary: "Reward config, vault states, and epoch inspection pass read-only validation.",
+    summary: "Holder/staker/treasury reward state must stay read-only and decode without unsafe vault or epoch blockers.",
+    warnings,
+  });
+}
+
+function buildBroadcastGate(
+  config: Pick<AppConfig, "protocolDeployment" | "solanaBroadcastEnabled">,
+): AdminReadinessGate {
+  const blockers: string[] = [];
+  const warnings: string[] = [];
+
+  if (config.solanaBroadcastEnabled && config.protocolDeployment !== "devnet") {
+    blockers.push("Broadcast cannot be enabled outside the reviewed devnet deployment lane.");
+  }
+  if (!config.solanaBroadcastEnabled) {
+    warnings.push("Broadcast remains disabled until devnet account inspection and wallet simulation review pass.");
+  }
+
+  return {
+    blockers,
+    id: "broadcast-boundary",
+    label: "Broadcast Boundary",
+    status: blockers.length > 0 ? "BLOCKED" : config.solanaBroadcastEnabled ? "READY" : "REVIEW_REQUIRED",
+    summary: config.solanaBroadcastEnabled
+      ? "Broadcast flag is enabled for reviewed devnet testing."
+      : "Broadcast is intentionally disabled pending final devnet review.",
+    warnings,
+  };
+}
+
+function readinessGate({
+  blockers,
+  id,
+  label,
+  readySummary,
+  summary,
+  warnings,
+}: {
+  blockers: string[];
+  id: string;
+  label: string;
+  readySummary: string;
+  summary: string;
+  warnings: string[];
+}): AdminReadinessGate {
+  return {
+    blockers: uniqueMessages(blockers),
+    id,
+    label,
+    status: blockers.length > 0 ? "BLOCKED" : "READY",
+    summary: blockers.length > 0 ? summary : readySummary,
+    warnings: uniqueMessages(warnings),
+  };
+}
+
 function safeProtocolPreview({
   authorityAddress,
   build,
@@ -479,4 +708,8 @@ function concatBytes(...chunks: Uint8Array[]) {
 
 function bytesToHex(bytes: Uint8Array) {
   return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+function uniqueMessages(messages: string[]) {
+  return [...new Set(messages)];
 }

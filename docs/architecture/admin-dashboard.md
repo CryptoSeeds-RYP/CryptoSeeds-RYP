@@ -77,4 +77,5 @@ Fee edits should be drafted as review packets, not executed directly. The dashbo
 - 3.5% platform/action fee before tier reductions,
 - holder/staker/independent-treasury distribution buckets,
 - scoped module pause and recovery instructions for staking, governance, projects, SeedBot, and fee routing,
+- public testnet readiness gates that summarize environment, admin access, protocol inspection, module pause state, reward inspection, and broadcast boundary status,
 - SeedBot success-fee preview as review-gated and disabled for live use.

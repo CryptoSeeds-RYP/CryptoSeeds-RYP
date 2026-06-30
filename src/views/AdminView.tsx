@@ -3,7 +3,12 @@ import { useConnection } from "@solana/wallet-adapter-react";
 import { PublicKey } from "@solana/web3.js";
 import { AlertTriangle, Database, FileCog, Landmark, LockKeyhole, ShieldCheck, WalletCards } from "lucide-react";
 import { appConfig } from "../config/env";
-import { adminActionPreviews, buildAdminAccess, buildAdminProtocolPreviews } from "../domain/admin";
+import {
+  adminActionPreviews,
+  buildAdminAccess,
+  buildAdminLaunchReadiness,
+  buildAdminProtocolPreviews,
+} from "../domain/admin";
 import { basisPointsToPercent, feeRoutePolicies } from "../domain/feeRouter";
 import {
   buildProtocolConfigInspectionPreview,
@@ -66,6 +71,22 @@ export function AdminView({
   const [rewardInspection, setRewardInspection] = useState<RewardAccountInspection>(() =>
     buildRewardAccountInspectionPreview({ epochId: appConfig.rewardInspectionEpochId }),
   );
+  const launchReadiness = buildAdminLaunchReadiness({
+    access,
+    config: appConfig,
+    protocol: {
+      activeModulePauses: protocolInspection.decoded?.activeModulePauses,
+      blockers: protocolInspection.blockers,
+      status: protocolInspection.status,
+      warnings: protocolInspection.warnings,
+    },
+    reward: {
+      blockers: rewardInspection.blockers,
+      epochStatus: rewardInspection.epochStatus,
+      rewardConfigStatus: rewardInspection.rewardConfigStatus,
+      warnings: rewardInspection.warnings,
+    },
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -256,6 +277,54 @@ export function AdminView({
             ))}
           </div>
         )}
+      </section>
+
+      <section className={`governance-section launch-readiness-panel ${launchReadiness.status.toLowerCase()}`}>
+        <div className="view-header">
+          <div>
+            <ShieldCheck size={20} />
+            <strong>Public Testnet Readiness</strong>
+          </div>
+          <span>{formatLabel(launchReadiness.status)}</span>
+        </div>
+        <div className="policy-strip readiness-summary-strip">
+          <div>
+            <span>Ready</span>
+            <strong>{launchReadiness.readyCount}</strong>
+          </div>
+          <div>
+            <span>Review</span>
+            <strong>{launchReadiness.reviewCount}</strong>
+          </div>
+          <div>
+            <span>Blocked</span>
+            <strong>{launchReadiness.blockedCount}</strong>
+          </div>
+        </div>
+        {(launchReadiness.blockers.length > 0 || launchReadiness.warnings.length > 0) && (
+          <div className="admin-blocker-list">
+            {launchReadiness.blockers.slice(0, 6).map((blocker) => (
+              <span key={blocker}><AlertTriangle size={14} /> {blocker}</span>
+            ))}
+            {launchReadiness.warnings.slice(0, 4).map((warning) => (
+              <span className="warning" key={warning}><AlertTriangle size={14} /> {warning}</span>
+            ))}
+          </div>
+        )}
+        <div className="authority-grid ops-grid readiness-gate-grid">
+          {launchReadiness.gates.map((gate) => (
+            <article className={`authority-card readiness-gate-card ${gate.status.toLowerCase()}`} key={gate.id}>
+              <div className="authority-card-top">
+                <ShieldCheck size={17} />
+                <span>{formatLabel(gate.status)}</span>
+              </div>
+              <strong>{gate.label}</strong>
+              <p>{gate.summary}</p>
+              {gate.blockers.length > 0 && <em>{gate.blockers[0]}</em>}
+              {gate.blockers.length === 0 && gate.warnings.length > 0 && <em>{gate.warnings[0]}</em>}
+            </article>
+          ))}
+        </div>
       </section>
 
       <section className="governance-section protocol-config-inspector">
