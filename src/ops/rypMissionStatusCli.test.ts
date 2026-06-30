@@ -105,6 +105,9 @@ describe("RYP mission status CLI", () => {
     expect(report.phases.find((phase) => phase.id === "create_devnet_test_mint")?.status).toBe("WAITING_ON_DEVNET");
     expect(report.phases.find((phase) => phase.id === "deploy_devnet_program")?.status).toBe("WAITING_ON_DEVNET");
     expect(report.phases.find((phase) => phase.id === "initialize_devnet_protocol")?.status).toBe("WAITING_ON_DEVNET");
+    expect(report.phases.find((phase) => phase.id === "full_local_verification")?.command).toContain(
+      "npm run protocol:smoke:localnet:wsl",
+    );
     expect(report.nextActions).toContain(
       "Fund Hqt69SbbvfkTbdC23ysWAxCZrTf9mYCMe8uuVDPdjPHe with at least 0.1 devnet SOL.",
     );
@@ -310,6 +313,7 @@ function readyOpsReport(): OpsReport {
       "test",
       "build",
       "protocol:idl:check",
+      "protocol:smoke:localnet:wsl",
       "devnet:next",
       "testnet:readiness",
       "rewards:claim-merkle",

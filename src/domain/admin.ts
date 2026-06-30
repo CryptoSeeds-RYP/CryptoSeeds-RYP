@@ -400,7 +400,7 @@ export function buildAdminMissionControl({
       label: "Local Verification",
       status: "REVIEW_REQUIRED",
       summary: "Run the full local suite before treating any deployment or public preview state as reviewable.",
-      command: "npm test && npm run build && npm run ops:check && npm run protocol:idl:check",
+      command: "npm test && npm run build && npm run ops:check && npm run protocol:idl:check && npm run protocol:smoke:localnet:wsl",
     }),
     missionPhase({
       id: "devnet-funding",
