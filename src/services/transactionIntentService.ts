@@ -1,7 +1,7 @@
 import { appConfig } from "../config/env";
 import type { Project, StakingTier } from "../domain/microverse";
 import { basisPointsToPercent, RYP_TOKEN_TRANSFER_FEE_BPS } from "../domain/feeRouter";
-import { latestRiskDisclosure } from "../domain/projectRegistry";
+import { evaluateProjectEligibility, latestRiskDisclosure } from "../domain/projectRegistry";
 import { seedBotFeeDisclosure, type SeedBotStrategy } from "../domain/seedbot";
 import { venueById } from "../domain/seedbotVenues";
 import { validateUnstakePreview } from "../domain/staking";
@@ -114,6 +114,9 @@ export function buildProjectReviewIntent(project: Project, walletAddress?: strin
 }
 
 export function buildProjectParticipationIntent(project: Project, walletAddress?: string): TransactionIntent {
+  const projectEligibility = evaluateProjectEligibility(project, project.requiredTier);
+  const projectBlocked = !projectEligibility.eligible;
+
   return buildIntent({
     id: `project-${project.id}`,
     type: "PARTICIPATE_PROJECT",
@@ -121,15 +124,23 @@ export function buildProjectParticipationIntent(project: Project, walletAddress?
     walletAddress,
     inputToken: "RYP",
     amount: project.requiredTier === "SEED" ? "5,000+" : `${tierRequirements[project.requiredTier].toLocaleString()}+`,
-    estimatedFees: `${basisPointsToPercent(RYP_TOKEN_TRANSFER_FEE_BPS)} RYP transfer-fee target plus platform action fee preview before signing`,
-    status: "READY",
-    executionMode: "WALLET_APPROVED",
-    signaturePolicy: "Manual Solana wallet signature required. No hidden execution or custody.",
+    estimatedFees: projectBlocked
+      ? "No wallet action is prepared until project status, governance, account, and disclosure checks pass."
+      : `${basisPointsToPercent(RYP_TOKEN_TRANSFER_FEE_BPS)} RYP transfer-fee target plus platform action fee preview before signing`,
+    status: projectBlocked ? "BLOCKED" : "READY",
+    executionMode: projectBlocked ? "PREVIEW_ONLY" : "WALLET_APPROVED",
+    signaturePolicy: projectBlocked
+      ? "Project participation preview is blocked by project registry safety checks."
+      : "Manual Solana wallet signature required. No hidden execution or custody.",
     programs: cryptoSeedsPrograms("Project participation state"),
     accounts: projectAccounts(project, walletAddress),
-    acknowledgement: projectAcknowledgement(project, true),
-    riskSummary: `${project.riskLevel} risk label. Wallet approval required before participation.`,
-    expectedResult: "Project slot links to your MicroVerse state and milestone feed.",
+    acknowledgement: projectAcknowledgement(project, !projectBlocked),
+    riskSummary: projectBlocked
+      ? `Project blocked: ${projectEligibility.reasons.join(" ")}`
+      : `${project.riskLevel} risk label. Wallet approval required before participation.`,
+    expectedResult: projectBlocked
+      ? "No project participation action is prepared until blockers are cleared."
+      : "Project slot links to your MicroVerse state and milestone feed.",
   });
 }
 

@@ -85,6 +85,19 @@ describe("transaction intents", () => {
     expect(intent.accounts.some((account) => account.label === "Risk acknowledgement")).toBe(true);
   });
 
+  it("blocks project participation intents when project registry checks fail", () => {
+    const project = projects.find((item) => item.id === "hemp-greenhouse")!;
+    const intent = buildProjectParticipationIntent(project, walletAddress);
+
+    expect(intent.status).toBe("BLOCKED");
+    expect(intent.executionMode).toBe("PREVIEW_ONLY");
+    expect(intent.acknowledgement?.accepted).toBe(false);
+    expect(intent.signaturePolicy).toContain("project registry safety checks");
+    expect(intent.riskSummary).toContain("Governance approval is not complete");
+    expect(intent.riskSummary).toContain("Receiving account is not disclosed");
+    expect(intent.lifecycle.find((step) => step.id === "wallet_signature")?.status).toBe("BLOCKED");
+  });
+
   it("keeps SeedBot in preview-only mode before route creation", () => {
     const intent = buildSeedBotSwapIntent(walletAddress);
 
