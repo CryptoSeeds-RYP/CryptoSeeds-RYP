@@ -339,6 +339,16 @@ describe("admin access", () => {
           message: "Devnet RYP test mint account was not found.",
         },
         nextActions: ["npm run devnet:funding:packet -- --env .env.devnet.example"],
+        operatorHandoff: {
+          activeStep: "fund_devnet_authority",
+          command: "npm run devnet:funding:packet -- --env .env.devnet.example",
+          resumeCommand: "npm run devnet:next -- --env .env.devnet.example",
+          afterCompletionCommand: "npm run devnet:next -- --env .env.devnet.example",
+          requiresExternalAction: true,
+          requiresExplicitApproval: false,
+          risk: "READ_ONLY",
+          operatorRule: "External action required first; use the funding packet, fund devnet SOL externally, then rerun devnet:next.",
+        },
         program: {
           address: "5RWpGEGB9Yr7cmaoWZJQ9t263Wb8K18GrcMDqHByLXSb",
           status: "MISSING",
@@ -370,6 +380,12 @@ describe("admin access", () => {
     expect(mission.phases.find((phase) => phase.id === "devnet-funding")?.command).toBe(
       "npm run devnet:funding:packet -- --env .env.devnet.example",
     );
+    expect(mission.operatorHandoff).toMatchObject({
+      activeStep: "fund_devnet_authority",
+      requiresExternalAction: true,
+      requiresExplicitApproval: false,
+      risk: "READ_ONLY",
+    });
     expect(mission.nextActions[0]).toBe("npm run devnet:funding:packet -- --env .env.devnet.example");
     expect(mission.nextActions).toContain("npm run mission:status -- --env .env.devnet.example");
   });

@@ -399,6 +399,31 @@ export function AdminView({
             <strong>{missionControl.blockedCount}</strong>
           </div>
         </div>
+        {missionControl.operatorHandoff && (
+          <article className={`authority-card mission-operator-card ${missionControl.operatorHandoff.risk.toLowerCase()}`}>
+            <div className="authority-card-top">
+              <FileCog size={17} />
+              <span>{formatLabel(missionControl.operatorHandoff.risk)}</span>
+            </div>
+            <strong>{formatLabel(missionControl.operatorHandoff.activeStep)}</strong>
+            <div className="policy-strip mission-operator-flags">
+              <div>
+                <span>External</span>
+                <strong>{missionControl.operatorHandoff.requiresExternalAction ? "Yes" : "No"}</strong>
+              </div>
+              <div>
+                <span>Approval</span>
+                <strong>{missionControl.operatorHandoff.requiresExplicitApproval ? "Required" : "Not required"}</strong>
+              </div>
+              <div>
+                <span>After</span>
+                <strong>{shortCommand(missionControl.operatorHandoff.afterCompletionCommand)}</strong>
+              </div>
+            </div>
+            <p>{missionControl.operatorHandoff.operatorRule}</p>
+            <code>{missionControl.operatorHandoff.command}</code>
+          </article>
+        )}
         {(missionControl.blockers.length > 0 || missionControl.nextActions.length > 0) && (
           <div className="admin-blocker-list mission-next-actions">
             {missionControl.blockers.slice(0, 3).map((blocker) => (
@@ -884,6 +909,10 @@ function shortAddress(address: string) {
 
 function shortData(dataHex: string) {
   return `${dataHex.slice(0, 18)}...${dataHex.slice(-10)} (${dataHex.length / 2} bytes)`;
+}
+
+function shortCommand(command: string) {
+  return command.replace("npm run ", "");
 }
 
 function formatModulePauses(modules: string[]) {

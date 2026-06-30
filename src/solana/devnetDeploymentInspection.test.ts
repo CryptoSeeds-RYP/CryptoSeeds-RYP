@@ -28,6 +28,13 @@ describe("devnet deployment inspection", () => {
     expect(preview.nextActions).toContain(
       "npm run devnet:funding:packet -- --env .env.devnet.example",
     );
+    expect(preview.operatorHandoff).toMatchObject({
+      activeStep: "fund_devnet_authority",
+      command: "npm run devnet:funding:packet -- --env .env.devnet.example",
+      requiresExplicitApproval: false,
+      requiresExternalAction: true,
+      risk: "READ_ONLY",
+    });
   });
 
   it("blocks local placeholder state from looking deployable", () => {
@@ -66,6 +73,13 @@ describe("devnet deployment inspection", () => {
     expect(inspection.blockers).not.toContain("Devnet authority needs at least 0.1 SOL to create the test mint.");
     expect(inspection.warnings).toContain("Devnet authority has mint funding; 3 SOL is recommended before deployment.");
     expect(inspection.nextActions[0]).toBe("npm run devnet:mint:test -- --env .env.devnet.example");
+    expect(inspection.operatorHandoff).toMatchObject({
+      activeStep: "create_devnet_test_mint",
+      command: "npm run devnet:mint:test -- --env .env.devnet.example",
+      requiresExplicitApproval: true,
+      requiresExternalAction: false,
+      risk: "DEVNET_MUTATION",
+    });
   });
 
   it("moves the next action to bootstrap once mint exists and program is missing", () => {
@@ -79,6 +93,12 @@ describe("devnet deployment inspection", () => {
     expect(inspection.nextActions[0]).toBe(
       "npm run devnet:bootstrap -- --env .env.devnet.example --deploy --init-plan",
     );
+    expect(inspection.operatorHandoff).toMatchObject({
+      activeStep: "deploy_devnet_program",
+      command: "npm run devnet:bootstrap -- --env .env.devnet.example --deploy --init-plan",
+      requiresExplicitApproval: true,
+      risk: "DEVNET_MUTATION",
+    });
   });
 
   it("moves the next action to protocol initialization after program deployment", () => {
@@ -99,6 +119,12 @@ describe("devnet deployment inspection", () => {
 
     expect(inspection.blockers).toEqual([]);
     expect(inspection.nextActions[0]).toBe("npm run devnet:init:protocol -- --env .env.devnet.example");
+    expect(inspection.operatorHandoff).toMatchObject({
+      activeStep: "initialize_devnet_protocol",
+      command: "npm run devnet:init:protocol -- --env .env.devnet.example",
+      requiresExplicitApproval: true,
+      risk: "DEVNET_MUTATION",
+    });
   });
 });
 
@@ -131,6 +157,16 @@ function baseInspection(): DevnetDeploymentInspection {
     blockers: [],
     warnings: [],
     nextActions: [],
+    operatorHandoff: {
+      activeStep: "fund_devnet_authority",
+      command: "npm run devnet:funding:packet -- --env .env.devnet.example",
+      resumeCommand: "npm run devnet:next -- --env .env.devnet.example",
+      afterCompletionCommand: "npm run devnet:next -- --env .env.devnet.example",
+      requiresExternalAction: true,
+      requiresExplicitApproval: false,
+      risk: "READ_ONLY",
+      operatorRule: "External action required first; use the funding packet, fund devnet SOL externally, then rerun devnet:next.",
+    },
   };
 }
 

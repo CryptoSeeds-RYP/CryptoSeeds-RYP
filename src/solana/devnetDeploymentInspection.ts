@@ -36,6 +36,21 @@ export type DevnetProgramInspection = {
   message: string;
 };
 
+export type DevnetOperatorHandoff = {
+  activeStep:
+    | "fund_devnet_authority"
+    | "create_devnet_test_mint"
+    | "deploy_devnet_program"
+    | "initialize_devnet_protocol";
+  command: string;
+  resumeCommand: string;
+  afterCompletionCommand: string;
+  requiresExternalAction: boolean;
+  requiresExplicitApproval: boolean;
+  risk: "READ_ONLY" | "DEVNET_MUTATION";
+  operatorRule: string;
+};
+
 export type DevnetDeploymentInspection = {
   executionMode: "READ_ONLY";
   cluster: AppConfig["cluster"];
@@ -48,6 +63,7 @@ export type DevnetDeploymentInspection = {
   blockers: string[];
   warnings: string[];
   nextActions: string[];
+  operatorHandoff: DevnetOperatorHandoff;
 };
 
 const MIN_MINT_SOL = 0.1;
@@ -88,6 +104,7 @@ export function buildDevnetDeploymentInspectionPreview({
     blockers: [],
     warnings: ["Devnet deployment inspection is read-only."],
     nextActions: [],
+    operatorHandoff: buildOperatorHandoff("fund_devnet_authority"),
   }, { rypDecimals: config.rypDecimals });
 }
 
@@ -175,6 +192,7 @@ export function validateDevnetDeploymentInspection(
     blockers: uniqueMessages(blockers),
     warnings: uniqueMessages(warnings),
     nextActions: buildNextActions(inspection),
+    operatorHandoff: buildOperatorHandoff(nextStep(inspection)),
   };
 }
 
@@ -302,20 +320,21 @@ async function readProgram({
 }
 
 function buildNextActions(inspection: DevnetDeploymentInspection) {
-  if (!inspection.authority.fundedForMint) {
+  const step = nextStep(inspection);
+  if (step === "fund_devnet_authority") {
     return [
       `Fund ${inspection.authority.address ?? "the devnet authority"} with at least ${inspection.minimumMintSolRequired} devnet SOL; ${inspection.minimumDeploySolRecommended} SOL is recommended.`,
       "npm run devnet:funding:packet -- --env .env.devnet.example",
       "npm run devnet:next -- --env .env.devnet.example",
     ];
   }
-  if (inspection.mint.status !== "PRESENT" || !inspection.mint.isMint) {
+  if (step === "create_devnet_test_mint") {
     return [
       "npm run devnet:mint:test -- --env .env.devnet.example",
       "npm run devnet:next -- --env .env.devnet.example",
     ];
   }
-  if (inspection.program.status !== "PRESENT" || !inspection.program.executable) {
+  if (step === "deploy_devnet_program") {
     return [
       "npm run devnet:bootstrap -- --env .env.devnet.example --deploy --init-plan",
       "npm run devnet:next -- --env .env.devnet.example",
@@ -325,6 +344,54 @@ function buildNextActions(inspection: DevnetDeploymentInspection) {
     "npm run devnet:init:protocol -- --env .env.devnet.example",
     "npm run testnet:readiness -- --profile read-only --env .env.devnet.example",
   ];
+}
+
+function nextStep(inspection: DevnetDeploymentInspection): DevnetOperatorHandoff["activeStep"] {
+  if (!inspection.authority.fundedForMint) return "fund_devnet_authority";
+  if (inspection.mint.status !== "PRESENT" || !inspection.mint.isMint) return "create_devnet_test_mint";
+  if (inspection.program.status !== "PRESENT" || !inspection.program.executable) return "deploy_devnet_program";
+  return "initialize_devnet_protocol";
+}
+
+function buildOperatorHandoff(activeStep: DevnetOperatorHandoff["activeStep"]): DevnetOperatorHandoff {
+  const resumeCommand = "npm run devnet:next -- --env .env.devnet.example";
+  const commandByStep: Record<DevnetOperatorHandoff["activeStep"], string> = {
+    fund_devnet_authority: "npm run devnet:funding:packet -- --env .env.devnet.example",
+    create_devnet_test_mint: "npm run devnet:mint:test -- --env .env.devnet.example",
+    deploy_devnet_program: "npm run devnet:bootstrap -- --env .env.devnet.example --deploy --init-plan",
+    initialize_devnet_protocol: "npm run devnet:init:protocol -- --env .env.devnet.example",
+  };
+  const risk = activeStep === "fund_devnet_authority" ? "READ_ONLY" : "DEVNET_MUTATION";
+  const requiresExternalAction = activeStep === "fund_devnet_authority";
+  const requiresExplicitApproval = risk === "DEVNET_MUTATION";
+
+  return {
+    activeStep,
+    command: commandByStep[activeStep],
+    resumeCommand,
+    afterCompletionCommand: resumeCommand,
+    requiresExternalAction,
+    requiresExplicitApproval,
+    risk,
+    operatorRule: operatorRule({ requiresExplicitApproval, requiresExternalAction, risk }),
+  };
+}
+
+function operatorRule({
+  requiresExplicitApproval,
+  requiresExternalAction,
+  risk,
+}: Pick<DevnetOperatorHandoff, "requiresExplicitApproval" | "requiresExternalAction" | "risk">) {
+  if (requiresExternalAction) {
+    return "External action required first; use the funding packet, fund devnet SOL externally, then rerun devnet:next.";
+  }
+  if (requiresExplicitApproval) {
+    return "Review the printed report and approve this devnet mutation before running the command.";
+  }
+  if (risk === "READ_ONLY") {
+    return "Safe to run as a read-only inspection or report command; rerun devnet:next afterward.";
+  }
+  return "Review before running the next action; the risk level is not recognized.";
 }
 
 function errorMessage(error: unknown) {

@@ -112,6 +112,7 @@ export type AdminMissionPhase = {
 export type AdminMissionControl = {
   status: "MISSION_BLOCKED" | "MISSION_READY_FOR_REVIEW";
   phases: AdminMissionPhase[];
+  operatorHandoff: DevnetDeploymentInspection["operatorHandoff"] | null;
   localReadyCount: number;
   reviewCount: number;
   waitingOnDevnetCount: number;
@@ -140,7 +141,10 @@ export type AdminMissionControlInput = {
     AppConfig,
     "cluster" | "protocolDeployment" | "protocolProgramId" | "rypMintAddress" | "solanaBroadcastEnabled"
   >;
-  deployment?: Pick<DevnetDeploymentInspection, "authority" | "blockers" | "mint" | "nextActions" | "program">;
+  deployment?: Pick<
+    DevnetDeploymentInspection,
+    "authority" | "blockers" | "mint" | "nextActions" | "program"
+  > & Partial<Pick<DevnetDeploymentInspection, "operatorHandoff">>;
   launchReadiness: AdminLaunchReadiness;
   protocol: AdminProtocolReadinessInput;
   reward: AdminRewardReadinessInput;
@@ -515,6 +519,7 @@ export function buildAdminMissionControl({
   return {
     status: missionBlocked || blockers.length > 0 ? "MISSION_BLOCKED" : "MISSION_READY_FOR_REVIEW",
     phases,
+    operatorHandoff: deployment?.operatorHandoff ?? null,
     localReadyCount: phases.filter((phase) => phase.status === "LOCAL_READY").length,
     reviewCount: phases.filter((phase) => phase.status === "READY_FOR_REVIEW" || phase.status === "REVIEW_REQUIRED").length,
     waitingOnDevnetCount: phases.filter((phase) => phase.status === "WAITING_ON_DEVNET").length,
