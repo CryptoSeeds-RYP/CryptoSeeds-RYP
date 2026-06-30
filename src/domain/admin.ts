@@ -361,6 +361,7 @@ export function buildAdminLaunchReadiness({
     | "adminAuthorityAddress"
     | "cluster"
     | "demoMode"
+    | "independentTreasuryAddress"
     | "protocolDeployment"
     | "protocolProgramId"
     | "rypMintAddress"
@@ -588,7 +589,7 @@ export function buildAdminProtocolPreviews({
   const holderSplitBps = splitBps("HOLDERS");
   const stakerSplitBps = splitBps("STAKERS");
   const treasurySplitBps = splitBps("INDEPENDENT_TREASURY");
-  const treasuryOwnerAddress = independentTreasuryAddress ?? authorityAddress;
+  const treasuryOwnerAddress = independentTreasuryAddress;
   const treasuryVaultAddress = treasuryOwnerAddress ? deriveRypAssociatedTokenAddress(treasuryOwnerAddress) : undefined;
   const treasuryMetadataHash = treasuryVaultAddress
     ? rewardVaultMetadataHashHex({
@@ -633,7 +634,7 @@ export function buildAdminProtocolPreviews({
       authorityAddress,
       build: (address) => {
         if (!treasuryVaultAddress || !treasuryMetadataHash) {
-          throw new Error("Independent treasury vault address could not be derived.");
+          throw new Error("Independent treasury address is required for treasury vault previews.");
         }
         return buildRegisterRewardVaultTransactionPlan({
           authorityAddress: address,
@@ -652,7 +653,7 @@ export function buildAdminProtocolPreviews({
       authorityAddress,
       build: (address) => {
         if (!treasuryMetadataHash) {
-          throw new Error("Independent treasury metadata hash could not be derived.");
+          throw new Error("Independent treasury address is required for treasury vault previews.");
         }
         return buildVerifyRewardVaultTransactionPlan({
           authorityAddress: address,
@@ -723,13 +724,29 @@ export function buildAdminProtocolPreviews({
 function buildEnvironmentGate(
   config: Pick<
     AppConfig,
-    "adminAuthorityAddress" | "cluster" | "demoMode" | "protocolDeployment" | "protocolProgramId" | "rypMintAddress"
+    | "adminAuthorityAddress"
+    | "cluster"
+    | "demoMode"
+    | "independentTreasuryAddress"
+    | "protocolDeployment"
+    | "protocolProgramId"
+    | "rypMintAddress"
   >,
 ): AdminReadinessGate {
   const blockers: string[] = [];
   const warnings: string[] = [];
 
   if (!config.adminAuthorityAddress) blockers.push("Public testnet readiness requires VITE_ADMIN_AUTHORITY_ADDRESS.");
+  if (!config.independentTreasuryAddress) {
+    blockers.push("Public testnet readiness requires VITE_INDEPENDENT_TREASURY_ADDRESS.");
+  }
+  if (
+    config.adminAuthorityAddress &&
+    config.independentTreasuryAddress &&
+    config.adminAuthorityAddress === config.independentTreasuryAddress
+  ) {
+    blockers.push("Independent treasury address must be distinct from the admin authority wallet.");
+  }
   if (config.cluster !== "devnet") blockers.push("Public testnet readiness requires VITE_SOLANA_CLUSTER=devnet.");
   if (config.protocolDeployment !== "devnet") {
     blockers.push("Public testnet readiness requires VITE_CRYPTOSEEDS_PROGRAM_DEPLOYMENT=devnet.");

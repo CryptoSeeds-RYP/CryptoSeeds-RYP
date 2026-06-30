@@ -15,8 +15,9 @@ Required gates:
 - Admin actions cannot execute live from the UI.
 - Mainnet admin actions remain blocked until final launch review.
 - Public testnet readiness still requires `VITE_ADMIN_AUTHORITY_ADDRESS` even if the treasury owner can open the operator cockpit.
+- Public testnet readiness also requires `VITE_INDEPENDENT_TREASURY_ADDRESS`, and that address must be distinct from the admin authority.
 
-The independent treasury owner route is an operator-dashboard unlock for testing and review. It does not change protocol signing authority, does not move funds, and does not enable live execution. Protocol transaction previews still require a configured admin authority before signing review.
+The independent treasury owner route is an operator-dashboard unlock for testing and review. It does not change protocol signing authority, does not move funds, and does not enable live execution. Protocol transaction previews still require a configured admin authority before signing review. Treasury reward-vault previews must use the explicit independent treasury address and must not fall back to the admin authority.
 
 ## Why Not A God Wallet Forever
 

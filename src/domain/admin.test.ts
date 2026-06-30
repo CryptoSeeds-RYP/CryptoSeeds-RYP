@@ -9,7 +9,7 @@ import {
 } from "./admin";
 
 const adminAddress = "Admin111111111111111111111111111111111111111";
-const treasuryAddress = "Treasury111111111111111111111111111111111";
+const treasuryAddress = "So11111111111111111111111111111111111111112";
 const validAdminAddress = "11111111111111111111111111111111";
 
 describe("admin access", () => {
@@ -89,6 +89,7 @@ describe("admin access", () => {
         adminAuthorityAddress: undefined,
         cluster: "devnet",
         demoMode: false,
+        independentTreasuryAddress: treasuryAddress,
         protocolDeployment: "devnet",
         protocolProgramId: "5RWpGEGB9Yr7cmaoWZJQ9t263Wb8K18GrcMDqHByLXSb",
         rypMintAddress: "B2Q92Qns3cukkNhtG4kbE1PVcUyjcKMs79HJtCJT9Eq7",
@@ -189,6 +190,7 @@ describe("admin access", () => {
   it("builds preview-only protocol transactions for a valid admin authority", () => {
     const previews = buildAdminProtocolPreviews({
       authorityAddress: validAdminAddress,
+      independentTreasuryAddress: treasuryAddress,
       rypMintAddress: "So11111111111111111111111111111111111111112",
       rypDecimals: 6,
     });
@@ -226,6 +228,22 @@ describe("admin access", () => {
     expect(pauseStaking?.instructions[0].dataHex).toBe("adabe26eeb6c7094010001");
     expect(clearModulePauses?.instructions[0].dataHex).toBe("adabe26eeb6c70941f0000");
     expect(clearModulePauses?.warnings.join(" ")).toContain("does not move funds");
+  });
+
+  it("blocks treasury vault previews without an independent treasury address", () => {
+    const previews = buildAdminProtocolPreviews({
+      authorityAddress: validAdminAddress,
+      rypMintAddress: "So11111111111111111111111111111111111111112",
+      rypDecimals: 6,
+    });
+    const registerVault = previews.find((preview) => preview.id === "register-independent-treasury-vault");
+    const verifyVault = previews.find((preview) => preview.id === "verify-independent-treasury-vault");
+
+    expect(previews.find((preview) => preview.id === "initialize-config")?.status).toBe("READY");
+    expect(registerVault?.status).toBe("BLOCKED");
+    expect(registerVault?.blockers[0]).toContain("Independent treasury address is required");
+    expect(verifyVault?.status).toBe("BLOCKED");
+    expect(verifyVault?.blockers[0]).toContain("Independent treasury address is required");
   });
 
   it("blocks protocol transaction previews without a configured authority", () => {
@@ -285,6 +303,7 @@ describe("admin access", () => {
       config: {
         adminAuthorityAddress: validAdminAddress,
         cluster: "devnet",
+        independentTreasuryAddress: treasuryAddress,
         protocolDeployment: "devnet",
         solanaBroadcastEnabled: false,
       },
@@ -297,6 +316,7 @@ describe("admin access", () => {
         adminAuthorityAddress: validAdminAddress,
         cluster: "devnet",
         demoMode: false,
+        independentTreasuryAddress: treasuryAddress,
         protocolDeployment: "devnet",
         protocolProgramId: "5RWpGEGB9Yr7cmaoWZJQ9t263Wb8K18GrcMDqHByLXSb",
         rypMintAddress: "B2Q92Qns3cukkNhtG4kbE1PVcUyjcKMs79HJtCJT9Eq7",
@@ -341,6 +361,7 @@ describe("admin access", () => {
         adminAuthorityAddress: validAdminAddress,
         cluster: "devnet",
         demoMode: false,
+        independentTreasuryAddress: treasuryAddress,
         protocolDeployment: "devnet",
         protocolProgramId: "5RWpGEGB9Yr7cmaoWZJQ9t263Wb8K18GrcMDqHByLXSb",
         rypMintAddress: "B2Q92Qns3cukkNhtG4kbE1PVcUyjcKMs79HJtCJT9Eq7",
@@ -385,6 +406,7 @@ describe("admin access", () => {
         adminAuthorityAddress: validAdminAddress,
         cluster: "devnet",
         demoMode: false,
+        independentTreasuryAddress: treasuryAddress,
         protocolDeployment: "devnet",
         protocolProgramId: "5RWpGEGB9Yr7cmaoWZJQ9t263Wb8K18GrcMDqHByLXSb",
         rypMintAddress: "B2Q92Qns3cukkNhtG4kbE1PVcUyjcKMs79HJtCJT9Eq7",
@@ -816,6 +838,7 @@ describe("admin access", () => {
       config: {
         adminAuthorityAddress: validAdminAddress,
         cluster: "devnet",
+        independentTreasuryAddress: treasuryAddress,
         protocolDeployment: "devnet",
         solanaBroadcastEnabled: false,
       },
@@ -828,6 +851,7 @@ describe("admin access", () => {
         adminAuthorityAddress: validAdminAddress,
         cluster: "devnet",
         demoMode: false,
+        independentTreasuryAddress: treasuryAddress,
         protocolDeployment: "devnet",
         protocolProgramId: "5RWpGEGB9Yr7cmaoWZJQ9t263Wb8K18GrcMDqHByLXSb",
         rypMintAddress: "B2Q92Qns3cukkNhtG4kbE1PVcUyjcKMs79HJtCJT9Eq7",
