@@ -43,6 +43,7 @@ export default function App() {
     intent,
     loading,
     projectInspection,
+    rewardInspection,
     seedBotPermissionInspection,
     snapshot,
     demoMode,
@@ -141,7 +142,9 @@ export default function App() {
                 onPrepareProject={prepareProjectIntent}
               />
             )}
-            {activeLocation === "harvest" && <HarvestView rewards={rewards} />}
+            {activeLocation === "harvest" && (
+              <HarvestView rewardInspection={rewardInspection} rewards={rewards} />
+            )}
             {activeLocation === "governance" && (
               <GovernanceView governanceInspection={governanceInspection} votingActive={farm.governanceActive} />
             )}

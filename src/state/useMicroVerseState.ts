@@ -26,7 +26,9 @@ import {
 } from "../solana/solanaTransactionBoundary";
 import { buildSolanaBroadcastReadiness } from "../solana/solanaBroadcastReadiness";
 import {
+  readRewardAccountInspection,
   readSeedBotPermissionInspection,
+  type RewardAccountInspection,
   type SeedBotPermissionInspection,
 } from "../solana/rewardAccountInspection";
 import {
@@ -51,6 +53,7 @@ export function useMicroVerseState() {
   const [snapshot, setSnapshot] = useState<ProtocolSnapshot | undefined>();
   const [governanceInspection, setGovernanceInspection] = useState<GovernanceStateInspection | undefined>();
   const [projectInspection, setProjectInspection] = useState<ProjectStateInspection | undefined>();
+  const [rewardInspection, setRewardInspection] = useState<RewardAccountInspection | undefined>();
   const [seedBotPermissionInspection, setSeedBotPermissionInspection] =
     useState<SeedBotPermissionInspection | undefined>();
   const [loading, setLoading] = useState(true);
@@ -141,15 +144,17 @@ export function useMicroVerseState() {
     if (!shouldReadConfiguredProtocolState({ demoMode })) {
       setGovernanceInspection(undefined);
       setProjectInspection(undefined);
+      setRewardInspection(undefined);
       return;
     }
 
     setGovernanceInspection(undefined);
     setProjectInspection(undefined);
+    setRewardInspection(undefined);
 
     async function loadConfiguredProtocolInspections() {
       try {
-        const [governance, project] = await Promise.all([
+        const [governance, project, reward] = await Promise.all([
           readGovernanceStateInspection({
             connection,
             proposalId: appConfig.governanceInspectionProposalId,
@@ -160,14 +165,20 @@ export function useMicroVerseState() {
             projectId: appConfig.projectInspectionId,
             walletAddress,
           }),
+          readRewardAccountInspection({
+            connection,
+            epochId: appConfig.rewardInspectionEpochId,
+          }),
         ]);
         if (cancelled) return;
         setGovernanceInspection(governance);
         setProjectInspection(project);
+        setRewardInspection(reward);
       } catch {
         if (cancelled) return;
         setGovernanceInspection(undefined);
         setProjectInspection(undefined);
+        setRewardInspection(undefined);
       }
     }
 
@@ -325,6 +336,7 @@ export function useMicroVerseState() {
     intent,
     loading,
     projectInspection,
+    rewardInspection,
     seedBotPermissionInspection,
     snapshot,
     demoMode,
