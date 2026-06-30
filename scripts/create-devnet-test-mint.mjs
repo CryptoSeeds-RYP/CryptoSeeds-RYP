@@ -17,6 +17,7 @@ process.on("uncaughtException", (error) => fail(error));
 
 const TOKEN_PROGRAM_ID = new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
 const MINT_SIZE = 82;
+const MIN_MINT_SOL = 0.1;
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const options = parseArgs(process.argv.slice(2));
 const envPath = path.resolve(repoRoot, options.envPath ?? ".env.devnet.example");
@@ -191,18 +192,13 @@ function assertExpectedPublicKey(label, actual, expected) {
 
 async function ensureDevnetBalance(connection, publicKey) {
   const balance = await connection.getBalance(publicKey, "confirmed");
-  if (balance >= 0.1 * LAMPORTS_PER_SOL) return;
+  if (balance >= MIN_MINT_SOL * LAMPORTS_PER_SOL) return;
 
-  try {
-    const signature = await connection.requestAirdrop(publicKey, LAMPORTS_PER_SOL);
-    const blockhash = await connection.getLatestBlockhash("confirmed");
-    await connection.confirmTransaction({ ...blockhash, signature }, "confirmed");
-  } catch (error) {
-    throw new Error(
-      `Devnet authority needs SOL before mint creation. Current balance: ${balance / LAMPORTS_PER_SOL} SOL. ` +
-        `Airdrop failed: ${error instanceof Error ? error.message : "unknown error"}.`,
-    );
-  }
+  throw new Error(
+    `Devnet authority needs at least ${MIN_MINT_SOL} SOL before mint creation. ` +
+      `Current balance: ${balance / LAMPORTS_PER_SOL} SOL. ` +
+      "Run npm run devnet:funding:packet -- --env .env.devnet.example for the funding handoff.",
+  );
 }
 
 function fail(error) {
@@ -210,5 +206,5 @@ function fail(error) {
     status: "BLOCKED",
     reason: error instanceof Error ? error.message : "unknown error",
   }, null, 2));
-  process.exit(1);
+  process.exitCode = 1;
 }

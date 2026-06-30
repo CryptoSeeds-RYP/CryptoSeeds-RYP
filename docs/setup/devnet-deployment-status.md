@@ -29,7 +29,7 @@ Repo-side devnet prep is partially complete:
 - Anchor build and IDL drift checks pass with the synced program id.
 - Localnet smoke passes with the synced program id.
 - `npm run devnet:bootstrap -- --env .env.devnet.example` is available as a safe orchestration wrapper. By default it runs strict read-only funding/status/prep/program checks and prints the blockers without creating accounts, deploying, or initializing protocol state.
-- `npm run devnet:mint:test -- --env .env.devnet.example` is available to create the configured devnet test mint from ignored local keypairs.
+- `npm run devnet:mint:test -- --env .env.devnet.example` is available to create the configured devnet test mint from ignored local keypairs after the authority wallet is already funded. It does not request faucet airdrops from the mint mutation path.
 - `npm run devnet:fund:authority -- --env .env.devnet.example` is available to check authority balance and try staged devnet airdrops before mint/deploy steps.
 - `npm run devnet:funding:packet -- --env .env.devnet.example` is available to create a read-only funding handoff packet with the public authority address, minimum/recommended devnet SOL amounts, faucet/manual transfer options, and post-funding command sequence.
 - `npm run devnet:status -- --env .env.devnet.example` is available to inspect local keypair presence, reward-vault keypair readiness, deterministic protocol targets, authority SOL, mint status, program status, and next actions in one read-only report.
@@ -91,6 +91,12 @@ npm run devnet:bootstrap -- --env .env.devnet.example --mint
 
 ```bash
 npm run devnet:mint:test -- --env .env.devnet.example
+```
+
+The mint command requires the devnet authority to already hold at least `0.1 SOL`. If funding is missing, use:
+
+```bash
+npm run devnet:funding:packet -- --env .env.devnet.example
 ```
 
 Inspect all devnet blockers in one report:
