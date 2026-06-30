@@ -44,6 +44,7 @@ Reward vaults should never be presented as user custody accounts.
 9. Export the claim Merkle packet for the reviewed epoch id.
 10. Pass the exported `claimMerkleRoot` into `draft_reward_epoch`.
 11. Only after review, prepare devnet instructions.
+12. Generate the plan-only admin epoch packet for `draft_reward_epoch`, `review_reward_epoch`, and `cancel_reward_epoch` planner inputs.
 
 Preferred one-command claim packet export from raw holder snapshot input:
 
@@ -52,6 +53,20 @@ npm run rewards:holder-claim-packet -- <epoch-input.json> <epoch-id>
 ```
 
 The output includes the holder reward epoch draft, the proof-only claim packet, and the `claimMerkleRoot` that should be reviewed before being passed into `draft_reward_epoch`.
+
+Plan-only admin epoch packet:
+
+```bash
+npm run rewards:epoch:admin-plan -- <epoch-input.json> <epoch-id> --authority <admin-authority-pubkey>
+```
+
+The admin packet chains the holder claim-packet export, validates the same reward epoch accounting bounds, derives a deterministic exclusion-list hash from excluded holder rows, and emits planner inputs for:
+
+- `buildDraftRewardEpochTransactionPlan`,
+- `buildReviewRewardEpochTransactionPlan`,
+- `buildCancelRewardEpochTransactionPlan`.
+
+It does not sign, broadcast, create epochs, review epochs, cancel epochs, create claim records, or move tokens.
 
 Claim proof export:
 

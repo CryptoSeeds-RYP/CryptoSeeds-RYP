@@ -465,7 +465,7 @@ export function buildAdminMissionControl({
       summary: rewardDecoded
         ? "Reward config decodes and can be reviewed against holder/staker/treasury policy."
         : "Reward vaults and holder claim paths stay local/read-only until devnet reward state exists.",
-      command: "npm run rewards:holder-claim-packet",
+      command: "npm run rewards:epoch:admin-plan",
       blockers: reward.blockers,
     }),
     missionPhase({

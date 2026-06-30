@@ -29,6 +29,7 @@ const requiredScripts = [
   "protocol:admin:fixture:check",
   "protocol:smoke:localnet:wsl",
   "rewards:claim-merkle",
+  "rewards:epoch:admin-plan",
   "rewards:epoch:draft",
   "rewards:holder-claim-packet",
   "ops:check",

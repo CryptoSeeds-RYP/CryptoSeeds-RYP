@@ -39,6 +39,7 @@
     "mission:status": "node scripts/check-ryp-mission-status.mjs",
     "ops:check": "node scripts/check-ops-readiness.mjs",
     "rewards:claim-merkle": "node scripts/prepare-reward-claim-merkle.mjs",
+    "rewards:epoch:admin-plan": "node scripts/prepare-reward-epoch-admin-plan.mjs",
     "rewards:epoch:draft": "node scripts/prepare-holder-reward-epoch.mjs docs/operations/holder-reward-epoch.example.json",
     "rewards:holder-claim-packet": "node scripts/prepare-holder-reward-claim-packet.mjs",
     "token:check": "node scripts/check-ryp-mint.mjs",

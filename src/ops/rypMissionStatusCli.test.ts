@@ -290,6 +290,7 @@ function readyOpsReport(): OpsReport {
       "devnet:next",
       "testnet:readiness",
       "rewards:claim-merkle",
+      "rewards:epoch:admin-plan",
       "rewards:holder-claim-packet",
     ],
   };

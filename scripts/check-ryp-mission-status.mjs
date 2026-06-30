@@ -78,6 +78,7 @@ export function buildRypMissionStatusReport({
     "devnet:next",
     "testnet:readiness",
     "rewards:claim-merkle",
+    "rewards:epoch:admin-plan",
     "rewards:holder-claim-packet",
   ].every((scriptName) => hasRequiredScript(opsReport, scriptName));
 
@@ -184,12 +185,16 @@ export function buildRypMissionStatusReport({
     phase({
       id: "fee_and_holder_rewards",
       label: "Complete RYP Fee And Holder Reward System",
-      status: hasRequiredScript(opsReport, "rewards:holder-claim-packet") ? "LOCAL_READY" : "BLOCKED",
-      summary: "Platform fee routing and holder reward packet tooling are kept local/read-only until vaults are initialized.",
-      command: "npm run rewards:holder-claim-packet",
-      blockers: hasRequiredScript(opsReport, "rewards:holder-claim-packet")
+      status: hasRequiredScript(opsReport, "rewards:holder-claim-packet") &&
+        hasRequiredScript(opsReport, "rewards:epoch:admin-plan")
+        ? "LOCAL_READY"
+        : "BLOCKED",
+      summary: "Platform fee routing, holder claim packets, and reward epoch admin plans are kept local/read-only until vaults are initialized.",
+      command: "npm run rewards:epoch:admin-plan",
+      blockers: hasRequiredScript(opsReport, "rewards:holder-claim-packet") &&
+        hasRequiredScript(opsReport, "rewards:epoch:admin-plan")
         ? []
-        : ["Missing holder reward claim packet script."],
+        : ["Missing holder reward claim packet or reward epoch admin plan script."],
     }),
     phase({
       id: "projects_and_seedbot",
