@@ -284,13 +284,12 @@ function nextActions() {
     return [
       ...vaultPrepAction,
       `Run npm run devnet:mint:test -- --env ${envSource}.`,
-      `Run npm run devnet:prep -- --env ${envSource}.`,
+      `Run npm run devnet:next -- --env ${envSource}.`,
     ];
   }
   if (!chain.program?.exists) {
     return [
       ...vaultPrepAction,
-      `Run npm run devnet:prep -- --env ${envSource}.`,
       `Run npm run devnet:bootstrap -- --env ${envSource} --deploy --init-plan.`,
       `Re-run npm run devnet:status -- --env ${envSource}.`,
     ];

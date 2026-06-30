@@ -21,13 +21,24 @@ describe("devnet operator next actions", () => {
 
     expect(statusScript).toContain("envSource = path.relative(repoRoot, envPath)");
     expect(statusScript).toContain("npm run devnet:vaults:prep -- --env ${envSource}");
+    expect(statusScript).toContain("npm run devnet:next -- --env ${envSource}");
     expect(statusScript).toContain("npm run devnet:bootstrap -- --env ${envSource} --deploy --init-plan");
+    expect(statusScript).not.toContain("Run npm run devnet:prep -- --env ${envSource}.");
     expect(statusScript).not.toContain("Run npm run devnet:deploy:wsl -- -EnvPath .env.devnet.example.");
 
     expect(programScript).toContain("envSource = path.relative(repoRoot, envPath)");
     expect(programScript).toContain("npm run devnet:bootstrap -- --env ${envSource} --deploy --init-plan");
     expect(programScript).toContain("npm run devnet:init:protocol -- --env ${envSource}");
     expect(programScript).not.toContain("Run npm run devnet:deploy:wsl -- -EnvPath .env.devnet.example.");
+  });
+
+  it("keeps devnet deployment docs on the staged wrapper route", async () => {
+    const doc = await readScript("docs/setup/devnet-deployment-status.md");
+
+    expect(doc).toContain("npm run devnet:bootstrap -- --env .env.devnet.example --deploy --init-plan");
+    expect(doc).toContain("npm run devnet:deployment:receipt -- --profile read-only --env .env.devnet.example");
+    expect(doc).not.toContain("Equivalent direct deploy command");
+    expect(doc).not.toContain("npm run devnet:deployment:receipt -- --env .env.devnet.example");
   });
 });
 

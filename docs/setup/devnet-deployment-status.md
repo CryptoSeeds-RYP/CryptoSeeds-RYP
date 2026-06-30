@@ -37,7 +37,7 @@ Repo-side devnet prep is partially complete:
 - The devnet status report includes the compiled program `.so` relative path, SHA-256 checksum, and byte size for pre-deployment artifact review.
 - `npm run devnet:vaults:prep -- --env .env.devnet.example` is available to create missing ignored reward-vault keypairs before funding/deployment, without RPC calls, signing, or broadcasting.
 - `npm run devnet:program:check -- --env .env.devnet.example` is available to verify whether the configured program is deployed on devnet.
-- `npm run devnet:deploy:wsl -- -EnvPath .env.devnet.example` is available to build, run strict prep, deploy the program, and inspect the deployed program account.
+- `npm run devnet:deploy:wsl -- -EnvPath .env.devnet.example` remains available as a low-level maintainer tool, but the normal operator route is `npm run devnet:bootstrap -- --env .env.devnet.example --deploy --init-plan`.
 - `npm run devnet:init:protocol -- --env .env.devnet.example` is available to plan protocol initialization after devnet deploy.
 - `npm run devnet:init:protocol -- --env .env.devnet.example --execute` initializes config, reward config, and reward vault states only after reviewed execution.
 - `npm run devnet:inspect:protocol -- --env .env.devnet.example` is available to read and validate the deployed program, protocol config, reward config, and reward vault state accounts before any public preview or wallet execution review.
@@ -51,7 +51,7 @@ External blocker:
 - Because the authority wallet has `0 SOL`, the devnet test RYP mint has not been created yet.
 - `npm run devnet:status -- --env .env.devnet.example` currently reports this exact blocker.
 - `npm run devnet:prep -- --env .env.devnet.example` is correctly blocked until the devnet test mint account exists.
-- `npm run devnet:deploy:wsl -- -EnvPath .env.devnet.example` will also block until prep is clean.
+- Program deployment should use `npm run devnet:bootstrap -- --env .env.devnet.example --deploy --init-plan`; the wrapper runs the required prep before deploying.
 - `npm run devnet:init:protocol -- --env .env.devnet.example` will block until the devnet mint and program accounts exist.
 
 ## Next Commands
@@ -114,7 +114,7 @@ Prepare local reward-vault keypairs for the holder, staker, delivery-cost, and r
 npm run devnet:vaults:prep -- --env .env.devnet.example
 ```
 
-Then rerun the deployment prep gate:
+If you need a standalone preflight report, run the deployment prep gate:
 
 ```bash
 npm run devnet:prep -- --env .env.devnet.example
@@ -126,16 +126,10 @@ Inspect current program deployment state:
 npm run devnet:program:check -- --env .env.devnet.example
 ```
 
-When prep is ready, deploy through WSL and print the initialization plan:
+When status is clean, deploy through the bootstrap wrapper and print the initialization plan:
 
 ```bash
 npm run devnet:bootstrap -- --env .env.devnet.example --deploy --init-plan
-```
-
-Equivalent direct deploy command:
-
-```bash
-npm run devnet:deploy:wsl -- -EnvPath .env.devnet.example
 ```
 
 Review the protocol initialization plan:
@@ -165,7 +159,7 @@ npm run testnet:readiness -- --profile read-only --env .env.devnet.example
 Prepare a read-only deployment receipt for release review:
 
 ```bash
-npm run devnet:deployment:receipt -- --env .env.devnet.example
+npm run devnet:deployment:receipt -- --profile read-only --env .env.devnet.example
 ```
 
 The receipt aggregates devnet status, program inspection, protocol-state inspection, public-readiness status, and the local program artifact hash. It is an audit handoff artifact only; it does not authorize frontend broadcast or public launch.
