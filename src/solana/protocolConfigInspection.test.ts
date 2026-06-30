@@ -53,6 +53,7 @@ describe("protocol config inspection", () => {
     writeU16Array(data, offset.tier_fee_reduction_bps, [0, 35, 70, 105, 140]);
     view(data).setBigUint64(offset.total_staked, 7_500_000_000n, true);
     data[offset.paused] = 1;
+    view(data).setUint16(offset.module_pause_flags, 17, true);
     data[offset.bump] = 255;
     writePubkey(data, offset.pending_authority, pendingAuthority);
     writePubkey(data, offset.project_authority, projectAuthority);
@@ -73,6 +74,7 @@ describe("protocol config inspection", () => {
       tierFeeReductionBps: [0, 35, 70, 105, 140],
       totalStaked: "7500000000",
       paused: true,
+      modulePauseFlags: 17,
       bump: 255,
       pendingAuthority: pendingAuthority.toBase58(),
       projectAuthority: projectAuthority.toBase58(),
@@ -138,6 +140,7 @@ function buildDecodedProtocolInspection(
       tierFeeReductionBps: [0, 35, 70, 105, 140],
       totalStaked: "0",
       paused: false,
+      modulePauseFlags: 0,
       bump: 255,
       pendingAuthority: PublicKey.default.toBase58(),
       projectAuthority: Keypair.generate().publicKey.toBase58(),

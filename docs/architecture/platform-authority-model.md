@@ -17,7 +17,7 @@ CryptoSeeds should operate as a self-custodial platform and interface layer. Use
 
 | Control | MVP State | Target Control |
 | --- | --- | --- |
-| Emergency pause | Localnet admin authority | Multisig authority with public incident log |
+| Emergency pause | Global pause plus scoped module pause flags on localnet | Multisig authority with public incident log |
 | Fee parameters | Configurable | Multisig plus timelock before non-emergency changes |
 | Project registry and disclosure revisions | Separate project authority | Operator disclosure, document hashes, risk labels, governance approval |
 | Project operator delegation | Project-scoped operator records | Permission-scoped, revocable operators with public disclosure |
@@ -34,6 +34,8 @@ Protocol, project, and reward authority rotation is two-step on-chain:
 3. The program clears the pending authority after acceptance.
 
 `ProtocolConfig` stores a separate project authority and pending project authority. Project registry, project disclosure revisions, project lifecycle updates, project pause, project cancellation, and project refund accounting use this project authority instead of the main protocol authority.
+
+`ProtocolConfig` also stores scoped module pause flags. The protocol authority can pause staking, governance, projects, SeedBot permissions, or fee routing independently when a narrow operational response is safer than a global pause. Global pause remains available for broad incidents. Project safety exits such as operator revocation, project-level pause, cancellation, and refund accounting should remain available where practical during scoped project-module incidents.
 
 Project operator records are derived per project and operator wallet. The project authority can grant or revoke limited permissions such as status updates or participation pause toggles. Operator grants are time-bounded and must be renewed deliberately. Operators cannot move funds, alter treasury/reward routing, change fee parameters, cancel projects, record refund accounting, or take over project authority.
 

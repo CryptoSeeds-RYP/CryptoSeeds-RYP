@@ -120,6 +120,19 @@ export const MAX_REWARD_MERKLE_PROOF_NODES = 32;
 export const PROJECT_OPERATOR_PERMISSION_STATUS = 1;
 export const PROJECT_OPERATOR_PERMISSION_PAUSE = 2;
 export const PROJECT_OPERATOR_PERMISSION_MASK = PROJECT_OPERATOR_PERMISSION_STATUS | PROJECT_OPERATOR_PERMISSION_PAUSE;
+export const PROTOCOL_PAUSE_MODULE_FLAGS = {
+  STAKING: 1,
+  GOVERNANCE: 2,
+  PROJECTS: 4,
+  SEEDBOT: 8,
+  FEE_ROUTING: 16,
+} as const;
+export const PROTOCOL_PAUSE_MODULE_MASK =
+  PROTOCOL_PAUSE_MODULE_FLAGS.STAKING |
+  PROTOCOL_PAUSE_MODULE_FLAGS.GOVERNANCE |
+  PROTOCOL_PAUSE_MODULE_FLAGS.PROJECTS |
+  PROTOCOL_PAUSE_MODULE_FLAGS.SEEDBOT |
+  PROTOCOL_PAUSE_MODULE_FLAGS.FEE_ROUTING;
 
 const REWARD_ROLE_VARIANTS: Record<RewardClaimRole, number> = {
   HOLDER_REWARD: 0,
@@ -318,6 +331,12 @@ export type CloseGovernanceProposalPlanInput = {
 export type TransferProjectAuthorityPlanInput = {
   authorityAddress: string;
   newAuthorityAddress: string;
+};
+
+export type SetModulePausePlanInput = {
+  authorityAddress: string;
+  moduleFlags: number;
+  paused: boolean;
 };
 
 export type AcceptProjectAuthorityPlanInput = {
@@ -1124,6 +1143,37 @@ export function buildAcceptProjectAuthorityTransactionPlan({
     warnings: [
       "Only the currently nominated project authority can accept project admin power.",
       "This does not change protocol, reward, treasury, or user custody authority.",
+    ],
+  });
+}
+
+export function buildSetModulePauseTransactionPlan({
+  authorityAddress,
+  moduleFlags,
+  paused,
+}: SetModulePausePlanInput): PreparedSolanaTransactionPlan {
+  assertProtocolModulePauseFlags(moduleFlags);
+  const addresses = {
+    ...deriveProtocolAddresses(authorityAddress),
+    authority: new PublicKey(authorityAddress).toBase58(),
+  };
+  const spec = instructionSpec("set_module_pause");
+  const instruction = instructionPlan({
+    accounts: accountsFromSpec(spec, addresses),
+    argDataHex: `${u16LeHex(moduleFlags)}${paused ? "01" : "00"}`,
+    discriminatorHex: spec.discriminatorHex,
+    instructionName: "set_module_pause",
+    programId: addresses.programId,
+  });
+
+  return transactionPlan({
+    action: "SET_MODULE_PAUSE",
+    addresses,
+    feePayer: addresses.authority,
+    instruction,
+    warnings: [
+      "Authority-only scoped emergency pause; use the narrowest module flag needed.",
+      "This does not move funds, change balances, or bypass user wallet approval.",
     ],
   });
 }
@@ -2397,6 +2447,13 @@ function assertProjectOperatorPermissions(permissions: number) {
   assertU16(permissions);
   if (permissions <= 0 || (permissions & ~PROJECT_OPERATOR_PERMISSION_MASK) !== 0) {
     throw new Error("Project operator permissions are invalid");
+  }
+}
+
+function assertProtocolModulePauseFlags(moduleFlags: number) {
+  assertU16(moduleFlags);
+  if (moduleFlags <= 0 || (moduleFlags & ~PROTOCOL_PAUSE_MODULE_MASK) !== 0) {
+    throw new Error("Protocol module pause flags are invalid");
   }
 }
 

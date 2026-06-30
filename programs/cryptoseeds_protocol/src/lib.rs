@@ -34,6 +34,16 @@ pub const MAX_GOVERNANCE_VOTING_WINDOW_SECONDS: i64 = 90 * 24 * 60 * 60;
 pub const MAX_GOVERNANCE_MINIMUM_VOTES: u64 = 1_000_000;
 pub const BPS_DENOMINATOR: u16 = 10_000;
 pub const RYP_TOKEN_TRANSFER_FEE_BPS: u16 = 100;
+pub const PAUSE_MODULE_STAKING: u16 = 1;
+pub const PAUSE_MODULE_GOVERNANCE: u16 = 2;
+pub const PAUSE_MODULE_PROJECTS: u16 = 4;
+pub const PAUSE_MODULE_SEEDBOT: u16 = 8;
+pub const PAUSE_MODULE_FEE_ROUTING: u16 = 16;
+pub const PAUSE_MODULE_MASK: u16 = PAUSE_MODULE_STAKING
+    | PAUSE_MODULE_GOVERNANCE
+    | PAUSE_MODULE_PROJECTS
+    | PAUSE_MODULE_SEEDBOT
+    | PAUSE_MODULE_FEE_ROUTING;
 pub const VOTING_RIGHTS_LEVEL_TWO_VOTE_COUNT: u32 = 100;
 pub const MAX_PROJECT_OPERATOR_PERMISSION_SECONDS: i64 = 90 * 24 * 60 * 60;
 pub const PROJECT_OPERATOR_PERMISSION_STATUS: u16 = 1;
@@ -64,6 +74,7 @@ pub mod cryptoseeds_protocol {
         config.tier_fee_reduction_bps = tier_fee_reduction_bps;
         config.total_staked = 0;
         config.paused = false;
+        config.module_pause_flags = 0;
         config.bump = ctx.bumps.config;
         config.pending_authority = Pubkey::default();
         config.project_authority = ctx.accounts.authority.key();
@@ -93,12 +104,34 @@ pub mod cryptoseeds_protocol {
         Ok(())
     }
 
+    pub fn set_module_pause(
+        ctx: Context<SetModulePause>,
+        module_flags: u16,
+        paused: bool,
+    ) -> Result<()> {
+        let config = &mut ctx.accounts.config;
+        validate_protocol_authority(config, &ctx.accounts.authority.key())?;
+        validate_module_pause_flags(module_flags)?;
+
+        if paused {
+            config.module_pause_flags |= module_flags;
+        } else {
+            config.module_pause_flags &= !module_flags;
+        }
+
+        emit!(ModulePauseUpdated {
+            authority: ctx.accounts.authority.key(),
+            module_flags,
+            paused,
+            active_module_pause_flags: config.module_pause_flags,
+        });
+
+        Ok(())
+    }
+
     pub fn stake_ryp(ctx: Context<StakeRyp>, amount: u64) -> Result<()> {
         require!(amount > 0, CryptoSeedsError::InvalidAmount);
-        require!(
-            !ctx.accounts.config.paused,
-            CryptoSeedsError::ProtocolPaused
-        );
+        validate_module_not_paused(&ctx.accounts.config, PAUSE_MODULE_STAKING)?;
 
         let current_amount = ctx.accounts.position.staked_amount;
         if ctx.accounts.position.owner != Pubkey::default() {
@@ -192,10 +225,7 @@ pub mod cryptoseeds_protocol {
 
     pub fn unstake_ryp(ctx: Context<UnstakeRyp>, amount: u64) -> Result<()> {
         require!(amount > 0, CryptoSeedsError::InvalidAmount);
-        require!(
-            !ctx.accounts.config.paused,
-            CryptoSeedsError::ProtocolPaused
-        );
+        validate_module_not_paused(&ctx.accounts.config, PAUSE_MODULE_STAKING)?;
         require_keys_eq!(
             ctx.accounts.position.owner,
             ctx.accounts.owner.key(),
@@ -276,10 +306,7 @@ pub mod cryptoseeds_protocol {
     }
 
     pub fn activate_voting_rights(ctx: Context<ActivateVotingRights>) -> Result<()> {
-        require!(
-            !ctx.accounts.config.paused,
-            CryptoSeedsError::ProtocolPaused
-        );
+        validate_module_not_paused(&ctx.accounts.config, PAUSE_MODULE_GOVERNANCE)?;
         require_keys_eq!(
             ctx.accounts.position.owner,
             ctx.accounts.owner.key(),
@@ -453,10 +480,7 @@ pub mod cryptoseeds_protocol {
 
     pub fn route_platform_fee(ctx: Context<RoutePlatformFee>, fee_amount: u64) -> Result<()> {
         require!(fee_amount > 0, CryptoSeedsError::InvalidAmount);
-        require!(
-            !ctx.accounts.config.paused,
-            CryptoSeedsError::ProtocolPaused
-        );
+        validate_module_not_paused(&ctx.accounts.config, PAUSE_MODULE_FEE_ROUTING)?;
         require!(
             !ctx.accounts.reward_config.paused,
             CryptoSeedsError::RewardConfigPaused
@@ -566,10 +590,7 @@ pub mod cryptoseeds_protocol {
         gross_amount: u64,
     ) -> Result<()> {
         require!(gross_amount > 0, CryptoSeedsError::InvalidAmount);
-        require!(
-            !ctx.accounts.config.paused,
-            CryptoSeedsError::ProtocolPaused
-        );
+        validate_module_not_paused(&ctx.accounts.config, PAUSE_MODULE_FEE_ROUTING)?;
         require!(
             !ctx.accounts.reward_config.paused,
             CryptoSeedsError::RewardConfigPaused
@@ -1359,6 +1380,7 @@ pub mod cryptoseeds_protocol {
         minimum_votes: u64,
     ) -> Result<()> {
         validate_protocol_authority(&ctx.accounts.config, &ctx.accounts.authority.key())?;
+        validate_module_not_paused(&ctx.accounts.config, PAUSE_MODULE_GOVERNANCE)?;
         validate_metadata_hash(&metadata_hash)?;
 
         let clock = Clock::get()?;
@@ -1399,10 +1421,7 @@ pub mod cryptoseeds_protocol {
         _proposal_id: u64,
         approve: bool,
     ) -> Result<()> {
-        require!(
-            !ctx.accounts.config.paused,
-            CryptoSeedsError::ProtocolPaused
-        );
+        validate_module_not_paused(&ctx.accounts.config, PAUSE_MODULE_GOVERNANCE)?;
         require!(
             ctx.accounts.proposal.status == GovernanceProposalStatus::Open,
             CryptoSeedsError::GovernanceProposalClosed
@@ -1473,6 +1492,7 @@ pub mod cryptoseeds_protocol {
         approved: bool,
     ) -> Result<()> {
         validate_protocol_authority(&ctx.accounts.config, &ctx.accounts.authority.key())?;
+        validate_module_not_paused(&ctx.accounts.config, PAUSE_MODULE_GOVERNANCE)?;
         require!(
             ctx.accounts.proposal.status == GovernanceProposalStatus::Open,
             CryptoSeedsError::GovernanceProposalClosed
@@ -1520,6 +1540,7 @@ pub mod cryptoseeds_protocol {
         participation_ends_at: i64,
     ) -> Result<()> {
         validate_project_authority(&ctx.accounts.config, &ctx.accounts.authority.key())?;
+        validate_module_not_paused(&ctx.accounts.config, PAUSE_MODULE_PROJECTS)?;
         validate_project_funding_model(funding_model)?;
         validate_metadata_hash(&metadata_hash)?;
         validate_project_participation_bounds(
@@ -1596,6 +1617,7 @@ pub mod cryptoseeds_protocol {
         terms_hash: [u8; 32],
     ) -> Result<()> {
         validate_project_authority(&ctx.accounts.config, &ctx.accounts.authority.key())?;
+        validate_module_not_paused(&ctx.accounts.config, PAUSE_MODULE_PROJECTS)?;
         validate_project_open_for_mutation(&ctx.accounts.project)?;
         validate_metadata_hash(&metadata_hash)?;
         validate_metadata_hash(&risk_disclosure_hash)?;
@@ -1635,6 +1657,7 @@ pub mod cryptoseeds_protocol {
         expires_at: i64,
     ) -> Result<()> {
         validate_project_authority(&ctx.accounts.config, &ctx.accounts.authority.key())?;
+        validate_module_not_paused(&ctx.accounts.config, PAUSE_MODULE_PROJECTS)?;
         validate_project_open_for_mutation(&ctx.accounts.project)?;
         let clock = Clock::get()?;
         validate_project_operator_permissions(permissions)?;
@@ -1693,6 +1716,7 @@ pub mod cryptoseeds_protocol {
         status: ProjectStatus,
     ) -> Result<()> {
         validate_project_authority(&ctx.accounts.config, &ctx.accounts.authority.key())?;
+        validate_module_not_paused(&ctx.accounts.config, PAUSE_MODULE_PROJECTS)?;
         require_keys_eq!(
             ctx.accounts.project.governance_proposal,
             ctx.accounts.governance_proposal_account.key(),
@@ -1719,6 +1743,7 @@ pub mod cryptoseeds_protocol {
         _project_id: u64,
         status: ProjectStatus,
     ) -> Result<()> {
+        validate_module_not_paused(&ctx.accounts.config, PAUSE_MODULE_PROJECTS)?;
         validate_project_operator(
             &ctx.accounts.operator_record,
             ctx.accounts.project.key(),
@@ -1975,10 +2000,7 @@ pub mod cryptoseeds_protocol {
         max_daily_trades: u16,
         max_slippage_bps: u16,
     ) -> Result<()> {
-        require!(
-            !ctx.accounts.config.paused,
-            CryptoSeedsError::ProtocolPaused
-        );
+        validate_module_not_paused(&ctx.accounts.config, PAUSE_MODULE_SEEDBOT)?;
         validate_metadata_hash(&permission_hash)?;
         require_keys_eq!(
             ctx.accounts.position.owner,
@@ -2066,10 +2088,7 @@ pub mod cryptoseeds_protocol {
         max_daily_trades: u16,
         max_slippage_bps: u16,
     ) -> Result<()> {
-        require!(
-            !ctx.accounts.config.paused,
-            CryptoSeedsError::ProtocolPaused
-        );
+        validate_module_not_paused(&ctx.accounts.config, PAUSE_MODULE_SEEDBOT)?;
         validate_metadata_hash(&permission_hash)?;
         require_keys_eq!(
             ctx.accounts.position.owner,
@@ -2142,10 +2161,7 @@ pub mod cryptoseeds_protocol {
         trade_amount: u64,
         slippage_bps: u16,
     ) -> Result<()> {
-        require!(
-            !ctx.accounts.config.paused,
-            CryptoSeedsError::ProtocolPaused
-        );
+        validate_module_not_paused(&ctx.accounts.config, PAUSE_MODULE_SEEDBOT)?;
         validate_metadata_hash(&execution_hash)?;
         require_keys_eq!(
             ctx.accounts.position.owner,
@@ -2220,6 +2236,13 @@ pub struct InitializeConfig<'info> {
 
 #[derive(Accounts)]
 pub struct SetPause<'info> {
+    pub authority: Signer<'info>,
+    #[account(mut, seeds = [CONFIG_SEED], bump = config.bump)]
+    pub config: Account<'info, ProtocolConfig>,
+}
+
+#[derive(Accounts)]
+pub struct SetModulePause<'info> {
     pub authority: Signer<'info>,
     #[account(mut, seeds = [CONFIG_SEED], bump = config.bump)]
     pub config: Account<'info, ProtocolConfig>,
@@ -2986,6 +3009,8 @@ pub struct UpdateProjectStatus<'info> {
 #[instruction(project_id: u64)]
 pub struct OperatorUpdateProjectStatus<'info> {
     pub operator: Signer<'info>,
+    #[account(seeds = [CONFIG_SEED], bump = config.bump)]
+    pub config: Account<'info, ProtocolConfig>,
     pub governance_proposal_account: Account<'info, GovernanceProposal>,
     #[account(
         mut,
@@ -3260,6 +3285,7 @@ pub struct ProtocolConfig {
     pub tier_fee_reduction_bps: [u16; 5],
     pub total_staked: u64,
     pub paused: bool,
+    pub module_pause_flags: u16,
     pub bump: u8,
     pub pending_authority: Pubkey,
     pub project_authority: Pubkey,
@@ -3675,6 +3701,14 @@ pub struct ConfigInitialized {
 #[event]
 pub struct PauseUpdated {
     pub paused: bool,
+}
+
+#[event]
+pub struct ModulePauseUpdated {
+    pub authority: Pubkey,
+    pub module_flags: u16,
+    pub paused: bool,
+    pub active_module_pause_flags: u16,
 }
 
 #[event]
@@ -4205,6 +4239,10 @@ pub enum CryptoSeedsError {
     SeedBotPermissionExpired,
     #[msg("SeedBot usage exceeds the wallet-approved permission limits.")]
     SeedBotUsageLimitExceeded,
+    #[msg("The requested protocol module is paused.")]
+    ProtocolModulePaused,
+    #[msg("Protocol module pause flags are invalid.")]
+    InvalidModulePauseFlags,
 }
 
 fn validate_thresholds(thresholds: &[u64; 5]) -> Result<()> {
@@ -4238,6 +4276,24 @@ fn validate_fee_reductions(base_fee_bps: u16, reductions: &[u16; 5]) -> Result<(
 
 fn validate_protocol_authority(config: &ProtocolConfig, authority: &Pubkey) -> Result<()> {
     require_keys_eq!(config.authority, *authority, CryptoSeedsError::Unauthorized);
+    Ok(())
+}
+
+fn validate_module_pause_flags(module_flags: u16) -> Result<()> {
+    require!(
+        module_flags > 0 && module_flags & !PAUSE_MODULE_MASK == 0,
+        CryptoSeedsError::InvalidModulePauseFlags
+    );
+    Ok(())
+}
+
+fn validate_module_not_paused(config: &ProtocolConfig, module_flag: u16) -> Result<()> {
+    validate_module_pause_flags(module_flag)?;
+    require!(!config.paused, CryptoSeedsError::ProtocolPaused);
+    require!(
+        config.module_pause_flags & module_flag == 0,
+        CryptoSeedsError::ProtocolModulePaused
+    );
     Ok(())
 }
 
@@ -4928,7 +4984,7 @@ fn validate_project_participation_entry(
     expected_funding_model: ProjectFundingModel,
     now: i64,
 ) -> Result<()> {
-    require!(!config.paused, CryptoSeedsError::ProtocolPaused);
+    validate_module_not_paused(config, PAUSE_MODULE_PROJECTS)?;
     validate_metadata_hash(disclosure_hash)?;
     require!(participation_amount > 0, CryptoSeedsError::InvalidAmount);
     validate_project_funding_model(project.funding_model)?;
@@ -6100,6 +6156,26 @@ mod tests {
     }
 
     #[test]
+    fn validates_scoped_module_pause_flags() {
+        let authority = Pubkey::new_unique();
+        let mut config = protocol_config(authority);
+
+        assert!(validate_module_pause_flags(PAUSE_MODULE_STAKING).is_ok());
+        assert!(validate_module_pause_flags(PAUSE_MODULE_STAKING | PAUSE_MODULE_FEE_ROUTING)
+            .is_ok());
+        assert!(validate_module_pause_flags(0).is_err());
+        assert!(validate_module_pause_flags(PAUSE_MODULE_MASK | 32).is_err());
+
+        assert!(validate_module_not_paused(&config, PAUSE_MODULE_STAKING).is_ok());
+        config.module_pause_flags = PAUSE_MODULE_STAKING;
+        assert!(validate_module_not_paused(&config, PAUSE_MODULE_STAKING).is_err());
+        assert!(validate_module_not_paused(&config, PAUSE_MODULE_GOVERNANCE).is_ok());
+
+        config.paused = true;
+        assert!(validate_module_not_paused(&config, PAUSE_MODULE_GOVERNANCE).is_err());
+    }
+
+    #[test]
     fn validates_project_operator_permissions_and_records() {
         let now = 1_000;
         assert!(validate_project_operator_permissions(PROJECT_OPERATOR_PERMISSION_STATUS).is_ok());
@@ -6762,6 +6838,7 @@ mod tests {
             tier_fee_reduction_bps: [0, 35, 70, 105, 140],
             total_staked: 0,
             paused: false,
+            module_pause_flags: 0,
             bump: 255,
             pending_authority: Pubkey::default(),
             project_authority: authority,

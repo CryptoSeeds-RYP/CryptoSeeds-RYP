@@ -28,6 +28,7 @@ import {
   buildRecordSeedBotUsageTransactionPlan,
   buildRevokeSeedBotPermissionTransactionPlan,
   buildRoutePlatformFeeTransactionPlan,
+  buildSetModulePauseTransactionPlan,
   buildSetProjectPauseTransactionPlan,
   buildStakeRypTransactionPlan,
   buildTransferRypWithPlatformFeeTransactionPlan,
@@ -46,6 +47,7 @@ import {
   parseRypAmountToBaseUnits,
   PROJECT_OPERATOR_PERMISSION_PAUSE,
   PROJECT_OPERATOR_PERMISSION_STATUS,
+  PROTOCOL_PAUSE_MODULE_FLAGS,
   PROTOCOL_INSTRUCTION_SPECS,
 } from "./protocolTransactionPlan";
 import { appConfig } from "../config/env";
@@ -416,6 +418,11 @@ describe("protocol transaction plan", () => {
       authorityAddress: ownerAddress,
       proposalId: 42n,
     });
+    const scopedPause = buildSetModulePauseTransactionPlan({
+      authorityAddress: ownerAddress,
+      moduleFlags: PROTOCOL_PAUSE_MODULE_FLAGS.STAKING | PROTOCOL_PAUSE_MODULE_FLAGS.FEE_ROUTING,
+      paused: true,
+    });
 
     expect(createProposal.action).toBe("CREATE_GOVERNANCE_PROPOSAL");
     expect(createProposal.feePayer).toBe(ownerAddress);
@@ -427,6 +434,18 @@ describe("protocol transaction plan", () => {
     );
     expect(closeProposal.action).toBe("CLOSE_GOVERNANCE_PROPOSAL");
     expect(closeProposal.instructions[0].dataHex).toBe("b91c8c08c270de112a0000000000000000");
+    expect(scopedPause.action).toBe("SET_MODULE_PAUSE");
+    expect(scopedPause.instructions[0].dataHex).toBe("adabe26eeb6c7094110001");
+    expect(scopedPause.instructions[0].accounts.map((account) => account.anchorName)).toEqual(
+      PROTOCOL_INSTRUCTION_SPECS.set_module_pause.accounts.map((account) => account.name),
+    );
+    expect(() =>
+      buildSetModulePauseTransactionPlan({
+        authorityAddress: ownerAddress,
+        moduleFlags: 0,
+        paused: true,
+      }),
+    ).toThrow("Protocol module pause flags are invalid");
   });
 
   it("builds project registry admin lifecycle plans", () => {

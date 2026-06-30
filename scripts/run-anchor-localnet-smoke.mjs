@@ -39,6 +39,7 @@ const PROJECT_PARTICIPATION_END_TS = 4_102_444_800n;
 const PROJECT_OPERATOR_PERMISSION_STATUS = 1;
 const PROJECT_OPERATOR_PERMISSION_PAUSE = 2;
 const PROJECT_OPERATOR_PERMISSION_MASK = PROJECT_OPERATOR_PERMISSION_STATUS | PROJECT_OPERATOR_PERMISSION_PAUSE;
+const PAUSE_MODULE_STAKING = 1;
 const SEEDBOT_MAX_TRADE_AMOUNT = 500n;
 const SEEDBOT_MAX_DAILY_VOLUME_AMOUNT = 1_500n;
 const SEEDBOT_MAX_DAILY_TRADES = 3;
@@ -319,6 +320,7 @@ async function runSmoke(connection) {
   assertEqual("base fee bps", initializedConfig.baseFeeBps, BASE_FEE_BPS);
   assertEqual("initial total staked", initializedConfig.totalStaked, 0n);
   assertEqual("initial pause state", initializedConfig.paused, false);
+  assertEqual("initial module pause flags", initializedConfig.modulePauseFlags, 0);
 
   log("calling update_fee_config");
   await updateFeeConfig(connection, {
@@ -662,6 +664,7 @@ async function runSmoke(connection) {
     "operator_update_project_status rejects unauthorized status",
     () =>
       operatorUpdateProjectStatus(connection, {
+        config,
         governanceProposal: draftProposal,
         operator: projectOperator,
         operatorRecord: projectOperatorRecord,
@@ -1090,6 +1093,34 @@ async function runSmoke(connection) {
   await setPause(connection, { authority, config, paused: false });
   assertEqual("pause state after authority unpause", parseProtocolConfig(await getAccountData(connection, config)).paused, false);
 
+  log("asserting scoped staking module pause blocks staking exits");
+  await setModulePause(connection, { authority, config, moduleFlags: PAUSE_MODULE_STAKING, paused: true });
+  assertEqual(
+    "staking module pause flag after authority set",
+    parseProtocolConfig(await getAccountData(connection, config)).modulePauseFlags,
+    PAUSE_MODULE_STAKING,
+  );
+  await expectFailure(
+    "unstake_ryp rejects while staking module paused",
+    () =>
+      unstakeRyp(connection, {
+        amount: 1n,
+        config,
+        mint: mint.publicKey,
+        owner,
+        ownerRypAccount,
+        position,
+        rypVault,
+      }),
+    "custom program error",
+  );
+  await setModulePause(connection, { authority, config, moduleFlags: PAUSE_MODULE_STAKING, paused: false });
+  assertEqual(
+    "staking module pause flag after authority clear",
+    parseProtocolConfig(await getAccountData(connection, config)).modulePauseFlags,
+    0,
+  );
+
   log("calling unstake_ryp");
   await unstakeRyp(connection, {
     amount: SEED_STAKE_AMOUNT,
@@ -1227,6 +1258,8 @@ async function runSmoke(connection) {
       "reject_unauthorized_pause",
       "pause_blocks_stake_and_unstake",
       "pause_blocks_voting_activation",
+      "set_module_pause",
+      "staking_module_pause_blocks_unstake",
       "unstake_ryp",
       "reject_authority_accept_without_nomination",
       "transfer_reward_authority",
@@ -2487,7 +2520,7 @@ async function revokeProjectOperator(
 
 async function operatorUpdateProjectStatus(
   connection,
-  { governanceProposal, operator, operatorRecord, project, projectId, statusVariant },
+  { config, governanceProposal, operator, operatorRecord, project, projectId, statusVariant },
 ) {
   const data = Buffer.alloc(8 + 8 + 1);
   discriminator("operator_update_project_status").copy(data, 0);
@@ -2497,6 +2530,7 @@ async function operatorUpdateProjectStatus(
     programId,
     keys: [
       accountMeta(operator.publicKey, true, false),
+      accountMeta(config, false, false),
       accountMeta(governanceProposal, false, false),
       accountMeta(project, false, true),
       accountMeta(operatorRecord, false, false),
@@ -2890,6 +2924,20 @@ async function setPause(connection, { authority, config, paused }) {
   await sendAndConfirm(connection, new Transaction().add(instruction), [authority]);
 }
 
+async function setModulePause(connection, { authority, config, moduleFlags, paused }) {
+  const data = Buffer.alloc(11);
+  discriminator("set_module_pause").copy(data, 0);
+  data.writeUInt16LE(moduleFlags, 8);
+  data.writeUInt8(paused ? 1 : 0, 10);
+  const instruction = new TransactionInstruction({
+    programId,
+    keys: [accountMeta(authority.publicKey, true, false), accountMeta(config, false, true)],
+    data,
+  });
+
+  await sendAndConfirm(connection, new Transaction().add(instruction), [authority]);
+}
+
 async function stakeRyp(connection, { amount, config, mint, owner, ownerRypAccount, position, rypVault }) {
   const instruction = programAmountInstruction("stake_ryp", amount, [
     accountMeta(owner.publicKey, true, true),
@@ -3085,6 +3133,7 @@ function parseProtocolConfig(data) {
     baseFeeBps: data.readUInt16LE(offset.base_fee_bps),
     totalStaked: data.readBigUInt64LE(offset.total_staked),
     paused: data.readUInt8(offset.paused) === 1,
+    modulePauseFlags: data.readUInt16LE(offset.module_pause_flags),
     pendingAuthority: new PublicKey(data.subarray(offset.pending_authority, offset.pending_authority + 32)),
     projectAuthority: new PublicKey(data.subarray(offset.project_authority, offset.project_authority + 32)),
     pendingProjectAuthority: new PublicKey(

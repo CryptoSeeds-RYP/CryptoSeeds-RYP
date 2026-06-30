@@ -204,6 +204,13 @@
         "writable": false
       },
       {
+        "name": "config",
+        "label": "config",
+        "role": "config",
+        "signer": false,
+        "writable": false
+      },
+      {
         "name": "governance_proposal_account",
         "label": "governance proposal",
         "role": "governance proposal",
@@ -834,6 +841,29 @@
         "role": "system program",
         "signer": false,
         "writable": false
+      }
+    ]
+  },
+  "set_module_pause": {
+    "discriminatorHex": "adabe26eeb6c7094",
+    "args": [
+      "module_flags",
+      "paused"
+    ],
+    "accounts": [
+      {
+        "name": "authority",
+        "label": "authority",
+        "role": "authority",
+        "signer": true,
+        "writable": false
+      },
+      {
+        "name": "config",
+        "label": "config",
+        "role": "config",
+        "signer": false,
+        "writable": true
       }
     ]
   },

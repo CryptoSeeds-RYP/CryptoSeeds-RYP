@@ -481,7 +481,7 @@
   },
   "ProtocolConfig": {
     "discriminatorHex": "cf5bfa1c98b3d7d1",
-    "minimumLength": 262,
+    "minimumLength": 264,
     "fields": [
       {
         "name": "authority",
@@ -532,27 +532,33 @@
         "size": 1
       },
       {
+        "name": "module_pause_flags",
+        "type": "u16",
+        "offset": 165,
+        "size": 2
+      },
+      {
         "name": "bump",
         "type": "u8",
-        "offset": 165,
+        "offset": 167,
         "size": 1
       },
       {
         "name": "pending_authority",
         "type": "pubkey",
-        "offset": 166,
+        "offset": 168,
         "size": 32
       },
       {
         "name": "project_authority",
         "type": "pubkey",
-        "offset": 198,
+        "offset": 200,
         "size": 32
       },
       {
         "name": "pending_project_authority",
         "type": "pubkey",
-        "offset": 230,
+        "offset": 232,
         "size": 32
       }
     ]

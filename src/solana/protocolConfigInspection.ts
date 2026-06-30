@@ -35,6 +35,7 @@ export type ProtocolConfigAccount = {
   tierFeeReductionBps: number[];
   totalStaked: string;
   paused: boolean;
+  modulePauseFlags: number;
   bump: number;
   pendingAuthority: string;
   projectAuthority: string;
@@ -176,6 +177,9 @@ export function validateProtocolConfigInspection(
     if (inspection.decoded.paused) {
       warnings.push("Protocol config is paused on the selected cluster.");
     }
+    if (inspection.decoded.modulePauseFlags !== 0) {
+      warnings.push(`Protocol module pause flags active: ${inspection.decoded.modulePauseFlags}.`);
+    }
     if (inspection.decoded.pendingAuthority !== DEFAULT_PUBLIC_KEY) {
       warnings.push("Protocol authority transfer is pending.");
     }
@@ -208,6 +212,7 @@ export function decodeProtocolConfigAccount(data: Uint8Array): ProtocolConfigAcc
     tierFeeReductionBps: readU16Array(data, offset.tier_fee_reduction_bps, 5),
     totalStaked: readU64(data, offset.total_staked).toString(),
     paused: readBool(data, offset.paused),
+    modulePauseFlags: readU16(data, offset.module_pause_flags),
     bump: data[offset.bump],
     pendingAuthority: readPubkey(data, offset.pending_authority),
     projectAuthority: readPubkey(data, offset.project_authority),
