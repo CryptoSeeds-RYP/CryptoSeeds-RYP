@@ -10,7 +10,7 @@ import {
   rewards,
   seedBotSignals,
 } from "../fixtures/protocolFixtures";
-import type { CryptoSeedsServices, WalletSession } from "./adapters";
+import type { CryptoSeedsServices, TokenBalanceService, WalletSession } from "./adapters";
 import { createFixtureProjectRegistryService } from "./projectRegistryService";
 import { readSplTokenBalance } from "./solanaTokenBalanceService";
 
@@ -30,6 +30,14 @@ function lockedRewards(): Reward[] {
 }
 
 export function createMockServices(): CryptoSeedsServices {
+  return createProtocolServices();
+}
+
+export function createProtocolServices({
+  tokenBalances = defaultTokenBalanceService(),
+}: {
+  tokenBalances?: TokenBalanceService;
+} = {}): CryptoSeedsServices {
   let walletSession: WalletSession = { connected: false };
   const projectRegistry = createFixtureProjectRegistryService(projects);
 
@@ -44,26 +52,24 @@ export function createMockServices(): CryptoSeedsServices {
         return walletSession;
       },
     },
-    tokenBalances: {
-      async getRypBalance(walletAddress) {
-        if (isDemoWalletAddress(walletAddress)) {
-          return connectedUser.rypBalance;
-        }
-        if (walletAddress && appConfig.rypMintAddress) {
-          return readSplTokenBalance({ ownerAddress: walletAddress }).catch(() => 0);
-        }
-        return walletAddress ? connectedUser.rypBalance : 0;
-      },
-    },
+    tokenBalances,
     staking: {
       async getStakeState(walletAddress, simulatedTier = "SPROUT") {
         if (!walletAddress) return disconnectedUser;
-        const baseUser = {
-          ...connectedUser,
+        if (isDemoWalletAddress(walletAddress)) {
+          return withTier({
+            ...connectedUser,
+            walletAddress,
+            rypBalance: await services.tokenBalances.getRypBalance(walletAddress),
+          }, simulatedTier);
+        }
+
+        return {
+          ...disconnectedUser,
+          walletConnected: true,
           walletAddress,
           rypBalance: await services.tokenBalances.getRypBalance(walletAddress),
         };
-        return withTier(baseUser, simulatedTier);
       },
     },
     projects: projectRegistry,
@@ -85,6 +91,8 @@ export function createMockServices(): CryptoSeedsServices {
     },
     async loadProtocolSnapshot(walletAddress, simulatedTier = "SPROUT"): Promise<ProtocolSnapshot> {
       const user = await services.staking.getStakeState(walletAddress, simulatedTier);
+      const stakingActive = user.walletConnected && user.stakingTier !== "NONE";
+      const rypHolder = user.walletConnected && user.rypBalance > 0;
       const participations = await services.participations.listParticipations(user.walletAddress);
       return {
         user,
@@ -92,20 +100,34 @@ export function createMockServices(): CryptoSeedsServices {
           terrainLevel: user.stakingTier === "NONE" ? 0 : 1,
           buildingLevel: Math.max(0, projectSlotsForTier(user.stakingTier) - 1),
           projectSlotsUnlocked: projectSlotsForTier(user.stakingTier),
-          harvestAvailable: user.walletConnected,
-          governanceActive: user.walletConnected && user.stakingTier !== "NONE",
-          seedBotUnlocked: user.walletConnected && user.stakingTier !== "NONE",
+          harvestAvailable: stakingActive,
+          governanceActive: stakingActive,
+          seedBotUnlocked: stakingActive || rypHolder,
           weatherState: user.walletConnected ? "CLEAR" : "RAIN",
         },
         projects: await services.projects.listProjects(),
         participations,
-        rewards: await services.rewards.listRewards(user.walletConnected),
+        rewards: await services.rewards.listRewards(stakingActive),
         seedBotSignals: await services.seedBot.listSignals(),
       };
     },
   };
 
   return services;
+}
+
+function defaultTokenBalanceService(): TokenBalanceService {
+  return {
+    async getRypBalance(walletAddress) {
+      if (isDemoWalletAddress(walletAddress)) {
+        return connectedUser.rypBalance;
+      }
+      if (walletAddress && appConfig.rypMintAddress) {
+        return readSplTokenBalance({ ownerAddress: walletAddress }).catch(() => 0);
+      }
+      return 0;
+    },
+  };
 }
 
 export const cryptoSeedsServices = createMockServices();
