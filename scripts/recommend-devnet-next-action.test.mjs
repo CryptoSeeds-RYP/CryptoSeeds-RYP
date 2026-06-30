@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { recommendDevnetNextAction } from "./recommend-devnet-next-action.mjs";
+import { buildDevnetOperatorHandoff, recommendDevnetNextAction } from "./recommend-devnet-next-action.mjs";
 
 const envPath = ".env.devnet.example";
 const authorityAddress = "Hqt69SbbvfkTbdC23ysWAxCZrTf9mYCMe8uuVDPdjPHe";
@@ -40,6 +40,14 @@ describe("devnet next-action recommender", () => {
       risk: "READ_ONLY",
     });
     expect(recommendation.manualAction).toContain(authorityAddress);
+    expect(buildDevnetOperatorHandoff({ envPath, recommendation })).toMatchObject({
+      activeStep: "fund_devnet_authority",
+      command: "npm run devnet:funding:packet -- --env .env.devnet.example",
+      requiresExplicitApproval: false,
+      requiresExternalAction: true,
+      resumeCommand: "npm run devnet:next -- --env .env.devnet.example",
+      risk: "READ_ONLY",
+    });
   });
 
   it("recommends test mint creation after authority funding", () => {
@@ -56,6 +64,12 @@ describe("devnet next-action recommender", () => {
 
     expect(recommendation).toMatchObject({
       id: "create_devnet_test_mint",
+      risk: "DEVNET_MUTATION",
+    });
+    expect(buildDevnetOperatorHandoff({ envPath, recommendation })).toMatchObject({
+      activeStep: "create_devnet_test_mint",
+      requiresExplicitApproval: true,
+      requiresExternalAction: false,
       risk: "DEVNET_MUTATION",
     });
   });
@@ -122,6 +136,12 @@ describe("devnet next-action recommender", () => {
 
     expect(recommendation).toMatchObject({
       id: "run_read_only_testnet_readiness",
+      risk: "READ_ONLY",
+    });
+    expect(buildDevnetOperatorHandoff({ envPath, recommendation })).toMatchObject({
+      activeStep: "run_read_only_testnet_readiness",
+      requiresExplicitApproval: false,
+      requiresExternalAction: false,
       risk: "READ_ONLY",
     });
   });

@@ -55,6 +55,7 @@ async function main() {
       publicTestnetReadiness: readinessResult?.parsed?.status ?? null,
     },
     recommendation,
+    operatorHandoff: buildDevnetOperatorHandoff({ envPath, recommendation }),
     blockers,
     safetyAttestation: {
       readOnly: true,
@@ -204,6 +205,28 @@ export function recommendDevnetNextAction({
   });
 }
 
+export function buildDevnetOperatorHandoff({
+  envPath = ".env.devnet.example",
+  recommendation,
+}) {
+  const risk = recommendation?.risk ?? "UNKNOWN";
+  const requiresExternalAction = Boolean(recommendation?.manualAction);
+  const requiresExplicitApproval = risk === "DEVNET_MUTATION" || risk === "LOCAL_IGNORED_FILES_ONLY";
+  const command = recommendation?.command ?? `npm run devnet:next -- --env ${envPath}`;
+  const resumeCommand = `npm run devnet:next -- --env ${envPath}`;
+
+  return {
+    activeStep: recommendation?.id ?? "rerun_status",
+    command,
+    resumeCommand,
+    afterCompletionCommand: resumeCommand,
+    requiresExternalAction,
+    requiresExplicitApproval,
+    risk,
+    operatorRule: operatorRule({ recommendation, requiresExplicitApproval, requiresExternalAction, risk }),
+  };
+}
+
 function commandRecommendation({ command, id, reason, reviewNote, risk }) {
   return {
     command,
@@ -212,6 +235,24 @@ function commandRecommendation({ command, id, reason, reviewNote, risk }) {
     reviewNote: reviewNote ?? null,
     risk,
   };
+}
+
+function operatorRule({
+  recommendation,
+  requiresExplicitApproval,
+  requiresExternalAction,
+  risk,
+}) {
+  if (requiresExternalAction) {
+    return "External action required first; run the command only for the funding/status handoff, then rerun devnet:next.";
+  }
+  if (requiresExplicitApproval) {
+    return "Review the printed report and approve this step before running because it mutates devnet or ignored local key material.";
+  }
+  if (risk === "READ_ONLY") {
+    return "Safe to run as a read-only inspection or report command; rerun devnet:next afterward.";
+  }
+  return `Review before running ${recommendation?.id ?? "the next action"}; the risk level is not recognized.`;
 }
 
 function missingRewardVaultKeypairs(status) {
