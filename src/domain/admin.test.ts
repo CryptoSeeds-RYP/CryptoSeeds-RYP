@@ -374,8 +374,8 @@ describe("admin access", () => {
     expect(mission.blockedCount).toBe(1);
     expect(mission.waitingOnDevnetCount).toBeGreaterThan(0);
     expect(mission.phases.find((phase) => phase.id === "devnet-funding")?.status).toBe("BLOCKED");
-    expect(mission.phases.find((phase) => phase.id === "local-verification")?.command).toContain(
-      "npm run protocol:smoke:localnet:wsl",
+    expect(mission.phases.find((phase) => phase.id === "local-verification")?.command).toBe(
+      "npm run verify:local",
     );
     expect(mission.phases.find((phase) => phase.id === "devnet-mint")?.status).toBe("WAITING_ON_DEVNET");
     expect(mission.phases.find((phase) => phase.id === "devnet-program")?.status).toBe("WAITING_ON_DEVNET");

@@ -75,6 +75,7 @@ export function buildRypMissionStatusReport({
   const requiredScriptsReady = [
     "test",
     "build",
+    "verify:local",
     "protocol:idl:check",
     "protocol:smoke:localnet:wsl",
     "devnet:next",
@@ -109,8 +110,8 @@ export function buildRypMissionStatusReport({
       id: "full_local_verification",
       label: "Run Full Local Verification",
       status: opsReady ? "REVIEW_REQUIRED" : "BLOCKED",
-      summary: "The status command does not run the full expensive suite; run the listed checks before release commits.",
-      command: "npm test && npm run build && npm run ops:check && npm run copy:audit && npm run visual:audit && npm run protocol:idl:check && npm run protocol:smoke:localnet:wsl && npm audit --audit-level=moderate && git diff --check",
+      summary: "The status command does not run the full expensive suite; run the one-command local gate before release commits.",
+      command: "npm run verify:local",
       blockers: opsReady ? [] : ["Ops readiness is not clean."],
     }),
     phase({

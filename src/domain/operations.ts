@@ -20,6 +20,16 @@ export type AgentSafetyRule = {
 
 export const maintenanceRunbook: MaintenanceRunbookItem[] = [
   {
+    id: "local-verification-gate",
+    label: "Full Local Verification Gate",
+    cadence: "EVERY_COMMIT",
+    script: "npm.cmd run verify:local",
+    automationMode: "MONITOR_ONLY",
+    approvalRequired: false,
+    operatorAction: "Run the full local release gate before committing, pushing, deploying, or sharing public-preview state.",
+    aiAgentBoundary: "Agent may run the full local gate and summarize failures; it must not treat a local pass as devnet deployment or launch approval.",
+  },
+  {
     id: "app-regression-check",
     label: "App Regression Check",
     cadence: "EVERY_COMMIT",

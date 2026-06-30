@@ -15,6 +15,7 @@ CryptoSeeds should be advanced internally and simple operationally. The target i
 
 | Item | Cadence | Script | Automation Mode | Approval |
 | --- | --- | --- | --- | --- |
+| Full local verification gate | Every commit | `npm.cmd run verify:local` | Monitor only | No |
 | App regression check | Every commit | `npm.cmd test && npm.cmd run build` | Monitor only | No |
 | Copy and visual safety | Every commit | `npm.cmd run copy:audit && npm.cmd run visual:audit` | Monitor only | No |
 | RYP token health | Daily | `npm.cmd run token:check` | Monitor only | No |

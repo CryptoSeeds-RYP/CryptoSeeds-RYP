@@ -23,6 +23,7 @@ describe("operations model", () => {
     const scripted = maintenanceRunbook.filter((item) => item.script);
 
     expect(scripted.map((item) => item.id)).toEqual([
+      "local-verification-gate",
       "app-regression-check",
       "copy-visual-safety",
       "ryp-mission-status",
@@ -46,6 +47,15 @@ describe("operations model", () => {
     expect(smoke?.approvalRequired).toBe(false);
     expect(smoke?.script).toBe("npm.cmd run protocol:smoke:localnet:wsl");
     expect(smoke?.aiAgentBoundary).toContain("must not treat a localnet pass as devnet deployment approval");
+  });
+
+  it("provides a one-command full local verification gate", () => {
+    const verification = maintenanceRunbook.find((item) => item.id === "local-verification-gate");
+
+    expect(verification?.automationMode).toBe("MONITOR_ONLY");
+    expect(verification?.approvalRequired).toBe(false);
+    expect(verification?.script).toBe("npm.cmd run verify:local");
+    expect(verification?.aiAgentBoundary).toContain("must not treat a local pass as devnet deployment");
   });
 
   it("keeps the devnet deployment receipt read-only and approval-gated", () => {

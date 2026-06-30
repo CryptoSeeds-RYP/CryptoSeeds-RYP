@@ -26,13 +26,13 @@ The devnet deployment lane is split into separate phases so the terminal report 
 
 It does not create wallets, create mints, deploy programs, initialize protocol accounts, broadcast wallet transactions, or mutate protocol state.
 
-The full local verification phase includes the WSL localnet smoke gate:
+The full local verification phase is exposed as one command:
 
 ```bash
-npm run protocol:smoke:localnet:wsl
+npm run verify:local
 ```
 
-This is intentionally included because the Rust program must be proven against a disposable local validator before any devnet mutation is treated as release-reviewable.
+That command runs tests, production build, ops readiness, copy audit, visual audit, IDL drift check, the WSL localnet smoke gate, npm audit, and whitespace diff checks. The localnet smoke gate is intentionally included because the Rust program must be proven against a disposable local validator before any devnet mutation is treated as release-reviewable.
 
 Use strict mode when a blocked mission should fail automation:
 
