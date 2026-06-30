@@ -4,6 +4,7 @@ import {
   allAutomatedRunbookItemsAvoidSigning,
   approvalRequiredForSensitiveRunbookItems,
   blockedRunbookItemsRemainApprovalGated,
+  buildMaintenanceRunbook,
   maintenanceRunbook,
 } from "./operations";
 
@@ -41,6 +42,29 @@ describe("operations model", () => {
       "reward-epoch-admin-plan",
     ]);
     expect(allAutomatedRunbookItemsAvoidSigning()).toBe(true);
+  });
+
+  it("uses the selected ops env file for devnet runbook commands", () => {
+    const runbook = buildMaintenanceRunbook({ opsEnvFile: ".env.devnet.staging" });
+
+    expect(runbook.find((item) => item.id === "ryp-mission-status")?.script).toBe(
+      "npm.cmd run mission:status -- --env .env.devnet.staging",
+    );
+    expect(runbook.find((item) => item.id === "devnet-funding-packet")?.script).toBe(
+      "npm.cmd run devnet:funding:packet -- --env .env.devnet.staging",
+    );
+    expect(runbook.find((item) => item.id === "public-readonly-testnet-gate")?.script).toBe(
+      "npm.cmd run testnet:readiness -- --profile read-only --env .env.devnet.staging",
+    );
+    expect(allAutomatedRunbookItemsAvoidSigning(runbook)).toBe(true);
+  });
+
+  it("falls back to the default env file for unsafe runbook env input", () => {
+    const runbook = buildMaintenanceRunbook({ opsEnvFile: ".env.devnet.staging && bad" });
+
+    expect(runbook.find((item) => item.id === "devnet-funding-packet")?.script).toBe(
+      "npm.cmd run devnet:funding:packet -- --env .env.devnet.example",
+    );
   });
 
   it("keeps the localnet smoke gate monitor-only and separate from deployment approval", () => {

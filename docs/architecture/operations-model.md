@@ -13,6 +13,8 @@ CryptoSeeds should be advanced internally and simple operationally. The target i
 
 ## Maintenance Runbook
 
+The Governance Hall renders these checks from the configured `VITE_OPS_ENV_FILE`; examples below use `.env.devnet.example`.
+
 | Item | Cadence | Script | Automation Mode | Approval |
 | --- | --- | --- | --- | --- |
 | CI verification gate | Every commit | `npm.cmd run verify:ci` | Monitor only | No |

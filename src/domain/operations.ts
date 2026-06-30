@@ -1,3 +1,5 @@
+import { readOpsEnvFile } from "../config/env";
+
 export type OperationAutomationMode = "MONITOR_ONLY" | "DRAFT_ONLY" | "APPROVAL_REQUIRED" | "BLOCKED";
 
 export type MaintenanceRunbookItem = {
@@ -18,8 +20,16 @@ export type AgentSafetyRule = {
   detail: string;
 };
 
-export const maintenanceRunbook: MaintenanceRunbookItem[] = [
-  {
+export function buildMaintenanceRunbook({
+  opsEnvFile = ".env.devnet.example",
+}: {
+  opsEnvFile?: string;
+} = {}): MaintenanceRunbookItem[] {
+  const envFile = readOpsEnvFile(opsEnvFile);
+  const envArg = `--env ${envFile}`;
+
+  return [
+    {
     id: "ci-verification-gate",
     label: "CI Verification Gate",
     cadence: "EVERY_COMMIT",
@@ -73,7 +83,7 @@ export const maintenanceRunbook: MaintenanceRunbookItem[] = [
     id: "ryp-mission-status",
     label: "RYP Mission Status",
     cadence: "DAILY",
-    script: "npm.cmd run mission:status -- --env .env.devnet.example",
+    script: `npm.cmd run mission:status -- ${envArg}`,
     automationMode: "MONITOR_ONLY",
     approvalRequired: false,
     operatorAction: "Read the ten-point mission status, current devnet blocker, and next safe command before continuing deployment work.",
@@ -93,7 +103,7 @@ export const maintenanceRunbook: MaintenanceRunbookItem[] = [
     id: "devnet-funding-packet",
     label: "Devnet Funding Packet",
     cadence: "BEFORE_LAUNCH",
-    script: "npm.cmd run devnet:funding:packet -- --env .env.devnet.example",
+    script: `npm.cmd run devnet:funding:packet -- ${envArg}`,
     automationMode: "MONITOR_ONLY",
     approvalRequired: false,
     operatorAction: "Prepare the public authority address, devnet-only warning, required funding amounts, and post-funding commands.",
@@ -103,7 +113,7 @@ export const maintenanceRunbook: MaintenanceRunbookItem[] = [
     id: "devnet-protocol-state-inspection",
     label: "Devnet Protocol State Inspection",
     cadence: "BEFORE_LAUNCH",
-    script: "npm.cmd run devnet:inspect:protocol -- --env .env.devnet.example",
+    script: `npm.cmd run devnet:inspect:protocol -- ${envArg}`,
     automationMode: "MONITOR_ONLY",
     approvalRequired: false,
     operatorAction: "Inspect deployed program, protocol config, reward config, and reward vault states before public preview review.",
@@ -113,7 +123,7 @@ export const maintenanceRunbook: MaintenanceRunbookItem[] = [
     id: "devnet-deployment-receipt",
     label: "Devnet Deployment Receipt",
     cadence: "BEFORE_LAUNCH",
-    script: "npm.cmd run devnet:deployment:receipt -- --profile read-only --env .env.devnet.example",
+    script: `npm.cmd run devnet:deployment:receipt -- --profile read-only ${envArg}`,
     automationMode: "DRAFT_ONLY",
     approvalRequired: true,
     operatorAction: "Prepare the release-review handoff with deployed account status, readiness profile, and local program artifact hash.",
@@ -123,7 +133,7 @@ export const maintenanceRunbook: MaintenanceRunbookItem[] = [
     id: "public-readonly-testnet-gate",
     label: "Read-only Public Testnet Gate",
     cadence: "BEFORE_LAUNCH",
-    script: "npm.cmd run testnet:readiness -- --profile read-only --env .env.devnet.example",
+    script: `npm.cmd run testnet:readiness -- --profile read-only ${envArg}`,
     automationMode: "DRAFT_ONLY",
     approvalRequired: true,
     operatorAction: "Confirm devnet deployment, program inspection, and ops readiness before sharing a read-only public preview.",
@@ -133,7 +143,7 @@ export const maintenanceRunbook: MaintenanceRunbookItem[] = [
     id: "devnet-broadcast-gate",
     label: "Broadcast Readiness Gate",
     cadence: "BEFORE_LAUNCH",
-    script: "npm.cmd run testnet:readiness -- --profile wallet-execution --env .env.devnet.example",
+    script: `npm.cmd run testnet:readiness -- --profile wallet-execution ${envArg}`,
     automationMode: "APPROVAL_REQUIRED",
     approvalRequired: true,
     operatorAction: "Review cluster, program id, deployment status, demo mode, and broadcast flag before enabling live paths.",
@@ -206,7 +216,10 @@ export const maintenanceRunbook: MaintenanceRunbookItem[] = [
     operatorAction: "Keep live execution, guarded automation, and profit-fee paths disabled until review is complete.",
     aiAgentBoundary: "Agent must not create keys, sign orders, approve agents, or broadcast SeedBot trades.",
   },
-];
+  ];
+}
+
+export const maintenanceRunbook: MaintenanceRunbookItem[] = buildMaintenanceRunbook();
 
 export const agentSafetyRules: AgentSafetyRule[] = [
   {
@@ -241,20 +254,20 @@ export const agentSafetyRules: AgentSafetyRule[] = [
   },
 ];
 
-export function allAutomatedRunbookItemsAvoidSigning() {
-  return maintenanceRunbook
+export function allAutomatedRunbookItemsAvoidSigning(runbook = maintenanceRunbook) {
+  return runbook
     .filter((item) => item.automationMode !== "BLOCKED")
     .every((item) => !/(may|can|allowed to)\s+(sign|hold private keys|store private keys|request seed phrases|broadcast)/i.test(item.aiAgentBoundary));
 }
 
-export function approvalRequiredForSensitiveRunbookItems() {
-  return maintenanceRunbook
+export function approvalRequiredForSensitiveRunbookItems(runbook = maintenanceRunbook) {
+  return runbook
     .filter((item) => item.automationMode === "APPROVAL_REQUIRED" || item.automationMode === "DRAFT_ONLY")
     .every((item) => item.approvalRequired);
 }
 
-export function blockedRunbookItemsRemainApprovalGated() {
-  return maintenanceRunbook
+export function blockedRunbookItemsRemainApprovalGated(runbook = maintenanceRunbook) {
+  return runbook
     .filter((item) => item.automationMode === "BLOCKED")
     .every((item) => item.approvalRequired);
 }

@@ -1,7 +1,8 @@
 import { AlertTriangle, BadgeCheck, Bot, Clock3, Landmark, ListChecks, ShieldCheck, Vote, WalletCards } from "lucide-react";
+import { appConfig } from "../config/env";
 import { ViewHeader } from "../components/ViewHeader";
 import { basisPointsToPercent } from "../domain/feeRouter";
-import { agentSafetyRules, maintenanceRunbook } from "../domain/operations";
+import { agentSafetyRules, buildMaintenanceRunbook } from "../domain/operations";
 import {
   authorityControls,
   platformBoundaries,
@@ -19,6 +20,8 @@ export function GovernanceView({
   governanceInspection?: GovernanceStateInspection;
   votingActive: boolean;
 }) {
+  const maintenanceRunbook = buildMaintenanceRunbook({ opsEnvFile: appConfig.opsEnvFile });
+
   return (
     <div className="location-view">
       <ViewHeader icon={Vote} label="Governance Hall" value={votingActive ? "Voting rights timer active" : "Stake to activate"} />
