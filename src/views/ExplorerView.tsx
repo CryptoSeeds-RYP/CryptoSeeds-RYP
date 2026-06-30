@@ -1,15 +1,19 @@
 import { useEffect, useState } from "react";
 import { CheckCircle2, FileText, Filter, Map, ShieldAlert } from "lucide-react";
 import { ViewHeader } from "../components/ViewHeader";
+import { appConfig } from "../config/env";
 import { participationForProject, projectParticipationBlockingReasons } from "../domain/participation";
 import { buildProjectMilestoneViews } from "../domain/projectLifecycle";
 import { evaluateProjectDisclosures } from "../domain/projectRegistry";
 import { canAccess } from "../domain/tiering";
+import { shortAddress } from "../domain/token";
+import type { ProjectStateInspection } from "../solana/protocolStateInspection";
 import type { Project, ProjectParticipation, StakingTier } from "../types";
 import { formatLabel } from "../utils/format";
 
 export function ExplorerView({
   activeTier,
+  projectInspection,
   projects,
   participations,
   projectSlotsUnlocked,
@@ -19,6 +23,7 @@ export function ExplorerView({
   onPrepareProject,
 }: {
   activeTier: StakingTier;
+  projectInspection?: ProjectStateInspection;
   projects: Project[];
   participations: ProjectParticipation[];
   projectSlotsUnlocked: number;
@@ -141,6 +146,65 @@ export function ExplorerView({
         </div>
 
         <div className="project-review-grid">
+          <section className="review-block protocol-project-mirror">
+            <div className="panel-title">
+              <Map size={18} />
+              <strong>Protocol Project Mirror</strong>
+            </div>
+            <div className="project-detail-grid">
+              <DetailItem
+                label="Project PDA"
+                value={projectInspection ? shortAddress(projectInspection.projectAddress) : "Not inspecting"}
+              />
+              <DetailItem
+                label="Project Status"
+                value={formatLabel(projectInspection?.projectStatus ?? "PREVIEW_ONLY")}
+              />
+              <DetailItem
+                label="Participation PDA"
+                value={projectInspection?.participationAddress ? shortAddress(projectInspection.participationAddress) : "Wallet target required"}
+              />
+              <DetailItem
+                label="Participation Status"
+                value={formatLabel(projectInspection?.participationStatus ?? "PREVIEW_ONLY")}
+              />
+            </div>
+            <ul>
+              <li>
+                <strong>{projectInspection?.projectMessage ?? "No live project account is being inspected."}</strong>
+                <span>
+                  {projectInspection?.project
+                    ? `${formatLabel(projectInspection.project.status)} / ${formatLabel(projectInspection.project.riskLevel)} / ${formatLabel(projectInspection.project.fundingModel)}`
+                    : "Configured numeric project ID only; fixture cards remain product previews."}
+                </span>
+              </li>
+              <li>
+                <strong>{projectInspection?.participationMessage ?? "No wallet participation account is being inspected."}</strong>
+                <span>
+                  {projectInspection?.participation
+                    ? `${formatProjectBaseUnits(projectInspection.participation.participationAmount)} / ${formatLabel(projectInspection.participation.status)}`
+                    : "Participation records are read-only until wallet-approved project actions are enabled."}
+                </span>
+              </li>
+              {projectInspection?.project && (
+                <li>
+                  <strong>
+                    {formatProjectBaseUnits(projectInspection.project.totalParticipationAmount)} total recorded
+                  </strong>
+                  <span>
+                    {formatProjectBaseUnits(projectInspection.project.minParticipationAmount)} min / {formatProjectBaseUnits(projectInspection.project.maxWalletParticipationAmount)} wallet cap
+                  </span>
+                </li>
+              )}
+            </ul>
+            {projectInspection && projectInspectionMessages(projectInspection).length > 0 && (
+              <div className="eligibility-list">
+                {projectInspectionMessages(projectInspection).map((message) => (
+                  <span key={message}>{message}</span>
+                ))}
+              </div>
+            )}
+          </section>
           <section className="review-block risk-block">
             <div className="panel-title">
               <ShieldAlert size={18} />
@@ -269,4 +333,24 @@ function DetailItem({ label, value }: { label: string; value: string }) {
       <strong>{value}</strong>
     </div>
   );
+}
+
+function projectInspectionMessages(inspection: ProjectStateInspection) {
+  return [...inspection.blockers, ...inspection.warnings];
+}
+
+function formatProjectBaseUnits(value: string) {
+  try {
+    const raw = BigInt(value);
+    const divisor = 10n ** BigInt(appConfig.rypDecimals);
+    const whole = raw / divisor;
+    const fraction = raw % divisor;
+    const wholeText = whole.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    if (fraction === 0n) return `${wholeText} RYP`;
+
+    const fractionText = fraction.toString().padStart(appConfig.rypDecimals, "0").replace(/0+$/, "");
+    return `${wholeText}.${fractionText} RYP`;
+  } catch {
+    return "Invalid";
+  }
 }

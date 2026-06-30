@@ -8,12 +8,85 @@ import {
   platformFeePolicy,
   reviewGates,
 } from "../domain/platformGovernance";
+import { shortAddress } from "../domain/token";
+import type { GovernanceStateInspection } from "../solana/protocolStateInspection";
 import { formatLabel } from "../utils/format";
 
-export function GovernanceView({ votingActive }: { votingActive: boolean }) {
+export function GovernanceView({
+  governanceInspection,
+  votingActive,
+}: {
+  governanceInspection?: GovernanceStateInspection;
+  votingActive: boolean;
+}) {
   return (
     <div className="location-view">
       <ViewHeader icon={Vote} label="Governance Hall" value={votingActive ? "Voting rights timer active" : "Stake to activate"} />
+      <section className="governance-section">
+        <div className="view-header">
+          <div>
+            <Vote size={20} />
+            <strong>Protocol Proposal Mirror</strong>
+          </div>
+          <span>
+            {governanceInspection
+              ? `${formatLabel(governanceInspection.proposalStatus)} / proposal #${governanceInspection.proposalId}`
+              : "Read-only mirror inactive"}
+          </span>
+        </div>
+        <div className="authority-grid">
+          <article className={`authority-card ${governanceInspection?.proposalStatus.toLowerCase() ?? "preview_only"}`}>
+            <div className="authority-card-top">
+              <Landmark size={17} />
+              <span>{formatLabel(governanceInspection?.proposalStatus ?? "PREVIEW_ONLY")}</span>
+            </div>
+            <strong>
+              {governanceInspection?.proposal
+                ? `${formatLabel(governanceInspection.proposal.category)} / ${formatLabel(governanceInspection.proposal.status)}`
+                : "Configured proposal"}
+            </strong>
+            <p>{governanceInspection?.proposalMessage ?? "No live governance account is being inspected."}</p>
+            <em>{governanceInspection ? shortAddress(governanceInspection.proposalAddress) : "No proposal PDA"}</em>
+          </article>
+          <article className={`authority-card ${governanceInspection?.voteRecordStatus.toLowerCase() ?? "preview_only"}`}>
+            <div className="authority-card-top">
+              <WalletCards size={17} />
+              <span>{formatLabel(governanceInspection?.voteRecordStatus ?? "PREVIEW_ONLY")}</span>
+            </div>
+            <strong>
+              {governanceInspection?.voteRecord
+                ? governanceInspection.voteRecord.approve ? "Wallet voted yes" : "Wallet voted no"
+                : "Wallet vote record"}
+            </strong>
+            <p>{governanceInspection?.voteRecordMessage ?? "Connect a live wallet on a configured deployment to inspect vote state."}</p>
+            <em>{governanceInspection?.voteRecordAddress ? shortAddress(governanceInspection.voteRecordAddress) : "No vote PDA"}</em>
+          </article>
+          <article className="authority-card">
+            <div className="authority-card-top">
+              <ListChecks size={17} />
+              <span>Read only</span>
+            </div>
+            <strong>
+              {governanceInspection?.proposal
+                ? `${formatProtocolCount(governanceInspection.proposal.yesVotes)} yes / ${formatProtocolCount(governanceInspection.proposal.noVotes)} no`
+                : "No tally loaded"}
+            </strong>
+            <p>
+              {governanceInspection?.proposal
+                ? `Window ${formatProtocolDate(governanceInspection.proposal.votingStartsAt)} to ${formatProtocolDate(governanceInspection.proposal.votingEndsAt)}`
+                : "No voting action is exposed by this mirror."}
+            </p>
+            <em>{governanceInspection?.executionMode ?? "READ_ONLY"}</em>
+          </article>
+        </div>
+        {governanceInspection && governanceInspectionMessages(governanceInspection).length > 0 && (
+          <div className="policy-note-list">
+            {governanceInspectionMessages(governanceInspection).map((message) => (
+              <span key={message}>{message}</span>
+            ))}
+          </div>
+        )}
+      </section>
       <section className="governance-section">
         <div className="view-header">
           <div>
@@ -182,4 +255,23 @@ export function GovernanceView({ votingActive }: { votingActive: boolean }) {
       </section>
     </div>
   );
+}
+
+function governanceInspectionMessages(inspection: GovernanceStateInspection) {
+  return [...inspection.blockers, ...inspection.warnings];
+}
+
+function formatProtocolCount(value: string) {
+  return value.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+}
+
+function formatProtocolDate(value: string) {
+  try {
+    const timestampMs = Number(BigInt(value) * 1000n);
+    const date = new Date(timestampMs);
+    if (Number.isNaN(date.getTime())) return "Invalid";
+    return date.toISOString().slice(0, 10);
+  } catch {
+    return "Invalid";
+  }
 }

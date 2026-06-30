@@ -39,8 +39,10 @@ export default function App() {
     selectedTier,
     selectedProject,
     selectedProjectId,
+    governanceInspection,
     intent,
     loading,
+    projectInspection,
     seedBotPermissionInspection,
     snapshot,
     demoMode,
@@ -129,6 +131,7 @@ export default function App() {
             {activeLocation === "explorer" && (
               <ExplorerView
                 activeTier={activeTier}
+                projectInspection={projectInspection}
                 projects={projects}
                 participations={participations}
                 projectSlotsUnlocked={farm.projectSlotsUnlocked}
@@ -139,7 +142,9 @@ export default function App() {
               />
             )}
             {activeLocation === "harvest" && <HarvestView rewards={rewards} />}
-            {activeLocation === "governance" && <GovernanceView votingActive={farm.governanceActive} />}
+            {activeLocation === "governance" && (
+              <GovernanceView governanceInspection={governanceInspection} votingActive={farm.governanceActive} />
+            )}
             {activeLocation === "admin" && <AdminView walletAddress={user.walletAddress} demoMode={demoMode} />}
             {activeLocation === "seedbot" && (
               <SeedBotView

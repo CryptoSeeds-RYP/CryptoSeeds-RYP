@@ -29,7 +29,13 @@ import {
   readSeedBotPermissionInspection,
   type SeedBotPermissionInspection,
 } from "../solana/rewardAccountInspection";
-import { readStakePositionInspection } from "../solana/protocolStateInspection";
+import {
+  readGovernanceStateInspection,
+  readProjectStateInspection,
+  readStakePositionInspection,
+  type GovernanceStateInspection,
+  type ProjectStateInspection,
+} from "../solana/protocolStateInspection";
 
 export function useMicroVerseState() {
   const { connection } = useConnection();
@@ -43,6 +49,8 @@ export function useMicroVerseState() {
     buildStakePreviewIntent(appConfig.demoMode ? DEMO_WALLET_ADDRESS : undefined),
   );
   const [snapshot, setSnapshot] = useState<ProtocolSnapshot | undefined>();
+  const [governanceInspection, setGovernanceInspection] = useState<GovernanceStateInspection | undefined>();
+  const [projectInspection, setProjectInspection] = useState<ProjectStateInspection | undefined>();
   const [seedBotPermissionInspection, setSeedBotPermissionInspection] =
     useState<SeedBotPermissionInspection | undefined>();
   const [loading, setLoading] = useState(true);
@@ -121,6 +129,49 @@ export function useMicroVerseState() {
     }
 
     loadSeedBotPermissionInspection();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [connection, demoMode, walletAddress]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!shouldReadConfiguredProtocolState({ demoMode })) {
+      setGovernanceInspection(undefined);
+      setProjectInspection(undefined);
+      return;
+    }
+
+    setGovernanceInspection(undefined);
+    setProjectInspection(undefined);
+
+    async function loadConfiguredProtocolInspections() {
+      try {
+        const [governance, project] = await Promise.all([
+          readGovernanceStateInspection({
+            connection,
+            proposalId: appConfig.governanceInspectionProposalId,
+            walletAddress,
+          }),
+          readProjectStateInspection({
+            connection,
+            projectId: appConfig.projectInspectionId,
+            walletAddress,
+          }),
+        ]);
+        if (cancelled) return;
+        setGovernanceInspection(governance);
+        setProjectInspection(project);
+      } catch {
+        if (cancelled) return;
+        setGovernanceInspection(undefined);
+        setProjectInspection(undefined);
+      }
+    }
+
+    loadConfiguredProtocolInspections();
 
     return () => {
       cancelled = true;
@@ -270,8 +321,10 @@ export function useMicroVerseState() {
     selectedTier,
     selectedProject,
     selectedProjectId,
+    governanceInspection,
     intent,
     loading,
+    projectInspection,
     seedBotPermissionInspection,
     snapshot,
     demoMode,
@@ -305,4 +358,8 @@ function shouldReadLiveProtocolAccount({
       !isDemoWalletAddress(walletAddress) &&
       appConfig.protocolDeployment !== "placeholder",
   );
+}
+
+function shouldReadConfiguredProtocolState({ demoMode }: { demoMode: boolean }) {
+  return Boolean(!demoMode && appConfig.protocolDeployment !== "placeholder");
 }
