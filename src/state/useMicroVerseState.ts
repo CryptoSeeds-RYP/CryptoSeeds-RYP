@@ -25,6 +25,10 @@ import {
   simulatePreparedSolanaTransaction,
 } from "../solana/solanaTransactionBoundary";
 import { buildSolanaBroadcastReadiness } from "../solana/solanaBroadcastReadiness";
+import {
+  readSeedBotPermissionInspection,
+  type SeedBotPermissionInspection,
+} from "../solana/rewardAccountInspection";
 import { readStakePositionInspection } from "../solana/protocolStateInspection";
 
 export function useMicroVerseState() {
@@ -39,6 +43,8 @@ export function useMicroVerseState() {
     buildStakePreviewIntent(appConfig.demoMode ? DEMO_WALLET_ADDRESS : undefined),
   );
   const [snapshot, setSnapshot] = useState<ProtocolSnapshot | undefined>();
+  const [seedBotPermissionInspection, setSeedBotPermissionInspection] =
+    useState<SeedBotPermissionInspection | undefined>();
   const [loading, setLoading] = useState(true);
   const [transactionBoundaryLoading, setTransactionBoundaryLoading] = useState(false);
   const [transactionSignatureLoading, setTransactionSignatureLoading] = useState(false);
@@ -59,21 +65,25 @@ export function useMicroVerseState() {
         setSnapshot(loaded);
 
         const liveWalletAddress = walletAddress;
-        if (!liveWalletAddress || !shouldReadLiveStakePosition({ demoMode, walletAddress: liveWalletAddress })) return;
+        if (!liveWalletAddress || !shouldReadLiveProtocolAccount({ demoMode, walletAddress: liveWalletAddress })) return;
 
-        const inspection = await readStakePositionInspection({
-          connection,
-          ownerAddress: liveWalletAddress,
-        });
-        if (cancelled) return;
-        setSnapshot((current) => {
-          if (!current || current.user.walletAddress !== liveWalletAddress) return current;
-          return applyStakePositionInspectionToSnapshot({
-            inspection,
-            rypDecimals: appConfig.rypDecimals,
-            snapshot: current,
+        try {
+          const inspection = await readStakePositionInspection({
+            connection,
+            ownerAddress: liveWalletAddress,
           });
-        });
+          if (cancelled) return;
+          setSnapshot((current) => {
+            if (!current || current.user.walletAddress !== liveWalletAddress) return current;
+            return applyStakePositionInspectionToSnapshot({
+              inspection,
+              rypDecimals: appConfig.rypDecimals,
+              snapshot: current,
+            });
+          });
+        } catch {
+          return;
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -85,6 +95,37 @@ export function useMicroVerseState() {
       cancelled = true;
     };
   }, [connection, demoMode, selectedTier, walletAddress]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const liveWalletAddress = walletAddress;
+
+    if (!liveWalletAddress || !shouldReadLiveProtocolAccount({ demoMode, walletAddress: liveWalletAddress })) {
+      setSeedBotPermissionInspection(undefined);
+      return;
+    }
+    const ownerAddress = liveWalletAddress;
+    setSeedBotPermissionInspection(undefined);
+
+    async function loadSeedBotPermissionInspection() {
+      try {
+        const inspection = await readSeedBotPermissionInspection({
+          connection,
+          nowUnix: Math.floor(Date.now() / 1000),
+          ownerAddress,
+        });
+        if (!cancelled) setSeedBotPermissionInspection(inspection);
+      } catch {
+        if (!cancelled) setSeedBotPermissionInspection(undefined);
+      }
+    }
+
+    loadSeedBotPermissionInspection();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [connection, demoMode, walletAddress]);
 
   const selectedProject = useMemo(() => {
     return snapshot?.projects.find((project) => project.id === selectedProjectId) ?? projectFixtures[0];
@@ -231,6 +272,7 @@ export function useMicroVerseState() {
     selectedProjectId,
     intent,
     loading,
+    seedBotPermissionInspection,
     snapshot,
     demoMode,
     setSelectedTier: chooseTier,
@@ -250,7 +292,7 @@ export function useMicroVerseState() {
   };
 }
 
-function shouldReadLiveStakePosition({
+function shouldReadLiveProtocolAccount({
   demoMode,
   walletAddress,
 }: {

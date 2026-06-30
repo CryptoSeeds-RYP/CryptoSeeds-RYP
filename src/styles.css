@@ -2055,6 +2055,62 @@ button:disabled {
   font-size: 0.88rem;
 }
 
+.seedbot-permission-card {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid rgba(236, 218, 157, 0.12);
+  border-radius: 8px;
+  background: rgba(9, 13, 12, 0.42);
+}
+
+.seedbot-permission-card header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.seedbot-permission-card header strong {
+  color: #fff8df;
+  font-size: 0.9rem;
+}
+
+.seedbot-permission-card p {
+  margin: 0;
+  color: #aeb9aa;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.seedbot-permission-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.seedbot-permission-grid div {
+  display: grid;
+  gap: 4px;
+  min-height: 58px;
+  padding: 9px;
+  border: 1px solid rgba(236, 218, 157, 0.08);
+  border-radius: 8px;
+  background: rgba(236, 218, 157, 0.04);
+}
+
+.seedbot-permission-grid span {
+  color: #aeb9aa;
+  font-size: 0.72rem;
+}
+
+.seedbot-permission-grid strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: #fff8df;
+  font-size: 0.82rem;
+}
+
 .execution-control-row {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

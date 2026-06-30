@@ -16,6 +16,7 @@ import {
   validateSeedBotStrategyCatalog,
 } from "../domain/seedbot";
 import { recommendedSeedBotVenue, venueById } from "../domain/seedbotVenues";
+import { shortAddress } from "../domain/token";
 import { shortEvmAddress } from "../evm/useMetaMaskWallet";
 import {
   buildHyperliquidCancelOrderDraft,
@@ -23,6 +24,7 @@ import {
   buildHyperliquidScheduleCancelDraft,
 } from "../services/hyperliquidAdapter";
 import { buildSeedBotRoutePlan } from "../services/seedbotVenueRouter";
+import type { SeedBotPermissionInspection } from "../solana/rewardAccountInspection";
 import type { SeedBotSignal, StakingTier } from "../types";
 import { formatLabel } from "../utils/format";
 
@@ -33,6 +35,7 @@ export function SeedBotView({
   rypBalance,
   evmWalletAddress,
   evmChainId,
+  seedBotPermissionInspection,
   signals,
   onPrepareAllocation,
 }: {
@@ -42,6 +45,7 @@ export function SeedBotView({
   rypBalance: number;
   evmWalletAddress?: string;
   evmChainId?: string;
+  seedBotPermissionInspection?: SeedBotPermissionInspection;
   signals: SeedBotSignal[];
   onPrepareAllocation: (strategy: SeedBotStrategy, mode: "BASKET" | "PER_ASSET") => void;
 }) {
@@ -132,7 +136,20 @@ export function SeedBotView({
               <span>Chain</span>
               <strong>{evmChainId ?? "Pending"}</strong>
             </div>
+            <div>
+              <span>Protocol permission</span>
+              <strong>{seedBotPermissionInspection ? formatLabel(seedBotPermissionInspection.status) : "Not inspecting"}</strong>
+            </div>
+            <div>
+              <span>Lifecycle</span>
+              <strong>
+                {seedBotPermissionInspection
+                  ? formatLabel(seedBotPermissionInspection.lifecycleStatus)
+                  : "Unavailable"}
+              </strong>
+            </div>
           </div>
+          <SeedBotPermissionCard inspection={seedBotPermissionInspection} />
           <div className="execution-control-row">
             <button disabled title="Requires a known order id and signed testnet mode">
               <SearchCheck size={15} />
@@ -317,6 +334,77 @@ export function SeedBotView({
   );
 }
 
+function SeedBotPermissionCard({ inspection }: { inspection?: SeedBotPermissionInspection }) {
+  if (!inspection) {
+    return (
+      <article className="seedbot-permission-card">
+        <header>
+          <strong>Protocol Permission</strong>
+          <span className="status-pill blocked">Not inspecting</span>
+        </header>
+        <p>Live permission account reads activate only for real wallets on a configured protocol deployment.</p>
+      </article>
+    );
+  }
+
+  const ready = inspection.lifecycleStatus === "ACTIVE" && inspection.blockers.length === 0;
+  const decoded = inspection.decoded;
+  const messages = [...inspection.blockers, ...inspection.warnings];
+
+  return (
+    <article className="seedbot-permission-card">
+      <header>
+        <strong>Protocol Permission</strong>
+        <span className={`status-pill ${ready ? "ready" : "blocked"}`}>
+          {formatLabel(inspection.lifecycleStatus)}
+        </span>
+      </header>
+      <p>{inspection.message}</p>
+      <div className="seedbot-permission-grid">
+        <div>
+          <span>Account</span>
+          <strong>{shortAddress(inspection.permissionAddress)}</strong>
+        </div>
+        <div>
+          <span>Tier snapshot</span>
+          <strong>{decoded ? formatLabel(decoded.tierAtCreation) : "Pending"}</strong>
+        </div>
+        <div>
+          <span>Max trade</span>
+          <strong>{formatSeedBotBaseUnits(decoded?.maxTradeAmount)}</strong>
+        </div>
+        <div>
+          <span>Daily cap</span>
+          <strong>{formatSeedBotBaseUnits(decoded?.maxDailyVolumeAmount)}</strong>
+        </div>
+        <div>
+          <span>Daily trades</span>
+          <strong>{decoded ? `${decoded.dailyTradesUsed} / ${decoded.maxDailyTrades}` : "Pending"}</strong>
+        </div>
+        <div>
+          <span>Slippage cap</span>
+          <strong>{decoded ? `${decoded.maxSlippageBps / 100}%` : "Pending"}</strong>
+        </div>
+        <div>
+          <span>Used today</span>
+          <strong>{formatSeedBotBaseUnits(decoded?.dailyVolumeUsedAmount)}</strong>
+        </div>
+        <div>
+          <span>Expires</span>
+          <strong>{formatSeedBotTimestamp(decoded?.expiresAt)}</strong>
+        </div>
+      </div>
+      {messages.length > 0 && (
+        <div className="execution-blockers">
+          {messages.map((message) => (
+            <span key={message}>{message}</span>
+          ))}
+        </div>
+      )}
+    </article>
+  );
+}
+
 function ExecutionPreviewCard({
   title,
   status,
@@ -344,6 +432,40 @@ function ExecutionPreviewCard({
       <pre>{JSON.stringify(payload, null, 2)}</pre>
     </article>
   );
+}
+
+function formatSeedBotBaseUnits(value?: string) {
+  if (!value) return "Pending";
+  try {
+    const raw = BigInt(value);
+    const decimals = BigInt(appConfig.rypDecimals);
+    const divisor = 10n ** decimals;
+    const whole = raw / divisor;
+    const fraction = raw % divisor;
+    const wholeText = formatIntegerString(whole.toString());
+    if (fraction === 0n) return `${wholeText} RYP`;
+
+    const fractionText = fraction.toString().padStart(appConfig.rypDecimals, "0").replace(/0+$/, "");
+    return `${wholeText}.${fractionText} RYP`;
+  } catch {
+    return "Invalid";
+  }
+}
+
+function formatIntegerString(value: string) {
+  return value.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+}
+
+function formatSeedBotTimestamp(value?: string) {
+  if (!value || value === "0") return "Not set";
+  try {
+    const timestampMs = Number(BigInt(value) * 1000n);
+    const date = new Date(timestampMs);
+    if (Number.isNaN(date.getTime())) return "Invalid";
+    return date.toISOString().slice(0, 10);
+  } catch {
+    return "Invalid";
+  }
 }
 
 function StrategyPerformanceGraph({ performance }: { performance: SeedBotPerformanceWindow }) {

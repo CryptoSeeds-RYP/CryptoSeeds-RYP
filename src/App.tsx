@@ -41,6 +41,7 @@ export default function App() {
     selectedProjectId,
     intent,
     loading,
+    seedBotPermissionInspection,
     snapshot,
     demoMode,
     setSelectedTier,
@@ -148,6 +149,7 @@ export default function App() {
                 rypBalance={user.rypBalance}
                 evmWalletAddress={metaMask.address}
                 evmChainId={metaMask.chainId}
+                seedBotPermissionInspection={seedBotPermissionInspection}
                 signals={seedBotSignals}
                 onPrepareAllocation={prepareSeedBotAllocation}
               />
