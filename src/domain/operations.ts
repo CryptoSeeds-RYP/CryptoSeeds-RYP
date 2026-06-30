@@ -50,6 +50,16 @@ export const maintenanceRunbook: MaintenanceRunbookItem[] = [
     aiAgentBoundary: "Agent may alert on authority/supply drift; it cannot mutate token state.",
   },
   {
+    id: "devnet-funding-packet",
+    label: "Devnet Funding Packet",
+    cadence: "BEFORE_LAUNCH",
+    script: "npm.cmd run devnet:funding:packet -- --env .env.devnet.example",
+    automationMode: "MONITOR_ONLY",
+    approvalRequired: false,
+    operatorAction: "Prepare the public authority address, devnet-only warning, required funding amounts, and post-funding commands.",
+    aiAgentBoundary: "Agent may prepare the packet and check balances; it must not request production funds or handle secret material.",
+  },
+  {
     id: "devnet-protocol-state-inspection",
     label: "Devnet Protocol State Inspection",
     cadence: "BEFORE_LAUNCH",

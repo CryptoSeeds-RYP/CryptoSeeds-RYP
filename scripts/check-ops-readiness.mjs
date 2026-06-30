@@ -13,6 +13,7 @@ const requiredScripts = [
   "devnet:bootstrap",
   "devnet:deploy:wsl",
   "devnet:fund:authority",
+  "devnet:funding:packet",
   "devnet:init:protocol",
   "devnet:inspect:protocol",
   "devnet:prep",

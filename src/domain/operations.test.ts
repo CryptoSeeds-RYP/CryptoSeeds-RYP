@@ -26,6 +26,7 @@ describe("operations model", () => {
       "app-regression-check",
       "copy-visual-safety",
       "ryp-token-health",
+      "devnet-funding-packet",
       "devnet-protocol-state-inspection",
       "public-readonly-testnet-gate",
       "devnet-broadcast-gate",

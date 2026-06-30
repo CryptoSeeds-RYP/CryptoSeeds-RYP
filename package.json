@@ -14,6 +14,7 @@
     "devnet:program:check": "node scripts/check-devnet-program.mjs",
     "devnet:deploy:wsl": "powershell -ExecutionPolicy Bypass -File scripts/deploy-devnet-protocol-wsl.ps1",
     "devnet:fund:authority": "node scripts/fund-devnet-authority.mjs",
+    "devnet:funding:packet": "node scripts/prepare-devnet-funding-packet.mjs",
     "devnet:init:protocol": "node scripts/initialize-devnet-protocol.mjs",
     "devnet:inspect:protocol": "node scripts/inspect-devnet-protocol-state.mjs",
     "devnet:readiness": "node scripts/check-devnet-readiness.mjs",
