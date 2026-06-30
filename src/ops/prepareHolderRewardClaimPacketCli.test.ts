@@ -51,6 +51,33 @@ describe("prepare holder reward claim packet CLI", () => {
     ).rejects.toThrow("Duplicate snapshot wallet address");
   });
 
+  it("blocks claim packets when the holder epoch has no eligible balances", async () => {
+    await expect(
+      runCliWithInput(
+        {
+          ...validInput(),
+          entries: [
+            {
+              walletAddress: "Ad7JtmEcbbzBevGuv8ZW9iEYNqBJrHaBK6q8tPSEHp1i",
+              rypBalanceBaseUnits: "150000000000",
+              excluded: true,
+              exclusionReason: "Treasury wallet excluded from holder rewards.",
+            },
+            {
+              walletAddress: "7aqVX7jLDuNenVj4ehsmsmKkDNdf4zFWTm7XauCxCm2i",
+              rypBalanceBaseUnits: "0",
+            },
+          ],
+        },
+        "7",
+      ),
+    ).rejects.toMatchObject({
+      stdout: expect.stringContaining(
+        "Holder reward epoch requires at least one eligible non-excluded holder balance.",
+      ),
+    });
+  });
+
   it("requires an epoch id", async () => {
     await expect(runCliWithInput(validInput())).rejects.toThrow("Usage:");
   });

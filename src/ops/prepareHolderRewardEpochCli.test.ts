@@ -48,6 +48,30 @@ describe("prepare holder reward epoch CLI", () => {
       }),
     ).rejects.toThrow("Reward pool must be greater than zero");
   });
+
+  it("blocks review packets when no holder is eligible for the epoch", async () => {
+    await expect(
+      runCliWithInput({
+        ...validInput(),
+        entries: [
+          {
+            walletAddress: "Ad7JtmEcbbzBevGuv8ZW9iEYNqBJrHaBK6q8tPSEHp1i",
+            rypBalanceBaseUnits: "150000000000",
+            excluded: true,
+            exclusionReason: "Treasury wallet excluded from holder rewards.",
+          },
+          {
+            walletAddress: "7aqVX7jLDuNenVj4ehsmsmKkDNdf4zFWTm7XauCxCm2i",
+            rypBalanceBaseUnits: "0",
+          },
+        ],
+      }),
+    ).rejects.toMatchObject({
+      stdout: expect.stringContaining(
+        "Holder reward epoch requires at least one eligible non-excluded holder balance.",
+      ),
+    });
+  });
 });
 
 async function runCliWithInput(input: unknown) {

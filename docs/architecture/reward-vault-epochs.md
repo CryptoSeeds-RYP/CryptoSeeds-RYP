@@ -76,6 +76,7 @@ The older authority-created `create_reward_claim_record` path remains available 
 - No payout transaction from the Admin Dashboard.
 - No reward vault movement from the Admin Dashboard.
 - No mainnet action while program id is placeholder or broadcast is disabled.
+- No holder reward epoch review packet when the snapshot has zero eligible non-excluded holder balance.
 - No holder payout if accounting does not balance.
 - No duplicate vault address inside a draft.
 - No disabled vault role inside a draft.

@@ -228,6 +228,9 @@ function validateDraft(input, holderEpoch) {
       BigInt(holderEpoch.reservedDeliveryCostBaseUnits) +
       BigInt(holderEpoch.rolledForwardBaseUnits) ===
     BigInt(holderEpoch.rewardPoolBaseUnits);
+  if (BigInt(holderEpoch.totalEligibleRypBaseUnits) === 0n) {
+    blockers.push("Holder reward epoch requires at least one eligible non-excluded holder balance.");
+  }
   if (!balanced) blockers.push("Holder epoch accounting is not balanced.");
 
   return {
