@@ -13,6 +13,7 @@
 - unit and domain tests,
 - production build,
 - operations readiness,
+- protocol lint with Rust warnings denied,
 - tracked-secret audit,
 - copy and visual audits,
 - protocol IDL drift check,
@@ -24,4 +25,4 @@
 
 Passing `verify:local` proves local review readiness only. It does not approve devnet deployment, enable wallet broadcast, move treasury funds, or make SeedBot execution live.
 
-GitHub CI uses `verify:ci` as a portable subset. It does not replace `verify:local` before deployment because it does not run the generated Anchor IDL drift check or WSL localnet smoke gate.
+GitHub CI uses `verify:ci` as a portable subset. It does not replace `verify:local` before deployment because it does not run the generated Anchor IDL drift check, protocol lint, or WSL localnet smoke gate.

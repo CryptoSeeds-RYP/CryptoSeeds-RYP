@@ -72,10 +72,11 @@ export function buildRypMissionStatusReport({
     ? readOnlyReadinessReport.blockers.map((blocker) => `Deferred until authority funding: ${blocker}`)
     : [];
 
-  const requiredScriptsReady = [
+  const requiredScriptNames = [
     "test",
     "build",
     "verify:local",
+    "protocol:lint",
     "protocol:idl:check",
     "protocol:smoke:localnet:wsl",
     "devnet:next",
@@ -83,18 +84,24 @@ export function buildRypMissionStatusReport({
     "rewards:claim-merkle",
     "rewards:epoch:admin-plan",
     "rewards:holder-claim-packet",
-  ].every((scriptName) => hasRequiredScript(opsReport, scriptName));
+  ];
+  const missingRequiredScripts = requiredScriptNames.filter((scriptName) => !hasRequiredScript(opsReport, scriptName));
+  const requiredScriptsReady = missingRequiredScripts.length === 0;
 
   const phases = [
     phase({
       id: "rust_safety_slice",
       label: "Finish Current Rust Safety Slice",
       status: opsReady && requiredScriptsReady ? "LOCAL_READY" : "BLOCKED",
-      summary: opsReady
+      summary: opsReady && requiredScriptsReady
         ? "Protocol safety and verification commands are registered for local review."
+        : opsReady
+          ? "Required protocol safety scripts are missing from ops readiness."
         : "Ops readiness must pass before the Rust safety slice is considered reviewable.",
-      command: "npm run protocol:idl:check",
-      blockers: opsReady ? [] : ["Ops readiness is not clean."],
+      command: "npm run protocol:lint && npm run protocol:idl:check",
+      blockers: opsReady
+        ? missingRequiredScripts.map((scriptName) => `Missing ${scriptName} package script.`)
+        : ["Ops readiness is not clean."],
     }),
     phase({
       id: "protocol_abi_lock",

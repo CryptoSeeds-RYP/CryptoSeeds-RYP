@@ -32,7 +32,7 @@ The full local verification phase is exposed as one command:
 npm run verify:local
 ```
 
-That command runs tests, production build, ops readiness, tracked-secret audit, copy audit, visual audit, IDL drift check, the WSL localnet smoke gate, npm audit, and whitespace diff checks. The localnet smoke gate is intentionally included because the Rust program must be proven against a disposable local validator before any devnet mutation is treated as release-reviewable.
+That command runs tests, production build, ops readiness, protocol lint, tracked-secret audit, copy audit, visual audit, IDL drift check, the WSL localnet smoke gate, npm audit, and whitespace diff checks. The localnet smoke gate is intentionally included because the Rust program must be proven against a disposable local validator before any devnet mutation is treated as release-reviewable.
 
 GitHub CI uses the portable subset:
 
@@ -42,13 +42,13 @@ npm run verify:ci
 
 That CI command intentionally excludes generated Anchor IDL drift and disposable-validator smoke checks; those remain in `verify:local` before deployment work.
 
-The protocol CI job separately runs:
+The protocol lint gate can also be run directly:
 
 ```bash
 npm run protocol:lint
 ```
 
-This keeps Anchor/Rust warnings from entering the smart-contract lane.
+This keeps Anchor/Rust warnings from entering the smart-contract lane and is included in `verify:local`.
 
 Use strict mode when a blocked mission should fail automation:
 

@@ -105,6 +105,9 @@ describe("RYP mission status CLI", () => {
     expect(report.phases.find((phase) => phase.id === "create_devnet_test_mint")?.status).toBe("WAITING_ON_DEVNET");
     expect(report.phases.find((phase) => phase.id === "deploy_devnet_program")?.status).toBe("WAITING_ON_DEVNET");
     expect(report.phases.find((phase) => phase.id === "initialize_devnet_protocol")?.status).toBe("WAITING_ON_DEVNET");
+    expect(report.phases.find((phase) => phase.id === "rust_safety_slice")?.command).toBe(
+      "npm run protocol:lint && npm run protocol:idl:check",
+    );
     expect(report.phases.find((phase) => phase.id === "full_local_verification")?.command).toBe(
       "npm run verify:local",
     );
@@ -313,6 +316,7 @@ function readyOpsReport(): OpsReport {
       "test",
       "build",
       "verify:local",
+      "protocol:lint",
       "protocol:idl:check",
       "protocol:smoke:localnet:wsl",
       "devnet:next",

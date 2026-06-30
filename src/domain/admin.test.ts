@@ -374,6 +374,9 @@ describe("admin access", () => {
     expect(mission.blockedCount).toBe(1);
     expect(mission.waitingOnDevnetCount).toBeGreaterThan(0);
     expect(mission.phases.find((phase) => phase.id === "devnet-funding")?.status).toBe("BLOCKED");
+    expect(mission.phases.find((phase) => phase.id === "rust-safety")?.command).toBe(
+      "npm run protocol:lint && npm run protocol:idl:check",
+    );
     expect(mission.phases.find((phase) => phase.id === "local-verification")?.command).toBe(
       "npm run verify:local",
     );

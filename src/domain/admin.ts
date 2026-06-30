@@ -386,7 +386,7 @@ export function buildAdminMissionControl({
       label: "Rust Safety",
       status: "LOCAL_READY",
       summary: "Scoped pause controls, authority boundaries, and protocol safety gates are represented locally.",
-      command: "npm run protocol:idl:check",
+      command: "npm run protocol:lint && npm run protocol:idl:check",
     }),
     missionPhase({
       id: "abi-lock",
