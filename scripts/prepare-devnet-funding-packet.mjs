@@ -64,6 +64,7 @@ export function buildDevnetFundingPacket({
       `Devnet authority has ${formatSol(currentSol)} SOL; ${RECOMMENDED_DEPLOY_SOL} SOL is recommended before program deployment.`,
     );
   }
+  const commandEnv = envSource || ".env.devnet.example";
 
   return {
     exportVersion: "devnet-funding-packet/v1",
@@ -103,12 +104,15 @@ export function buildDevnetFundingPacket({
       },
     ],
     afterFundingCommands: [
-      "npm run devnet:fund:authority -- --env .env.devnet.example --check-only",
-      "npm run devnet:status -- --env .env.devnet.example",
-      "npm run devnet:bootstrap -- --env .env.devnet.example --mint",
-      "npm run devnet:bootstrap -- --env .env.devnet.example --deploy --init-plan",
-      "npm run devnet:bootstrap -- --env .env.devnet.example --execute-init",
-      "npm run devnet:deployment:receipt -- --profile read-only --env .env.devnet.example",
+      `npm run devnet:fund:authority -- --env ${commandEnv} --check-only`,
+      `npm run devnet:status -- --env ${commandEnv}`,
+      `npm run devnet:next -- --env ${commandEnv}`,
+      `npm run devnet:mint:test -- --env ${commandEnv}`,
+      `npm run devnet:bootstrap -- --env ${commandEnv} --deploy --init-plan`,
+      `npm run devnet:init:protocol -- --env ${commandEnv}`,
+      `npm run devnet:init:protocol -- --env ${commandEnv} --execute`,
+      `npm run testnet:readiness -- --profile read-only --env ${commandEnv}`,
+      `npm run devnet:deployment:receipt -- --profile read-only --env ${commandEnv}`,
     ],
     blockers,
     warnings,

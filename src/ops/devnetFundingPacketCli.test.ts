@@ -54,10 +54,45 @@ describe("devnet funding packet CLI", () => {
       address: config.authorityAddress,
       url: "https://faucet.solana.com",
     });
-    expect(packet.afterFundingCommands).toContain("npm run devnet:bootstrap -- --env .env.devnet.example --execute-init");
+    expect(packet.afterFundingCommands).toContain("npm run devnet:mint:test -- --env .env.devnet.example");
+    expect(packet.afterFundingCommands).toContain(
+      "npm run devnet:bootstrap -- --env .env.devnet.example --deploy --init-plan",
+    );
+    expect(packet.afterFundingCommands).toContain("npm run devnet:init:protocol -- --env .env.devnet.example");
+    expect(packet.afterFundingCommands).toContain(
+      "npm run devnet:init:protocol -- --env .env.devnet.example --execute",
+    );
+    expect(packet.afterFundingCommands).toContain(
+      "npm run testnet:readiness -- --profile read-only --env .env.devnet.example",
+    );
     expect(packet.afterFundingCommands).toContain(
       "npm run devnet:deployment:receipt -- --profile read-only --env .env.devnet.example",
     );
+    expect(packet.afterFundingCommands).not.toContain("npm run devnet:bootstrap -- --env .env.devnet.example --mint");
+    expect(packet.afterFundingCommands).not.toContain(
+      "npm run devnet:bootstrap -- --env .env.devnet.example --execute-init",
+    );
+  });
+
+  it("uses the selected env source in every post-funding command", () => {
+    const packet = buildDevnetFundingPacket({
+      balance: { lamports: 0, sol: 0 },
+      config: validConfig(),
+      envSource: ".env.devnet.staging",
+      generatedAt: "2026-06-30T00:00:00.000Z",
+    });
+
+    expect(packet.afterFundingCommands).toEqual([
+      "npm run devnet:fund:authority -- --env .env.devnet.staging --check-only",
+      "npm run devnet:status -- --env .env.devnet.staging",
+      "npm run devnet:next -- --env .env.devnet.staging",
+      "npm run devnet:mint:test -- --env .env.devnet.staging",
+      "npm run devnet:bootstrap -- --env .env.devnet.staging --deploy --init-plan",
+      "npm run devnet:init:protocol -- --env .env.devnet.staging",
+      "npm run devnet:init:protocol -- --env .env.devnet.staging --execute",
+      "npm run testnet:readiness -- --profile read-only --env .env.devnet.staging",
+      "npm run devnet:deployment:receipt -- --profile read-only --env .env.devnet.staging",
+    ]);
   });
 
   it("separates mint-ready funding from deploy-ready funding", () => {

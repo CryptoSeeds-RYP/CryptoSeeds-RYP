@@ -90,11 +90,7 @@ For a read-only balance check without requesting airdrops:
 npm run devnet:fund:authority -- --env .env.devnet.example --check-only
 ```
 
-After funding, create the test mint through the bootstrap wrapper:
-
-```bash
-npm run devnet:bootstrap -- --env .env.devnet.example --mint
-```
+After funding, create the test mint with the dedicated mint command:
 
 ```bash
 npm run devnet:mint:test -- --env .env.devnet.example
@@ -148,13 +144,7 @@ Review the protocol initialization plan:
 npm run devnet:init:protocol -- --env .env.devnet.example
 ```
 
-After the derived accounts and vault custody are reviewed, initialize the protocol through the bootstrap wrapper. This now runs protocol-state inspection and the read-only public testnet readiness gate after initialization:
-
-```bash
-npm run devnet:bootstrap -- --env .env.devnet.example --execute-init
-```
-
-Equivalent direct initialization command:
+After the derived accounts and vault custody are reviewed, initialize the protocol:
 
 ```bash
 npm run devnet:init:protocol -- --env .env.devnet.example --execute
