@@ -120,6 +120,16 @@ export const maintenanceRunbook: MaintenanceRunbookItem[] = [
     aiAgentBoundary: "Agent may identify drift and propose patches; protocol id or IDL changes need review.",
   },
   {
+    id: "protocol-localnet-smoke-gate",
+    label: "Protocol Localnet Smoke Gate",
+    cadence: "EVERY_COMMIT",
+    script: "npm.cmd run protocol:smoke:localnet:wsl",
+    automationMode: "MONITOR_ONLY",
+    approvalRequired: false,
+    operatorAction: "Run the Anchor/WSL disposable-validator smoke flow before treating protocol-facing changes as release-reviewable.",
+    aiAgentBoundary: "Agent may run the localnet smoke gate and summarize failures; it must not treat a localnet pass as devnet deployment approval.",
+  },
+  {
     id: "reward-epoch-admin-plan",
     label: "Reward Epoch Admin Plan",
     cadence: "WEEKLY",

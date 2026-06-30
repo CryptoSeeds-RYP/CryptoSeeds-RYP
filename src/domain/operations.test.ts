@@ -33,9 +33,19 @@ describe("operations model", () => {
       "public-readonly-testnet-gate",
       "devnet-broadcast-gate",
       "protocol-drift-gate",
+      "protocol-localnet-smoke-gate",
       "reward-epoch-admin-plan",
     ]);
     expect(allAutomatedRunbookItemsAvoidSigning()).toBe(true);
+  });
+
+  it("keeps the localnet smoke gate monitor-only and separate from deployment approval", () => {
+    const smoke = maintenanceRunbook.find((item) => item.id === "protocol-localnet-smoke-gate");
+
+    expect(smoke?.automationMode).toBe("MONITOR_ONLY");
+    expect(smoke?.approvalRequired).toBe(false);
+    expect(smoke?.script).toBe("npm.cmd run protocol:smoke:localnet:wsl");
+    expect(smoke?.aiAgentBoundary).toContain("must not treat a localnet pass as devnet deployment approval");
   });
 
   it("keeps the devnet deployment receipt read-only and approval-gated", () => {
