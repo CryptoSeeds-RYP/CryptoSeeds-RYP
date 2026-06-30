@@ -14,7 +14,8 @@ This slice adds a repo-level readiness command for public devnet review.
   - devnet broadcast readiness,
   - devnet program inspection.
 - The command is non-mutating by default and emits one machine-readable JSON report.
-- Broadcast disabled remains a blocker for wallet-enabled public testnet readiness; a read-only preview can be reviewed separately from execution enablement.
+- Broadcast disabled remains a blocker for wallet-enabled public testnet readiness.
+- Added a `--profile read-only` path so public read-only preview readiness can be checked separately from wallet execution readiness.
 - Added strict mode for CI/release gates.
 - Added focused tests for ready aggregation, sourced blockers, child command failures, and noisy JSON parsing.
 - Added setup documentation for the public testnet readiness gate.

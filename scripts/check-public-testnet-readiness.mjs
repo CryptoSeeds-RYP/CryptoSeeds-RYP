@@ -8,35 +8,12 @@ const execFileAsync = promisify(execFile);
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const runningAsMain = isMain(import.meta.url);
 
-const options = runningAsMain ? parseArgs(process.argv.slice(2)) : { envPath: undefined, strict: false };
+const options = runningAsMain
+  ? parseArgs(process.argv.slice(2))
+  : { envPath: undefined, profile: "wallet-execution", strict: false };
 const envSource = options.envPath ?? ".env.devnet.example";
-
-const checkDefinitions = [
-  {
-    id: "ops",
-    label: "Ops readiness",
-    script: "scripts/check-ops-readiness.mjs",
-    args: [],
-  },
-  {
-    id: "devnet-status",
-    label: "Devnet status",
-    script: "scripts/check-devnet-status.mjs",
-    args: ["--env", envSource],
-  },
-  {
-    id: "devnet-readiness",
-    label: "Devnet broadcast readiness",
-    script: "scripts/check-devnet-readiness.mjs",
-    args: ["--env", envSource],
-  },
-  {
-    id: "devnet-program",
-    label: "Devnet program inspection",
-    script: "scripts/check-devnet-program.mjs",
-    args: ["--env", envSource],
-  },
-];
+const readinessProfile = options.profile;
+const checkDefinitions = buildCheckDefinitions({ envSource, profile: readinessProfile });
 
 if (runningAsMain) {
   const checkResults = [];
@@ -48,11 +25,12 @@ if (runningAsMain) {
   const report = buildPublicTestnetReadinessReport({
     checkResults,
     envSource,
+    profile: readinessProfile,
   });
 
   console.log(JSON.stringify(report, null, 2));
 
-  if (options.strict && report.status !== "READY_FOR_PUBLIC_TESTNET_REVIEW") {
+  if (options.strict && !report.status.startsWith("READY_")) {
     process.exit(1);
   }
 }
@@ -61,6 +39,7 @@ export function buildPublicTestnetReadinessReport({
   checkResults,
   envSource,
   generatedAt = new Date().toISOString(),
+  profile = "wallet-execution",
 }) {
   const normalizedChecks = checkResults.map(normalizeCheckResult);
   const blockers = normalizedChecks.flatMap((check) =>
@@ -75,19 +54,51 @@ export function buildPublicTestnetReadinessReport({
 
   return {
     exportVersion: "public-testnet-readiness/v1",
-    status: blockers.length === 0 ? "READY_FOR_PUBLIC_TESTNET_REVIEW" : "BLOCKED",
+    status: blockers.length === 0 ? readyStatusForProfile(profile) : "BLOCKED",
     generatedAt,
     envSource,
+    profile,
     checks: normalizedChecks,
     blockers,
     warnings,
     nextActions: blockers.length > 0
       ? nextActions
-      : [
-          "Run a final public testnet release review with broadcast still disabled.",
-          "Enable wallet-approved transaction categories one at a time after decoded devnet inspection.",
-        ],
+      : readyNextActionsForProfile(profile),
   };
+}
+
+export function buildCheckDefinitions({ envSource = ".env.devnet.example", profile = "wallet-execution" } = {}) {
+  const definitions = [
+    {
+      id: "ops",
+      label: "Ops readiness",
+      script: "scripts/check-ops-readiness.mjs",
+      args: [],
+    },
+    {
+      id: "devnet-status",
+      label: "Devnet status",
+      script: "scripts/check-devnet-status.mjs",
+      args: ["--env", envSource],
+    },
+    {
+      id: "devnet-program",
+      label: "Devnet program inspection",
+      script: "scripts/check-devnet-program.mjs",
+      args: ["--env", envSource],
+    },
+  ];
+
+  if (profile === "wallet-execution") {
+    definitions.push({
+      id: "devnet-readiness",
+      label: "Devnet broadcast readiness",
+      script: "scripts/check-devnet-readiness.mjs",
+      args: ["--env", envSource],
+    });
+  }
+
+  return definitions;
 }
 
 export function parseJsonStdout(stdout) {
@@ -182,6 +193,7 @@ function normalizeCheckResult(check) {
 function parseArgs(args) {
   const parsed = {
     envPath: undefined,
+    profile: "wallet-execution",
     strict: false,
   };
 
@@ -200,6 +212,15 @@ function parseArgs(args) {
       parsed.envPath = arg.slice("--env=".length);
       continue;
     }
+    if (arg === "--profile") {
+      parsed.profile = parseProfile(requireValue(args, index, "--profile"));
+      index += 1;
+      continue;
+    }
+    if (arg?.startsWith("--profile=")) {
+      parsed.profile = parseProfile(arg.slice("--profile=".length));
+      continue;
+    }
     throw new Error(`Unknown argument: ${arg}`);
   }
 
@@ -215,6 +236,31 @@ function requireValue(args, index, name) {
 
 function dedupe(values) {
   return [...new Set(values.filter(Boolean))];
+}
+
+function parseProfile(value) {
+  if (value === "read-only" || value === "wallet-execution") return value;
+  throw new Error("--profile must be read-only or wallet-execution.");
+}
+
+function readyStatusForProfile(profile) {
+  return profile === "read-only"
+    ? "READY_FOR_READ_ONLY_TESTNET_PREVIEW"
+    : "READY_FOR_PUBLIC_TESTNET_REVIEW";
+}
+
+function readyNextActionsForProfile(profile) {
+  if (profile === "read-only") {
+    return [
+      "Run a human release review before sharing the read-only devnet preview.",
+      "Keep VITE_SOLANA_BROADCAST_ENABLED=false until the wallet-execution profile passes.",
+    ];
+  }
+
+  return [
+    "Run a final public testnet release review with broadcast still disabled.",
+    "Enable wallet-approved transaction categories one at a time after decoded devnet inspection.",
+  ];
 }
 
 function isMain(moduleUrl) {

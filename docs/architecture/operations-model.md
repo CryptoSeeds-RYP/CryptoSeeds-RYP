@@ -18,7 +18,8 @@ CryptoSeeds should be advanced internally and simple operationally. The target i
 | App regression check | Every commit | `npm.cmd test && npm.cmd run build` | Monitor only | No |
 | Copy and visual safety | Every commit | `npm.cmd run copy:audit && npm.cmd run visual:audit` | Monitor only | No |
 | RYP token health | Daily | `npm.cmd run token:check` | Monitor only | No |
-| Broadcast readiness gate | Before launch | `npm.cmd run devnet:readiness` | Approval required | Yes |
+| Read-only public testnet gate | Before launch | `npm.cmd run testnet:readiness -- --profile read-only --env .env.devnet.example` | Draft only | Yes |
+| Broadcast readiness gate | Before launch | `npm.cmd run testnet:readiness -- --profile wallet-execution --env .env.devnet.example` | Approval required | Yes |
 | Protocol drift gate | Every commit | `npm.cmd run protocol:idl:check` | Monitor only | No |
 | Reward epoch draft check | Weekly | `npm.cmd run rewards:epoch:draft` | Draft only | Yes |
 | Project disclosure review | Weekly | Review queue | Draft only | Yes |

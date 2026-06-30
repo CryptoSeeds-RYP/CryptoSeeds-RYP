@@ -10,8 +10,22 @@ const buildPublicTestnetReadinessReport = readinessCli.buildPublicTestnetReadine
   checkResults: CheckResult[];
   envSource: string;
   generatedAt?: string;
+  profile?: ReadinessProfile;
 }) => PublicTestnetReadinessReport;
+const buildCheckDefinitions = readinessCli.buildCheckDefinitions as (input?: {
+  envSource?: string;
+  profile?: ReadinessProfile;
+}) => CheckDefinition[];
 const parseJsonStdout = readinessCli.parseJsonStdout as (stdout: string) => unknown;
+
+type ReadinessProfile = "read-only" | "wallet-execution";
+
+type CheckDefinition = {
+  id: string;
+  label: string;
+  script: string;
+  args: string[];
+};
 
 type CheckResult = {
   id: string;
@@ -28,7 +42,8 @@ type CheckResult = {
 
 type PublicTestnetReadinessReport = {
   exportVersion: string;
-  status: "READY_FOR_PUBLIC_TESTNET_REVIEW" | "BLOCKED";
+  status: "READY_FOR_READ_ONLY_TESTNET_PREVIEW" | "READY_FOR_PUBLIC_TESTNET_REVIEW" | "BLOCKED";
+  profile: ReadinessProfile;
   blockers: string[];
   warnings: string[];
   nextActions: string[];
@@ -45,6 +60,7 @@ describe("public testnet readiness CLI", () => {
     const report = buildPublicTestnetReadinessReport({
       envSource: ".env.devnet.example",
       generatedAt: "2026-06-30T00:00:00.000Z",
+      profile: "wallet-execution",
       checkResults: [
         readyCheck("ops", "Ops readiness"),
         readyCheck("devnet-status", "Devnet status"),
@@ -55,10 +71,42 @@ describe("public testnet readiness CLI", () => {
 
     expect(report.exportVersion).toBe("public-testnet-readiness/v1");
     expect(report.status).toBe("READY_FOR_PUBLIC_TESTNET_REVIEW");
+    expect(report.profile).toBe("wallet-execution");
     expect(report.blockers).toEqual([]);
     expect(report.nextActions).toContain(
       "Enable wallet-approved transaction categories one at a time after decoded devnet inspection.",
     );
+  });
+
+  it("separates read-only preview readiness from wallet execution readiness", () => {
+    const definitions = buildCheckDefinitions({
+      envSource: ".env.devnet.example",
+      profile: "read-only",
+    });
+    const report = buildPublicTestnetReadinessReport({
+      envSource: ".env.devnet.example",
+      generatedAt: "2026-06-30T00:00:00.000Z",
+      profile: "read-only",
+      checkResults: definitions.map((definition) => readyCheck(definition.id, definition.label)),
+    });
+
+    expect(definitions.map((definition) => definition.id)).toEqual([
+      "ops",
+      "devnet-status",
+      "devnet-program",
+    ]);
+    expect(report.status).toBe("READY_FOR_READ_ONLY_TESTNET_PREVIEW");
+    expect(report.nextActions).toContain(
+      "Keep VITE_SOLANA_BROADCAST_ENABLED=false until the wallet-execution profile passes.",
+    );
+  });
+
+  it("includes the broadcast gate for wallet execution readiness", () => {
+    expect(
+      buildCheckDefinitions({ envSource: ".env.devnet.example", profile: "wallet-execution" }).map(
+        (definition) => definition.id,
+      ),
+    ).toEqual(["ops", "devnet-status", "devnet-program", "devnet-readiness"]);
   });
 
   it("keeps child blockers sourced to the failing readiness gate", () => {

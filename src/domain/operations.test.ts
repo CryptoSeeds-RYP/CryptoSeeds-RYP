@@ -26,10 +26,10 @@ describe("operations model", () => {
       "app-regression-check",
       "copy-visual-safety",
       "ryp-token-health",
+      "public-readonly-testnet-gate",
       "devnet-broadcast-gate",
       "protocol-drift-gate",
     ]);
     expect(allAutomatedRunbookItemsAvoidSigning()).toBe(true);
   });
 });
-

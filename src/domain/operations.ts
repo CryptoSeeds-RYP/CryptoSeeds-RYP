@@ -50,10 +50,20 @@ export const maintenanceRunbook: MaintenanceRunbookItem[] = [
     aiAgentBoundary: "Agent may alert on authority/supply drift; it cannot mutate token state.",
   },
   {
+    id: "public-readonly-testnet-gate",
+    label: "Read-only Public Testnet Gate",
+    cadence: "BEFORE_LAUNCH",
+    script: "npm.cmd run testnet:readiness -- --profile read-only --env .env.devnet.example",
+    automationMode: "DRAFT_ONLY",
+    approvalRequired: true,
+    operatorAction: "Confirm devnet deployment, program inspection, and ops readiness before sharing a read-only public preview.",
+    aiAgentBoundary: "Agent may prepare the report; publishing a preview link or enabling wallet execution requires human approval.",
+  },
+  {
     id: "devnet-broadcast-gate",
     label: "Broadcast Readiness Gate",
     cadence: "BEFORE_LAUNCH",
-    script: "npm.cmd run devnet:readiness",
+    script: "npm.cmd run testnet:readiness -- --profile wallet-execution --env .env.devnet.example",
     automationMode: "APPROVAL_REQUIRED",
     approvalRequired: true,
     operatorAction: "Review cluster, program id, deployment status, demo mode, and broadcast flag before enabling live paths.",
@@ -148,4 +158,3 @@ export function blockedRunbookItemsRemainApprovalGated() {
     .filter((item) => item.automationMode === "BLOCKED")
     .every((item) => item.approvalRequired);
 }
-
