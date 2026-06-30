@@ -16,6 +16,7 @@ describe("protocol snapshot services", () => {
     });
     const snapshot = await services.loadProtocolSnapshot(DEMO_WALLET_ADDRESS, "TREE");
 
+    expect(snapshot.source).toBe("DEMO_SIMULATION");
     expect(snapshot.user.walletConnected).toBe(true);
     expect(snapshot.user.stakingTier).toBe("TREE");
     expect(snapshot.user.stakedAmount).toBe(tierRequirements.TREE);
@@ -34,6 +35,7 @@ describe("protocol snapshot services", () => {
     });
     const snapshot = await services.loadProtocolSnapshot(realWallet, "FRUIT");
 
+    expect(snapshot.source).toBe("LIVE_WALLET_READ_ONLY");
     expect(snapshot.user.walletConnected).toBe(true);
     expect(snapshot.user.walletAddress).toBe(realWallet);
     expect(snapshot.user.rypBalance).toBe(12_345);
@@ -57,6 +59,7 @@ describe("protocol snapshot services", () => {
     });
     const snapshot = await services.loadProtocolSnapshot(realWallet, "SPROUT");
 
+    expect(snapshot.source).toBe("LIVE_WALLET_READ_ONLY");
     expect(snapshot.user.stakingTier).toBe("NONE");
     expect(snapshot.farm.seedBotUnlocked).toBe(false);
     expect(snapshot.rewards.every((reward) => reward.status === "LOCKED")).toBe(true);

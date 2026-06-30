@@ -6,6 +6,7 @@ import { TransactionPanel } from "./components/TransactionPanel";
 import { WalletDock } from "./components/WalletDock";
 import { appConfig } from "./config/env";
 import { basisPointsToPercent, RYP_TOKEN_TRANSFER_FEE_BPS } from "./domain/feeRouter";
+import { protocolSnapshotSourceLabel } from "./domain/microverse";
 import { activeParticipations } from "./domain/participation";
 import { effectiveFee, canAccess } from "./domain/tiering";
 import { useMetaMaskWallet } from "./evm/useMetaMaskWallet";
@@ -61,6 +62,7 @@ export default function App() {
   if (!snapshot) return <LoadingShell />;
 
   const { user, farm, projects, participations, rewards, seedBotSignals } = snapshot;
+  const stateSourceLabel = protocolSnapshotSourceLabel(snapshot.source);
   const activeTier = user.stakingTier;
   const eligibleProjects = projects.filter((project) => canAccess(project.requiredTier, activeTier));
   const openProjectSlots = Math.max(0, farm.projectSlotsUnlocked - activeParticipations(participations).length);
@@ -80,7 +82,7 @@ export default function App() {
           <span><ShieldCheck size={15} /> Self-custodial</span>
           <span><Gauge size={15} /> Platform {effectiveFee(activeTier)}</span>
           <span><Gauge size={15} /> RYP transfer {basisPointsToPercent(RYP_TOKEN_TRANSFER_FEE_BPS)}</span>
-          <span><Activity size={15} /> {demoMode ? "Demo state" : "Live state"}</span>
+          <span><Activity size={15} /> {stateSourceLabel}</span>
           {loading && <span><Activity size={15} /> Syncing</span>}
         </div>
         <WalletDock metaMask={metaMask} demoMode={demoMode} onDemoModeChange={setDemoMode} />
@@ -118,6 +120,7 @@ export default function App() {
                 participations={participations}
                 votingActive={farm.governanceActive}
                 seedBotUnlocked={farm.seedBotUnlocked}
+                stateSourceLabel={stateSourceLabel}
                 onLocation={openLocation}
                 onProjectOpen={openProject}
               />

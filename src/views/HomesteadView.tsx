@@ -48,6 +48,7 @@ export function HomesteadView({
   participations,
   votingActive,
   seedBotUnlocked,
+  stateSourceLabel,
   onLocation,
   onProjectOpen,
 }: {
@@ -61,6 +62,7 @@ export function HomesteadView({
   participations: ProjectParticipation[];
   votingActive: boolean;
   seedBotUnlocked: boolean;
+  stateSourceLabel: string;
   onLocation: (location: LocationKey) => void;
   onProjectOpen: (projectId: string) => void;
 }) {
@@ -96,6 +98,7 @@ export function HomesteadView({
     focusedPlot,
     projectSlotsUnlocked,
     seedBotUnlocked,
+    stateSourceLabel,
     walletConnected,
   });
 
@@ -137,7 +140,7 @@ export function HomesteadView({
         <div className="map-overlay" />
         <div className="map-title">
           <span>{activeTier === "NONE" ? "Wild Fields" : `${activeTier} Homestead`}</span>
-          <strong>{walletConnected ? "Protocol state active" : "Wallet not connected"}</strong>
+          <strong>{stateSourceLabel}</strong>
         </div>
         <div className="map-mode-toggle" aria-label="MicroVerse navigation mode">
           <button
@@ -285,6 +288,7 @@ function worldFocusDetails({
   focusedPlot,
   projectSlotsUnlocked,
   seedBotUnlocked,
+  stateSourceLabel,
   walletConnected,
 }: {
   activeTier: StakingTier;
@@ -292,6 +296,7 @@ function worldFocusDetails({
   focusedPlot?: ReturnType<typeof buildMicroVerseSceneState>["plots"][number];
   projectSlotsUnlocked: number;
   seedBotUnlocked: boolean;
+  stateSourceLabel: string;
   walletConnected: boolean;
 }) {
   if (focusedPlot) {
@@ -334,7 +339,7 @@ function worldFocusDetails({
     detail: `${projectSlotsUnlocked} project fields unlocked, ${walletConnected ? "wallet connected" : "wallet offline"}`,
     eyebrow: activeTier === "NONE" ? "Wild Fields" : `${formatLabel(activeTier)} Homestead`,
     locked: false,
-    status: walletConnected ? "Protocol State Active" : "Wallet Not Connected",
+    status: stateSourceLabel,
     title: "CryptoSeeds MicroVerse",
   };
 }

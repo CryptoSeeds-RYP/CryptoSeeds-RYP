@@ -10,6 +10,8 @@ This slice prevents real connected wallets from inheriting fixture staking state
 - Kept tier simulation available for the demo wallet only.
 - Real wallets now show connected status and RYP balance, but no fabricated stake, Golden Key, Voting Rights, harvest, or governance state.
 - SeedBot unlocks for real wallets only when they hold RYP or have active stake.
+- Added snapshot source labels for disconnected preview, demo simulation, and live wallet read-only state.
+- Wired the source label into the app topbar and Homestead map title.
 - Added service tests for demo simulation, real wallet no-stake state, and zero-RYP SeedBot locking.
 
 ## Safety Position

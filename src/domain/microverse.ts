@@ -168,7 +168,13 @@ export type SeedBotSignal = {
   change: string;
 };
 
+export type ProtocolSnapshotSource =
+  | "DISCONNECTED_PREVIEW"
+  | "DEMO_SIMULATION"
+  | "LIVE_WALLET_READ_ONLY";
+
 export type ProtocolSnapshot = {
+  source: ProtocolSnapshotSource;
   user: UserMicroVerseState;
   farm: FarmVisualState;
   projects: Project[];
@@ -176,3 +182,9 @@ export type ProtocolSnapshot = {
   rewards: Reward[];
   seedBotSignals: SeedBotSignal[];
 };
+
+export function protocolSnapshotSourceLabel(source: ProtocolSnapshotSource) {
+  if (source === "DEMO_SIMULATION") return "Demo simulation";
+  if (source === "LIVE_WALLET_READ_ONLY") return "Live wallet read-only";
+  return "Disconnected preview";
+}

@@ -1,6 +1,12 @@
 import { appConfig } from "../config/env";
 import { DEMO_WALLET_ADDRESS, isDemoWalletAddress } from "../domain/demo";
-import type { ProtocolSnapshot, Reward, StakingTier, UserMicroVerseState } from "../domain/microverse";
+import type {
+  ProtocolSnapshot,
+  ProtocolSnapshotSource,
+  Reward,
+  StakingTier,
+  UserMicroVerseState,
+} from "../domain/microverse";
 import { projectSlotsForTier, tierRequirements } from "../domain/tiering";
 import {
   connectedUser,
@@ -95,6 +101,7 @@ export function createProtocolServices({
       const rypHolder = user.walletConnected && user.rypBalance > 0;
       const participations = await services.participations.listParticipations(user.walletAddress);
       return {
+        source: snapshotSourceFor(user),
         user,
         farm: {
           terrainLevel: user.stakingTier === "NONE" ? 0 : 1,
@@ -114,6 +121,12 @@ export function createProtocolServices({
   };
 
   return services;
+}
+
+function snapshotSourceFor(user: UserMicroVerseState): ProtocolSnapshotSource {
+  if (!user.walletConnected) return "DISCONNECTED_PREVIEW";
+  if (isDemoWalletAddress(user.walletAddress)) return "DEMO_SIMULATION";
+  return "LIVE_WALLET_READ_ONLY";
 }
 
 function defaultTokenBalanceService(): TokenBalanceService {
