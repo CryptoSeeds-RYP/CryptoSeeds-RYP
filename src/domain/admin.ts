@@ -12,10 +12,13 @@ import {
   buildInitializeConfigTransactionPlan,
   buildInitializeRewardConfigTransactionPlan,
   buildRegisterRewardVaultTransactionPlan,
+  buildSetModulePauseTransactionPlan,
   buildUpdateFeeConfigTransactionPlan,
   buildVerifyRewardVaultTransactionPlan,
   deriveRypAssociatedTokenAddress,
   parseRypAmountToBaseUnits,
+  PROTOCOL_PAUSE_MODULE_FLAGS,
+  PROTOCOL_PAUSE_MODULE_MASK,
 } from "../solana/protocolTransactionPlan";
 
 export type AdminAccessStatus =
@@ -69,6 +72,38 @@ export type AdminProtocolPreview = {
 };
 
 const DEFAULT_REWARD_EPOCH_CADENCE_SECONDS = 7 * 24 * 60 * 60;
+const PROTOCOL_MODULE_PAUSE_PREVIEWS = [
+  {
+    id: "staking",
+    label: "Staking",
+    flag: PROTOCOL_PAUSE_MODULE_FLAGS.STAKING,
+    description: "Pause staking and unstaking while leaving unrelated protocol modules available.",
+  },
+  {
+    id: "governance",
+    label: "Governance",
+    flag: PROTOCOL_PAUSE_MODULE_FLAGS.GOVERNANCE,
+    description: "Pause proposal, voting, and governance-close paths during a governance incident.",
+  },
+  {
+    id: "projects",
+    label: "Projects",
+    flag: PROTOCOL_PAUSE_MODULE_FLAGS.PROJECTS,
+    description: "Pause project registration, updates, and participation while preserving safety exits where possible.",
+  },
+  {
+    id: "seedbot",
+    label: "SeedBot",
+    flag: PROTOCOL_PAUSE_MODULE_FLAGS.SEEDBOT,
+    description: "Pause SeedBot permission and usage-record paths without affecting staking or rewards.",
+  },
+  {
+    id: "fee-routing",
+    label: "Fee Routing",
+    flag: PROTOCOL_PAUSE_MODULE_FLAGS.FEE_ROUTING,
+    description: "Pause platform fee routing and CryptoSeeds-routed RYP transfers during vault or route review.",
+  },
+] as const;
 
 export const adminActionPreviews: AdminActionPreview[] = [
   {
@@ -306,6 +341,34 @@ export function buildAdminProtocolPreviews({
       executionRule: "Admin-only protocol config update; no arbitrary wallet transfer tax is enforced here.",
       id: "update-fee-config",
       label: "Update Platform Fee Config",
+    }),
+    ...PROTOCOL_MODULE_PAUSE_PREVIEWS.map((module) =>
+      safeProtocolPreview({
+        authorityAddress,
+        build: (address) =>
+          buildSetModulePauseTransactionPlan({
+            authorityAddress: address,
+            moduleFlags: module.flag,
+            paused: true,
+          }),
+        description: module.description,
+        executionRule: "Preview-only scoped emergency control; sign only after incident review and public ops logging.",
+        id: `pause-${module.id}-module`,
+        label: `Pause ${module.label} Module`,
+      }),
+    ),
+    safeProtocolPreview({
+      authorityAddress,
+      build: (address) =>
+        buildSetModulePauseTransactionPlan({
+          authorityAddress: address,
+          moduleFlags: PROTOCOL_PAUSE_MODULE_MASK,
+          paused: false,
+        }),
+      description: "Clear all scoped module pause flags after incident review confirms normal operation can resume.",
+      executionRule: "Preview-only recovery control; do not clear broad incidents without authority and ops review.",
+      id: "clear-module-pauses",
+      label: "Clear Module Pauses",
     }),
     {
       blockers: [

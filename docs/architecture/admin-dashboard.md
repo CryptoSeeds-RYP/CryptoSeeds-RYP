@@ -39,14 +39,14 @@ The MVP god-wallet route is acceptable for localnet/devnet testing only. Product
 | Reward epochs | Draft only | Holder snapshot, reward vault, rollover, and delivery-cost review packets |
 | Homestead config | Local/dev preview | Cosmetic and UI tuning only |
 | SeedBot config | Review gated | Strategy/venue/performance copy and permission gates |
-| Emergency pause | Devnet-ready concept | Testnet/devnet only until authority policy is approved |
+| Emergency pause | Devnet-ready previews | Global policy plus scoped module pause/recovery previews |
 | Program authority | Blocked | No production authority transfer from this dashboard |
 
 ## Read-Only Protocol Inspection
 
 The dashboard includes read-only inspectors for deployment and audit checks:
 
-- protocol config PDA, RYP mint, staking vault, base fee, tier thresholds, pause state, and authorities,
+- protocol config PDA, RYP mint, staking vault, base fee, tier thresholds, global pause state, scoped module pause flags, and authorities,
 - connected/admin wallet stake position, Golden Key state, voting-rights state, and vote count,
 - configured governance proposal plus the connected wallet's vote record,
 - configured project record plus the connected wallet's project participation record,
@@ -76,4 +76,5 @@ Fee edits should be drafted as review packets, not executed directly. The dashbo
 - 1% RYP transfer-fee policy,
 - 3.5% platform/action fee before tier reductions,
 - holder/staker/independent-treasury distribution buckets,
+- scoped module pause and recovery instructions for staking, governance, projects, SeedBot, and fee routing,
 - SeedBot success-fee preview as review-gated and disabled for live use.

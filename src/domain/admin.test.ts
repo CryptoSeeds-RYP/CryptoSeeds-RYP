@@ -103,6 +103,12 @@ describe("admin access", () => {
       "REGISTER_REWARD_VAULT",
       "VERIFY_REWARD_VAULT",
       "UPDATE_FEE_CONFIG",
+      "SET_MODULE_PAUSE",
+      "SET_MODULE_PAUSE",
+      "SET_MODULE_PAUSE",
+      "SET_MODULE_PAUSE",
+      "SET_MODULE_PAUSE",
+      "SET_MODULE_PAUSE",
     ]);
     expect(previews.find((preview) => preview.id === "ryp-transfer-fee-route")?.status).toBe("BLOCKED");
 
@@ -111,6 +117,8 @@ describe("admin access", () => {
     const registerVault = previews.find((preview) => preview.plan?.action === "REGISTER_REWARD_VAULT")?.plan;
     const verifyVault = previews.find((preview) => preview.plan?.action === "VERIFY_REWARD_VAULT")?.plan;
     const updateFeeConfig = previews.find((preview) => preview.plan?.action === "UPDATE_FEE_CONFIG")?.plan;
+    const pauseStaking = previews.find((preview) => preview.id === "pause-staking-module")?.plan;
+    const clearModulePauses = previews.find((preview) => preview.id === "clear-module-pauses")?.plan;
 
     expect(initializeConfig?.instructions[0].dataHex).toContain("00f2052a01000000");
     expect(initializeRewardConfig?.instructions[0].dataHex).toBe("542d0dc2ebb539ab803a090000000000060d050d050d");
@@ -118,6 +126,9 @@ describe("admin access", () => {
     expect(registerVault?.instructions[0].dataHex).toContain("01");
     expect(verifyVault?.instructions[0].dataHex).toMatch(/^66d3afeefc0e7bf502/);
     expect(updateFeeConfig?.instructions[0].dataHex).toBe("68b867f258976b145e0100002300460069008c00");
+    expect(pauseStaking?.instructions[0].dataHex).toBe("adabe26eeb6c7094010001");
+    expect(clearModulePauses?.instructions[0].dataHex).toBe("adabe26eeb6c70941f0000");
+    expect(clearModulePauses?.warnings.join(" ")).toContain("does not move funds");
   });
 
   it("blocks protocol transaction previews without a configured authority", () => {

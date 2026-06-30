@@ -304,7 +304,7 @@ export function AdminView({
             <p>{protocolInspection.message}</p>
             <em>
               {protocolInspection.decoded
-                ? `${basisPointsToPercent(protocolInspection.decoded.baseFeeBps)} base fee / paused: ${protocolInspection.decoded.paused}`
+                ? `${basisPointsToPercent(protocolInspection.decoded.baseFeeBps)} base fee / paused: ${protocolInspection.decoded.paused} / module flags: ${protocolInspection.decoded.modulePauseFlags}`
                 : "Base fee, pause state, and stake totals pending"}
             </em>
             <code>{protocolInspection.configAddress}</code>
