@@ -210,6 +210,7 @@ describe("protocol transaction plan", () => {
 
   it("builds reward claim record and token claim plans", () => {
     const rewardSourceVault = "So11111111111111111111111111111111111111112";
+    const rewardWalletAddress = "So11111111111111111111111111111111111111112";
     const createRecord = buildCreateRewardClaimRecordTransactionPlan({
       authorityAddress: ownerAddress,
       deliveryCostAmountBaseUnits: 0n,
@@ -218,7 +219,7 @@ describe("protocol transaction plan", () => {
       netClaimAmountBaseUnits: 700n,
       rewardRole: "HOLDER_REWARD",
       rolledForwardAmountBaseUnits: 0n,
-      walletAddress: ownerAddress,
+      walletAddress: rewardWalletAddress,
     });
     const tokenClaim = buildClaimRewardTokensTransactionPlan({
       epochId: 3n,
@@ -253,6 +254,46 @@ describe("protocol transaction plan", () => {
     expect(expireEpoch.instructions[0].accounts.map((account) => account.anchorName)).toEqual(
       PROTOCOL_INSTRUCTION_SPECS.expire_reward_epoch_claims.accounts.map((account) => account.name),
     );
+  });
+
+  it("rejects reward claim records that would fail Rust accounting guards", () => {
+    const rewardWalletAddress = "So11111111111111111111111111111111111111112";
+    expect(() =>
+      buildCreateRewardClaimRecordTransactionPlan({
+        authorityAddress: ownerAddress,
+        deliveryCostAmountBaseUnits: 0n,
+        epochId: 3n,
+        grossAllocationAmountBaseUnits: 0n,
+        netClaimAmountBaseUnits: 0n,
+        rewardRole: "HOLDER_REWARD",
+        rolledForwardAmountBaseUnits: 0n,
+        walletAddress: rewardWalletAddress,
+      }),
+    ).toThrow("Reward claim gross allocation amount");
+    expect(() =>
+      buildCreateRewardClaimRecordTransactionPlan({
+        authorityAddress: ownerAddress,
+        deliveryCostAmountBaseUnits: 1n,
+        epochId: 3n,
+        grossAllocationAmountBaseUnits: 700n,
+        netClaimAmountBaseUnits: 700n,
+        rewardRole: "HOLDER_REWARD",
+        rolledForwardAmountBaseUnits: 0n,
+        walletAddress: rewardWalletAddress,
+      }),
+    ).toThrow("accounting must balance");
+    expect(() =>
+      buildCreateRewardClaimRecordTransactionPlan({
+        authorityAddress: ownerAddress,
+        deliveryCostAmountBaseUnits: 0n,
+        epochId: 3n,
+        grossAllocationAmountBaseUnits: 700n,
+        netClaimAmountBaseUnits: 700n,
+        rewardRole: "HOLDER_REWARD",
+        rolledForwardAmountBaseUnits: 0n,
+        walletAddress: ownerAddress,
+      }),
+    ).toThrow("default public key");
   });
 
   it("builds reward vault registration and verification plans", () => {
@@ -322,6 +363,19 @@ describe("protocol transaction plan", () => {
         rolledForwardAmountBaseUnits: 200n,
       }),
     ).toThrow("cannot exceed 32 nodes");
+    expect(() =>
+      buildCreateRewardClaimRecordFromProofTransactionPlan({
+        deliveryCostAmountBaseUnits: 1n,
+        epochId: 3n,
+        grossAllocationAmountBaseUnits: 200n,
+        leafIndex: 0n,
+        netClaimAmountBaseUnits: 0n,
+        ownerAddress,
+        proof: ["ab".repeat(32)],
+        rewardRole: "STAKER_REWARD",
+        rolledForwardAmountBaseUnits: 200n,
+      }),
+    ).toThrow("accounting must balance");
   });
 
   it("builds platform fee route plans into reviewed reward vaults", () => {
@@ -483,6 +537,46 @@ describe("protocol transaction plan", () => {
         paused: true,
       }),
     ).toThrow("Protocol module pause flags are invalid");
+    expect(() =>
+      buildCreateGovernanceProposalTransactionPlan({
+        authorityAddress: ownerAddress,
+        category: "PROJECT_APPROVAL",
+        metadataHash: "cd".repeat(32),
+        minimumVotes: 3n,
+        proposalId: 42n,
+        votingWindowSeconds: 0n,
+      }),
+    ).toThrow("voting window");
+    expect(() =>
+      buildCreateGovernanceProposalTransactionPlan({
+        authorityAddress: ownerAddress,
+        category: "PROJECT_APPROVAL",
+        metadataHash: "cd".repeat(32),
+        minimumVotes: 3n,
+        proposalId: 42n,
+        votingWindowSeconds: 7_776_001n,
+      }),
+    ).toThrow("voting window");
+    expect(() =>
+      buildCreateGovernanceProposalTransactionPlan({
+        authorityAddress: ownerAddress,
+        category: "PROJECT_APPROVAL",
+        metadataHash: "cd".repeat(32),
+        minimumVotes: 0n,
+        proposalId: 42n,
+        votingWindowSeconds: 604_800n,
+      }),
+    ).toThrow("minimum votes");
+    expect(() =>
+      buildCreateGovernanceProposalTransactionPlan({
+        authorityAddress: ownerAddress,
+        category: "PROJECT_APPROVAL",
+        metadataHash: "cd".repeat(32),
+        minimumVotes: 1_000_001n,
+        proposalId: 42n,
+        votingWindowSeconds: 604_800n,
+      }),
+    ).toThrow("minimum votes");
   });
 
   it("builds project registry admin lifecycle plans", () => {
@@ -539,6 +633,7 @@ describe("protocol transaction plan", () => {
     const grantOperator = buildGrantProjectOperatorTransactionPlan({
       authorityAddress: ownerAddress,
       expiresAtUnix: operatorExpiresAtUnix,
+      nowUnix: 1_799_999_000n,
       operatorAddress,
       permissions: operatorPermissions,
       projectId: 9n,
@@ -658,6 +753,7 @@ describe("protocol transaction plan", () => {
       buildGrantProjectOperatorTransactionPlan({
         authorityAddress: ownerAddress,
         expiresAtUnix: operatorExpiresAtUnix,
+        nowUnix: 1_799_999_000n,
         operatorAddress,
         permissions: operatorPermissions | 4,
         projectId: 9n,
@@ -690,6 +786,43 @@ describe("protocol transaction plan", () => {
       recordParticipantRefund.instructions[0].accounts.find((account) => account.anchorName === "refund_record")
         ?.address,
     ).toBe(refundRecord);
+  });
+
+  it("rejects project operator grants that would fail Rust authority guards", () => {
+    const validOperatorGrant = {
+      authorityAddress: ownerAddress,
+      expiresAtUnix: 1_800_000_000n,
+      nowUnix: 1_799_999_000n,
+      operatorAddress: "SysvarC1ock11111111111111111111111111111111",
+      permissions: PROJECT_OPERATOR_PERMISSION_STATUS,
+      projectId: 9n,
+    };
+
+    expect(() =>
+      buildGrantProjectOperatorTransactionPlan({
+        ...validOperatorGrant,
+        expiresAtUnix: 1_799_999_000n,
+      }),
+    ).toThrow("expiry must be in the future");
+    expect(() =>
+      buildGrantProjectOperatorTransactionPlan({
+        ...validOperatorGrant,
+        expiresAtUnix: 1_807_775_001n,
+      }),
+    ).toThrow("cannot exceed 90 days");
+    expect(() =>
+      buildGrantProjectOperatorTransactionPlan({
+        ...validOperatorGrant,
+        operatorAddress: ownerAddress,
+      }),
+    ).toThrow("default public key");
+    expect(() =>
+      buildGrantProjectOperatorTransactionPlan({
+        ...validOperatorGrant,
+        authorityAddress: "So11111111111111111111111111111111111111112",
+        operatorAddress: "So11111111111111111111111111111111111111112",
+      }),
+    ).toThrow("authority wallet");
   });
 
   it("builds SeedBot permission and fee config plans with bounded args", () => {

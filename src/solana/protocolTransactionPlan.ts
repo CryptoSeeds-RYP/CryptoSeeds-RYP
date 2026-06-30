@@ -117,6 +117,10 @@ const I64_MAX = 2n ** 63n - 1n;
 const BPS_DENOMINATOR = 10_000n;
 const MAX_PROTOCOL_BASE_FEE_BPS = 1_000;
 const MAX_REWARD_EPOCH_CADENCE_SECONDS = 366n * 24n * 60n * 60n;
+const MIN_GOVERNANCE_VOTING_WINDOW_SECONDS = 1n;
+const MAX_GOVERNANCE_VOTING_WINDOW_SECONDS = 90n * 24n * 60n * 60n;
+const MAX_GOVERNANCE_MINIMUM_VOTES = 1_000_000n;
+const MAX_PROJECT_OPERATOR_PERMISSION_SECONDS = 90n * 24n * 60n * 60n;
 const MAX_SEEDBOT_PERMISSION_SECONDS = 30n * 24n * 60n * 60n;
 const MAX_SEEDBOT_DAILY_TRADES = 50;
 const MAX_SEEDBOT_SLIPPAGE_BPS = 500;
@@ -371,6 +375,7 @@ export type GrantProjectOperatorPlanInput = {
   operatorAddress: string;
   permissions: number;
   expiresAtUnix: bigint | number | string;
+  nowUnix?: bigint | number | string;
 };
 
 export type CreateProjectDisclosureRevisionPlanInput = {
@@ -715,6 +720,19 @@ export function buildCreateRewardClaimRecordTransactionPlan({
 }: CreateRewardClaimRecordPlanInput): PreparedSolanaTransactionPlan {
   const epoch = toU64(epochId);
   const wallet = new PublicKey(walletAddress);
+  const grossAllocationAmount = toU64(grossAllocationAmountBaseUnits);
+  const deliveryCostAmount = toU64(deliveryCostAmountBaseUnits);
+  const netClaimAmount = toU64(netClaimAmountBaseUnits);
+  const rolledForwardAmount = toU64(rolledForwardAmountBaseUnits);
+  assertRewardClaimAccounting({
+    deliveryCostAmount,
+    grossAllocationAmount,
+    netClaimAmount,
+    rolledForwardAmount,
+  });
+  if (wallet.equals(PublicKey.default)) {
+    throw new Error("Reward claim wallet cannot be the default public key.");
+  }
   const addresses = {
     ...deriveProtocolAddresses(authorityAddress),
     authority: new PublicKey(authorityAddress).toBase58(),
@@ -728,10 +746,10 @@ export function buildCreateRewardClaimRecordTransactionPlan({
       u64LeHex(epoch),
       rewardRoleVariantHex(rewardRole),
       bytesToHex(wallet.toBytes()),
-      u64LeHex(toU64(grossAllocationAmountBaseUnits)),
-      u64LeHex(toU64(deliveryCostAmountBaseUnits)),
-      u64LeHex(toU64(netClaimAmountBaseUnits)),
-      u64LeHex(toU64(rolledForwardAmountBaseUnits)),
+      u64LeHex(grossAllocationAmount),
+      u64LeHex(deliveryCostAmount),
+      u64LeHex(netClaimAmount),
+      u64LeHex(rolledForwardAmount),
     ].join(""),
     discriminatorHex: spec.discriminatorHex,
     instructionName: "create_reward_claim_record",
@@ -763,6 +781,16 @@ export function buildCreateRewardClaimRecordFromProofTransactionPlan({
 }: CreateRewardClaimRecordFromProofPlanInput): PreparedSolanaTransactionPlan {
   const epoch = toU64(epochId);
   const owner = new PublicKey(ownerAddress);
+  const grossAllocationAmount = toU64(grossAllocationAmountBaseUnits);
+  const deliveryCostAmount = toU64(deliveryCostAmountBaseUnits);
+  const netClaimAmount = toU64(netClaimAmountBaseUnits);
+  const rolledForwardAmount = toU64(rolledForwardAmountBaseUnits);
+  assertRewardClaimAccounting({
+    deliveryCostAmount,
+    grossAllocationAmount,
+    netClaimAmount,
+    rolledForwardAmount,
+  });
   const proofHex = proofVecHex(proof);
   const addresses = {
     ...deriveProtocolAddresses(ownerAddress),
@@ -776,10 +804,10 @@ export function buildCreateRewardClaimRecordFromProofTransactionPlan({
     argDataHex: [
       u64LeHex(epoch),
       rewardRoleVariantHex(rewardRole),
-      u64LeHex(toU64(grossAllocationAmountBaseUnits)),
-      u64LeHex(toU64(deliveryCostAmountBaseUnits)),
-      u64LeHex(toU64(netClaimAmountBaseUnits)),
-      u64LeHex(toU64(rolledForwardAmountBaseUnits)),
+      u64LeHex(grossAllocationAmount),
+      u64LeHex(deliveryCostAmount),
+      u64LeHex(netClaimAmount),
+      u64LeHex(rolledForwardAmount),
       u64LeHex(toU64(leafIndex)),
       proofHex,
     ].join(""),
@@ -1037,6 +1065,9 @@ export function buildCreateGovernanceProposalTransactionPlan({
   votingWindowSeconds,
 }: CreateGovernanceProposalPlanInput): PreparedSolanaTransactionPlan {
   const proposal = toU64(proposalId);
+  const votingWindow = toI64(votingWindowSeconds);
+  const minimumVoteCount = toU64(minimumVotes);
+  assertGovernanceProposalBounds({ minimumVotes: minimumVoteCount, votingWindowSeconds: votingWindow });
   const addresses = {
     ...deriveProtocolAddresses(authorityAddress),
     authority: new PublicKey(authorityAddress).toBase58(),
@@ -1049,8 +1080,8 @@ export function buildCreateGovernanceProposalTransactionPlan({
       u64LeHex(proposal),
       enumVariantHex(category, GOVERNANCE_CATEGORY_VARIANTS),
       fixedHashHex(metadataHash),
-      i64LeHex(toI64(votingWindowSeconds)),
-      u64LeHex(toU64(minimumVotes)),
+      i64LeHex(votingWindow),
+      u64LeHex(minimumVoteCount),
     ].join(""),
     discriminatorHex: spec.discriminatorHex,
     instructionName: "create_governance_proposal",
@@ -1316,6 +1347,7 @@ export function buildCreateProjectDisclosureRevisionTransactionPlan({
 export function buildGrantProjectOperatorTransactionPlan({
   authorityAddress,
   expiresAtUnix,
+  nowUnix,
   operatorAddress,
   permissions,
   projectId,
@@ -1324,9 +1356,12 @@ export function buildGrantProjectOperatorTransactionPlan({
   const project = toU64(projectId);
   const expiresAt = toI64(expiresAtUnix);
   const operator = new PublicKey(operatorAddress);
+  const authority = new PublicKey(authorityAddress);
+  const now = nowUnix === undefined ? currentUnixTimestamp() : toI64(nowUnix);
+  assertProjectOperatorGrant({ authority, expiresAt, now, operator });
   const addresses = {
     ...deriveProtocolAddresses(authorityAddress),
-    authority: new PublicKey(authorityAddress).toBase58(),
+    authority: authority.toBase58(),
     operatorRecord: deriveProjectOperatorAddress({ operatorAddress, projectId: project }),
     project: deriveProjectRecordAddress(project),
   };
@@ -2552,6 +2587,41 @@ function assertRewardSplit(holderSplitBps: number, stakerSplitBps: number, treas
   }
 }
 
+function assertRewardClaimAccounting({
+  deliveryCostAmount,
+  grossAllocationAmount,
+  netClaimAmount,
+  rolledForwardAmount,
+}: {
+  deliveryCostAmount: bigint;
+  grossAllocationAmount: bigint;
+  netClaimAmount: bigint;
+  rolledForwardAmount: bigint;
+}) {
+  assertPositiveAmount(grossAllocationAmount, "Reward claim gross allocation amount");
+  if (deliveryCostAmount + netClaimAmount + rolledForwardAmount !== grossAllocationAmount) {
+    throw new Error("Reward claim accounting must balance.");
+  }
+}
+
+function assertGovernanceProposalBounds({
+  minimumVotes,
+  votingWindowSeconds,
+}: {
+  minimumVotes: bigint;
+  votingWindowSeconds: bigint;
+}) {
+  if (
+    votingWindowSeconds < MIN_GOVERNANCE_VOTING_WINDOW_SECONDS ||
+    votingWindowSeconds > MAX_GOVERNANCE_VOTING_WINDOW_SECONDS
+  ) {
+    throw new Error("Governance voting window is outside protocol bounds.");
+  }
+  if (minimumVotes <= 0n || minimumVotes > MAX_GOVERNANCE_MINIMUM_VOTES) {
+    throw new Error("Governance minimum votes is outside protocol bounds.");
+  }
+}
+
 function assertProjectRegistrationPlan({
   fundingModel,
   maxTotalParticipationAmount,
@@ -2588,6 +2658,28 @@ function assertProjectRegistrationPlan({
   }
   if (receivingAccount.equals(PublicKey.default)) {
     throw new Error("Project receiving account cannot be the default public key.");
+  }
+}
+
+function assertProjectOperatorGrant({
+  authority,
+  expiresAt,
+  now,
+  operator,
+}: {
+  authority: PublicKey;
+  expiresAt: bigint;
+  now: bigint;
+  operator: PublicKey;
+}) {
+  if (expiresAt <= now) {
+    throw new Error("Project operator expiry must be in the future.");
+  }
+  if (expiresAt - now > MAX_PROJECT_OPERATOR_PERMISSION_SECONDS) {
+    throw new Error("Project operator expiry cannot exceed 90 days.");
+  }
+  if (operator.equals(PublicKey.default) || operator.equals(authority)) {
+    throw new Error("Project operator cannot be the default public key or the authority wallet.");
   }
 }
 
