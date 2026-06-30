@@ -51,6 +51,7 @@ External blocker:
 
 - Devnet faucet rejected airdrop requests for the generated authority wallet, including 2026-06-20 attempts for `3 SOL`, `0.5 SOL`, and `0.1 SOL` with rate-limit errors.
 - Devnet faucet also rejected 2026-06-30 attempts for `3 SOL`, `1 SOL`, and `0.1 SOL` with rate-limit errors.
+- The read-only funding packet lists staged CLI airdrops, existing-wallet transfer, and proof-of-work faucet discovery fallbacks, but these still depend on devnet faucet availability and do not remove the need for external funding.
 - Because the authority wallet has `0 SOL`, the devnet test RYP mint has not been created yet.
 - `npm run devnet:status -- --env .env.devnet.example` currently reports this exact blocker.
 - `npm run devnet:prep -- --env .env.devnet.example` is correctly blocked until the devnet test mint account exists.
@@ -80,6 +81,20 @@ Check balance and try staged devnet airdrops:
 ```bash
 npm run devnet:fund:authority -- --env .env.devnet.example
 ```
+
+If the normal request is rate-limited, the funding packet now prints fallback options, including this staged command:
+
+```bash
+npm run devnet:fund:authority -- --env .env.devnet.example --amounts 0.1,0.5,1,3
+```
+
+If `devnet-pow` is installed and funded proof-of-work faucets are available, discover them with:
+
+```bash
+devnet-pow get-all-faucets -u dev
+```
+
+Then follow the packet's PoW command. This is still devnet-only and can fail if faucet bootstrap or the active PoW faucet is unavailable.
 
 Prepare a funding handoff packet without requesting airdrops:
 

@@ -7,6 +7,7 @@ import { Connection, LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
 const MIN_MINT_SOL = 0.1;
 const RECOMMENDED_DEPLOY_SOL = 3;
 const SOLANA_DEVNET_FAUCET_URL = "https://faucet.solana.com";
+const DEVNET_POW_TARGET_LAMPORTS = MIN_MINT_SOL * LAMPORTS_PER_SOL;
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const runningAsMain = isMain(import.meta.url);
 const options = runningAsMain ? parseArgs(process.argv.slice(2)) : { envPath: undefined, strict: false };
@@ -101,6 +102,29 @@ export function buildDevnetFundingPacket({
         address: config.authorityAddress ?? null,
         recommendedAmountSol: RECOMMENDED_DEPLOY_SOL,
         minimumAmountSol: MIN_MINT_SOL,
+      },
+    ],
+    rateLimitFallbacks: [
+      {
+        id: "staged-cli-airdrop",
+        label: "Try staged CLI airdrops",
+        command: `npm run devnet:fund:authority -- --env ${commandEnv} --amounts 0.1,0.5,1,3`,
+        note: "Requests devnet SOL only. Public faucet rate limits can still reject this command.",
+      },
+      {
+        id: "fallback-existing-devnet-wallet",
+        label: "Transfer from another funded devnet wallet",
+        address: config.authorityAddress ?? null,
+        note: "Use devnet SOL only. Do not send mainnet SOL to this devnet authority.",
+      },
+      {
+        id: "devnet-proof-of-work",
+        label: "Try the proof-of-work devnet faucet if installed",
+        commands: [
+          "devnet-pow get-all-faucets -u dev",
+          `devnet-pow mine -d 3 --reward 0.02 --no-infer -t ${DEVNET_POW_TARGET_LAMPORTS} -k target/devnet/devnet-authority.json -u dev`,
+        ],
+        note: "Use only for devnet SOL. This route depends on active funded PoW faucets and may still fail if faucet bootstrap is unavailable.",
       },
     ],
     afterFundingCommands: [

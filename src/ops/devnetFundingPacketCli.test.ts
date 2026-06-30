@@ -32,6 +32,7 @@ type FundingPacket = {
   blockers: string[];
   devnetOnlyWarning: string;
   fundingOptions: Array<{ address: string | null; url?: string }>;
+  rateLimitFallbacks: Array<{ address?: string | null; command?: string; commands?: string[]; id: string }>;
   warnings: string[];
 };
 
@@ -54,6 +55,20 @@ describe("devnet funding packet CLI", () => {
       address: config.authorityAddress,
       url: "https://faucet.solana.com",
     });
+    expect(packet.rateLimitFallbacks.map((fallback) => fallback.id)).toEqual([
+      "staged-cli-airdrop",
+      "fallback-existing-devnet-wallet",
+      "devnet-proof-of-work",
+    ]);
+    expect(packet.rateLimitFallbacks.find((fallback) => fallback.id === "staged-cli-airdrop")?.command).toBe(
+      "npm run devnet:fund:authority -- --env .env.devnet.example --amounts 0.1,0.5,1,3",
+    );
+    expect(packet.rateLimitFallbacks.find((fallback) => fallback.id === "fallback-existing-devnet-wallet")?.address).toBe(
+      config.authorityAddress,
+    );
+    expect(packet.rateLimitFallbacks.find((fallback) => fallback.id === "devnet-proof-of-work")?.commands).toContain(
+      "devnet-pow get-all-faucets -u dev",
+    );
     expect(packet.afterFundingCommands).toContain("npm run devnet:mint:test -- --env .env.devnet.example");
     expect(packet.afterFundingCommands).toContain(
       "npm run devnet:bootstrap -- --env .env.devnet.example --deploy --init-plan",
@@ -93,6 +108,9 @@ describe("devnet funding packet CLI", () => {
       "npm run testnet:readiness -- --profile read-only --env .env.devnet.staging",
       "npm run devnet:deployment:receipt -- --profile read-only --env .env.devnet.staging",
     ]);
+    expect(packet.rateLimitFallbacks.find((fallback) => fallback.id === "staged-cli-airdrop")?.command).toBe(
+      "npm run devnet:fund:authority -- --env .env.devnet.staging --amounts 0.1,0.5,1,3",
+    );
   });
 
   it("separates mint-ready funding from deploy-ready funding", () => {
