@@ -304,7 +304,7 @@ export function AdminView({
             <p>{protocolInspection.message}</p>
             <em>
               {protocolInspection.decoded
-                ? `${basisPointsToPercent(protocolInspection.decoded.baseFeeBps)} base fee / paused: ${protocolInspection.decoded.paused} / module flags: ${protocolInspection.decoded.modulePauseFlags}`
+                ? `${basisPointsToPercent(protocolInspection.decoded.baseFeeBps)} base fee / paused: ${protocolInspection.decoded.paused} / modules: ${formatModulePauses(protocolInspection.decoded.activeModulePauses)}`
                 : "Base fee, pause state, and stake totals pending"}
             </em>
             <code>{protocolInspection.configAddress}</code>
@@ -634,6 +634,10 @@ function shortAddress(address: string) {
 
 function shortData(dataHex: string) {
   return `${dataHex.slice(0, 18)}...${dataHex.slice(-10)} (${dataHex.length / 2} bytes)`;
+}
+
+function formatModulePauses(modules: string[]) {
+  return modules.length > 0 ? modules.map(formatLabel).join(" / ") : "None";
 }
 
 function normalizeOptionalPublicKey(address: string | undefined) {

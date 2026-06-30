@@ -5,6 +5,8 @@ import { selectableTiers, tierFeeReduction } from "../domain/tiering";
 import {
   ASSOCIATED_TOKEN_PROGRAM_ID,
   CONFIG_SEED,
+  PROTOCOL_PAUSE_MODULE_FLAGS,
+  PROTOCOL_PAUSE_MODULE_MASK,
   SPL_TOKEN_PROGRAM_ID,
 } from "./protocolTransactionPlan";
 import protocolAccountLayoutsJson from "./protocolAccountLayouts.json";
@@ -25,6 +27,7 @@ type ProtocolConfigLayout = {
 };
 
 export type ProtocolConfigReadStatus = "PREVIEW_ONLY" | "MISSING" | "DECODED" | "DECODE_ERROR";
+export type ProtocolPauseModule = keyof typeof PROTOCOL_PAUSE_MODULE_FLAGS;
 
 export type ProtocolConfigAccount = {
   authority: string;
@@ -36,6 +39,8 @@ export type ProtocolConfigAccount = {
   totalStaked: string;
   paused: boolean;
   modulePauseFlags: number;
+  activeModulePauses: ProtocolPauseModule[];
+  unknownModulePauseFlags: number;
   bump: number;
   pendingAuthority: string;
   projectAuthority: string;
@@ -178,7 +183,16 @@ export function validateProtocolConfigInspection(
       warnings.push("Protocol config is paused on the selected cluster.");
     }
     if (inspection.decoded.modulePauseFlags !== 0) {
-      warnings.push(`Protocol module pause flags active: ${inspection.decoded.modulePauseFlags}.`);
+      warnings.push(
+        `Protocol module pause flags active: ${
+          inspection.decoded.activeModulePauses.length > 0
+            ? inspection.decoded.activeModulePauses.join(", ")
+            : inspection.decoded.modulePauseFlags
+        }.`,
+      );
+    }
+    if (inspection.decoded.unknownModulePauseFlags !== 0) {
+      blockers.push(`Protocol module pause flags include unknown bits: ${inspection.decoded.unknownModulePauseFlags}.`);
     }
     if (inspection.decoded.pendingAuthority !== DEFAULT_PUBLIC_KEY) {
       warnings.push("Protocol authority transfer is pending.");
@@ -202,6 +216,7 @@ export function validateProtocolConfigInspection(
 export function decodeProtocolConfigAccount(data: Uint8Array): ProtocolConfigAccount {
   assertProtocolConfigLayout(data);
   const offset = PROTOCOL_CONFIG_FIELD_OFFSETS;
+  const modulePauseFlags = readU16(data, offset.module_pause_flags);
 
   return {
     authority: readPubkey(data, offset.authority),
@@ -212,12 +227,20 @@ export function decodeProtocolConfigAccount(data: Uint8Array): ProtocolConfigAcc
     tierFeeReductionBps: readU16Array(data, offset.tier_fee_reduction_bps, 5),
     totalStaked: readU64(data, offset.total_staked).toString(),
     paused: readBool(data, offset.paused),
-    modulePauseFlags: readU16(data, offset.module_pause_flags),
+    modulePauseFlags,
+    activeModulePauses: decodeModulePauseFlags(modulePauseFlags),
+    unknownModulePauseFlags: modulePauseFlags & ~PROTOCOL_PAUSE_MODULE_MASK,
     bump: data[offset.bump],
     pendingAuthority: readPubkey(data, offset.pending_authority),
     projectAuthority: readPubkey(data, offset.project_authority),
     pendingProjectAuthority: readPubkey(data, offset.pending_project_authority),
   };
+}
+
+export function decodeModulePauseFlags(modulePauseFlags: number): ProtocolPauseModule[] {
+  return Object.entries(PROTOCOL_PAUSE_MODULE_FLAGS).flatMap(([name, flag]) =>
+    modulePauseFlags & flag ? [name as ProtocolPauseModule] : [],
+  );
 }
 
 function decodeAccount<T>(

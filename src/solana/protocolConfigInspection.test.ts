@@ -75,6 +75,8 @@ describe("protocol config inspection", () => {
       totalStaked: "7500000000",
       paused: true,
       modulePauseFlags: 17,
+      activeModulePauses: ["STAKING", "FEE_ROUTING"],
+      unknownModulePauseFlags: 0,
       bump: 255,
       pendingAuthority: pendingAuthority.toBase58(),
       projectAuthority: projectAuthority.toBase58(),
@@ -92,6 +94,33 @@ describe("protocol config inspection", () => {
     const validated = validateProtocolConfigInspection(buildDecodedProtocolInspection());
 
     expect(validated.blockers).toEqual([]);
+  });
+
+  it("surfaces named scoped module pause warnings", () => {
+    const validated = validateProtocolConfigInspection(
+      buildDecodedProtocolInspection({
+        decoded: {
+          activeModulePauses: ["STAKING", "FEE_ROUTING"],
+          modulePauseFlags: 17,
+        },
+      }),
+    );
+
+    expect(validated.warnings.join(" ")).toContain("STAKING, FEE_ROUTING");
+  });
+
+  it("blocks unknown scoped module pause bits", () => {
+    const validated = validateProtocolConfigInspection(
+      buildDecodedProtocolInspection({
+        decoded: {
+          activeModulePauses: [],
+          modulePauseFlags: 32,
+          unknownModulePauseFlags: 32,
+        },
+      }),
+    );
+
+    expect(validated.blockers.join(" ")).toContain("unknown bits: 32");
   });
 
   it("blocks unsafe or mismatched decoded protocol config inspections", () => {
@@ -141,6 +170,8 @@ function buildDecodedProtocolInspection(
       totalStaked: "0",
       paused: false,
       modulePauseFlags: 0,
+      activeModulePauses: [],
+      unknownModulePauseFlags: 0,
       bump: 255,
       pendingAuthority: PublicKey.default.toBase58(),
       projectAuthority: Keypair.generate().publicKey.toBase58(),
