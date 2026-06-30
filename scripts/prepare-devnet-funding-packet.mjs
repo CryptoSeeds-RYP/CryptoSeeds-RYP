@@ -108,6 +108,7 @@ export function buildDevnetFundingPacket({
       "npm run devnet:bootstrap -- --env .env.devnet.example --mint",
       "npm run devnet:bootstrap -- --env .env.devnet.example --deploy --init-plan",
       "npm run devnet:bootstrap -- --env .env.devnet.example --execute-init",
+      "npm run devnet:deployment:receipt -- --profile read-only --env .env.devnet.example",
     ],
     blockers,
     warnings,

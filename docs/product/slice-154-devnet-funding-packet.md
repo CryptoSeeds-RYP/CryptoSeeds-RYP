@@ -16,7 +16,7 @@ This slice adds a read-only funding handoff packet for the devnet authority bloc
   - devnet-only warning,
   - Solana devnet faucet option,
   - existing-devnet-wallet transfer option,
-  - post-funding command sequence through the bootstrap orchestrator.
+  - post-funding command sequence through the bootstrap orchestrator and read-only deployment receipt.
 - Added focused tests for missing funding, mint-ready funding, deploy-ready funding, and invalid config.
 - Added the funding packet to the operations model and devnet deployment docs.
 

@@ -55,6 +55,9 @@ describe("devnet funding packet CLI", () => {
       url: "https://faucet.solana.com",
     });
     expect(packet.afterFundingCommands).toContain("npm run devnet:bootstrap -- --env .env.devnet.example --execute-init");
+    expect(packet.afterFundingCommands).toContain(
+      "npm run devnet:deployment:receipt -- --profile read-only --env .env.devnet.example",
+    );
   });
 
   it("separates mint-ready funding from deploy-ready funding", () => {

@@ -11,6 +11,7 @@ This slice adds a read-only deployment receipt for devnet release review.
 - The receipt aggregates devnet status, program inspection, protocol-state inspection, public testnet readiness, and the local program artifact hash.
 - Added read-only and wallet-execution receipt profiles.
 - Added focused receipt tests.
+- Added the receipt to the post-funding handoff command sequence.
 - Added the command to ops readiness and setup documentation.
 
 ## Safety Position
