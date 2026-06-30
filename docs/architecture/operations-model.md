@@ -20,6 +20,7 @@ CryptoSeeds should be advanced internally and simple operationally. The target i
 | RYP token health | Daily | `npm.cmd run token:check` | Monitor only | No |
 | Devnet funding packet | Before launch | `npm.cmd run devnet:funding:packet -- --env .env.devnet.example` | Monitor only | No |
 | Devnet protocol state inspection | Before launch | `npm.cmd run devnet:inspect:protocol -- --env .env.devnet.example` | Monitor only | No |
+| Devnet deployment receipt | Before launch | `npm.cmd run devnet:deployment:receipt -- --profile read-only --env .env.devnet.example` | Draft only | Yes |
 | Read-only public testnet gate | Before launch | `npm.cmd run testnet:readiness -- --profile read-only --env .env.devnet.example` | Draft only | Yes |
 | Broadcast readiness gate | Before launch | `npm.cmd run testnet:readiness -- --profile wallet-execution --env .env.devnet.example` | Approval required | Yes |
 | Protocol drift gate | Every commit | `npm.cmd run protocol:idl:check` | Monitor only | No |

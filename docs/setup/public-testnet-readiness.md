@@ -24,6 +24,20 @@ For a read-only public preview gate, run:
 npm run testnet:readiness -- --profile read-only --env .env.devnet.example
 ```
 
+For a release-review handoff packet that also records the local program artifact hash and deployed account summary, run:
+
+```bash
+npm run devnet:deployment:receipt -- --profile read-only --env .env.devnet.example
+```
+
+Use the wallet-execution profile only after the read-only receipt is clean and transaction broadcast has been reviewed:
+
+```bash
+npm run devnet:deployment:receipt -- --profile wallet-execution --env .env.devnet.example
+```
+
+The receipt is read-only and does not authorize launch by itself.
+
 The read-only profile checks ops readiness, devnet status, devnet program inspection, and devnet protocol state inspection. It intentionally excludes the broadcast readiness gate because no wallet execution path should be enabled for that profile.
 
 ## Status Values

@@ -11,6 +11,7 @@ const requiredScripts = [
   "visual:audit",
   "token:check",
   "devnet:bootstrap",
+  "devnet:deployment:receipt",
   "devnet:deploy:wsl",
   "devnet:fund:authority",
   "devnet:funding:packet",

@@ -9,6 +9,7 @@
     "preview": "vite preview --host 127.0.0.1",
     "test": "vitest run",
     "devnet:bootstrap": "node scripts/devnet-bootstrap.mjs",
+    "devnet:deployment:receipt": "node scripts/prepare-devnet-deployment-receipt.mjs",
     "devnet:mint:test": "node scripts/create-devnet-test-mint.mjs",
     "devnet:prep": "node scripts/prepare-devnet-deployment.mjs",
     "devnet:program:check": "node scripts/check-devnet-program.mjs",

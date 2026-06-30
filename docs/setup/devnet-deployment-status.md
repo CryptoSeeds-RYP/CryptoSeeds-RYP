@@ -165,4 +165,12 @@ Run the read-only public testnet readiness gate directly:
 npm run testnet:readiness -- --profile read-only --env .env.devnet.example
 ```
 
+Prepare a read-only deployment receipt for release review:
+
+```bash
+npm run devnet:deployment:receipt -- --env .env.devnet.example
+```
+
+The receipt aggregates devnet status, program inspection, protocol-state inspection, public-readiness status, and the local program artifact hash. It is an audit handoff artifact only; it does not authorize frontend broadcast or public launch.
+
 Only after protocol initialization and read-only account inspection pass should frontend transaction broadcast be reviewed. The Admin Dashboard now exposes protocol config, stake position, governance proposal/vote, project/participation, and reward account inspectors so the deployment state can be checked from decoded on-chain accounts before any signed frontend flow is enabled.
