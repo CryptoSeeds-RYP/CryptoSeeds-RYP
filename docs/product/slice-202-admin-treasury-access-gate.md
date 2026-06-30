@@ -13,6 +13,7 @@ This slice lets the Admin Dashboard unlock for either the configured admin autho
 - Kept all Admin Dashboard actions proposal-only with `canExecuteActions=false`.
 - Added dashboard visibility for the configured treasury owner and connected access role.
 - Added a warning when the admin authority and independent treasury owner reuse the same wallet.
+- Kept public testnet readiness blocked when `VITE_ADMIN_AUTHORITY_ADDRESS` is missing, even if the independent treasury owner can open the dashboard.
 - Updated architecture docs to clarify that treasury-owner dashboard access does not replace protocol signing authority.
 
 ## Security Boundary

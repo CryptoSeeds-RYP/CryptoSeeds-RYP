@@ -723,12 +723,13 @@ export function buildAdminProtocolPreviews({
 function buildEnvironmentGate(
   config: Pick<
     AppConfig,
-    "cluster" | "demoMode" | "protocolDeployment" | "protocolProgramId" | "rypMintAddress"
+    "adminAuthorityAddress" | "cluster" | "demoMode" | "protocolDeployment" | "protocolProgramId" | "rypMintAddress"
   >,
 ): AdminReadinessGate {
   const blockers: string[] = [];
   const warnings: string[] = [];
 
+  if (!config.adminAuthorityAddress) blockers.push("Public testnet readiness requires VITE_ADMIN_AUTHORITY_ADDRESS.");
   if (config.cluster !== "devnet") blockers.push("Public testnet readiness requires VITE_SOLANA_CLUSTER=devnet.");
   if (config.protocolDeployment !== "devnet") {
     blockers.push("Public testnet readiness requires VITE_CRYPTOSEEDS_PROGRAM_DEPLOYMENT=devnet.");

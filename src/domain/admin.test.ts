@@ -72,6 +72,48 @@ describe("admin access", () => {
     expect(access.canExecuteActions).toBe(false);
   });
 
+  it("keeps public testnet readiness blocked when treasury access lacks protocol admin authority", () => {
+    const access = buildAdminAccess({
+      config: {
+        cluster: "devnet",
+        independentTreasuryAddress: treasuryAddress,
+        protocolDeployment: "devnet",
+        solanaBroadcastEnabled: false,
+      },
+      walletAddress: treasuryAddress,
+      demoMode: false,
+    });
+    const readiness = buildAdminLaunchReadiness({
+      access,
+      config: {
+        adminAuthorityAddress: undefined,
+        cluster: "devnet",
+        demoMode: false,
+        protocolDeployment: "devnet",
+        protocolProgramId: "5RWpGEGB9Yr7cmaoWZJQ9t263Wb8K18GrcMDqHByLXSb",
+        rypMintAddress: "B2Q92Qns3cukkNhtG4kbE1PVcUyjcKMs79HJtCJT9Eq7",
+        solanaBroadcastEnabled: false,
+      },
+      protocol: {
+        status: "DECODED",
+        blockers: [],
+        warnings: [],
+        activeModulePauses: [],
+      },
+      reward: {
+        rewardConfigStatus: "DECODED",
+        epochStatus: "PREVIEW_ONLY",
+        blockers: [],
+        warnings: [],
+      },
+    });
+
+    expect(access.status).toBe("TEST_UNLOCKED");
+    expect(access.accessRole).toBe("INDEPENDENT_TREASURY");
+    expect(readiness.status).toBe("BLOCKED");
+    expect(readiness.blockers).toContain("Public testnet readiness requires VITE_ADMIN_AUTHORITY_ADDRESS.");
+  });
+
   it("blocks wrong wallets and mainnet admin use", () => {
     const wrongWallet = buildAdminAccess({
       config: {

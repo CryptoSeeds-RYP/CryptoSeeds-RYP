@@ -14,6 +14,7 @@ Required gates:
 - Protocol deployment must not be `mainnet-beta`.
 - Admin actions cannot execute live from the UI.
 - Mainnet admin actions remain blocked until final launch review.
+- Public testnet readiness still requires `VITE_ADMIN_AUTHORITY_ADDRESS` even if the treasury owner can open the operator cockpit.
 
 The independent treasury owner route is an operator-dashboard unlock for testing and review. It does not change protocol signing authority, does not move funds, and does not enable live execution. Protocol transaction previews still require a configured admin authority before signing review.
 
