@@ -17,6 +17,7 @@ const requiredScripts = [
   "devnet:funding:packet",
   "devnet:init:protocol",
   "devnet:inspect:protocol",
+  "devnet:next",
   "devnet:prep",
   "devnet:program:check",
   "devnet:readiness",

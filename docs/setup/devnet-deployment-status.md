@@ -32,6 +32,7 @@ Repo-side devnet prep is partially complete:
 - `npm run devnet:mint:test -- --env .env.devnet.example` is available to create the configured devnet test mint from ignored local keypairs after the authority wallet is already funded. It does not request faucet airdrops from the mint mutation path.
 - `npm run devnet:fund:authority -- --env .env.devnet.example` is available to check authority balance and try staged devnet airdrops before mint/deploy steps.
 - `npm run devnet:funding:packet -- --env .env.devnet.example` is available to create a read-only funding handoff packet with the public authority address, minimum/recommended devnet SOL amounts, faucet/manual transfer options, and post-funding command sequence.
+- `npm run devnet:next -- --env .env.devnet.example` is available as a read-only operator recommender. It inspects devnet status and, when useful, protocol/readiness status, then prints the single next command plus the reason and risk level.
 - `npm run devnet:status -- --env .env.devnet.example` is available to inspect local keypair presence, reward-vault keypair readiness, deterministic protocol targets, authority SOL, mint status, program status, and next actions in one read-only report.
 - The devnet status report includes the compiled program `.so` relative path, SHA-256 checksum, and byte size for pre-deployment artifact review.
 - `npm run devnet:vaults:prep -- --env .env.devnet.example` is available to create missing ignored reward-vault keypairs before funding/deployment, without RPC calls, signing, or broadcasting.
@@ -63,6 +64,12 @@ Run the safe read-only bootstrap check:
 
 ```bash
 npm run devnet:bootstrap -- --env .env.devnet.example
+```
+
+Ask the operator recommender for the single next command:
+
+```bash
+npm run devnet:next -- --env .env.devnet.example
 ```
 
 Check balance and try staged devnet airdrops:

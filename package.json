@@ -18,6 +18,7 @@
     "devnet:funding:packet": "node scripts/prepare-devnet-funding-packet.mjs",
     "devnet:init:protocol": "node scripts/initialize-devnet-protocol.mjs",
     "devnet:inspect:protocol": "node scripts/inspect-devnet-protocol-state.mjs",
+    "devnet:next": "node scripts/recommend-devnet-next-action.mjs",
     "devnet:readiness": "node scripts/check-devnet-readiness.mjs",
     "devnet:status": "node scripts/check-devnet-status.mjs",
     "devnet:vaults:prep": "node scripts/prepare-devnet-reward-vault-keypairs.mjs",
