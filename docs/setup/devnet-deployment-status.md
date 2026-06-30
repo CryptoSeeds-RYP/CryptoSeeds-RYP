@@ -28,6 +28,7 @@ Repo-side devnet prep is partially complete:
 - `.env.devnet.example` contains the devnet prep values.
 - Anchor build and IDL drift checks pass with the synced program id.
 - Localnet smoke passes with the synced program id.
+- `npm run devnet:bootstrap -- --env .env.devnet.example` is available as a safe orchestration wrapper. By default it runs strict read-only funding/status/prep/program checks and prints the blockers without creating accounts, deploying, or initializing protocol state.
 - `npm run devnet:mint:test -- --env .env.devnet.example` is available to create the configured devnet test mint from ignored local keypairs.
 - `npm run devnet:fund:authority -- --env .env.devnet.example` is available to check authority balance and try staged devnet airdrops before mint/deploy steps.
 - `npm run devnet:status -- --env .env.devnet.example` is available to inspect local keypair presence, reward-vault keypair readiness, deterministic protocol targets, authority SOL, mint status, program status, and next actions in one read-only report.
@@ -56,6 +57,12 @@ After funding `Hqt69SbbvfkTbdC23ysWAxCZrTf9mYCMe8uuVDPdjPHe` on devnet, create t
 
 Minimum funding to create the mint is `0.1 SOL`; `3 SOL` is recommended before program deployment.
 
+Run the safe read-only bootstrap check:
+
+```bash
+npm run devnet:bootstrap -- --env .env.devnet.example
+```
+
 Check balance and try staged devnet airdrops:
 
 ```bash
@@ -66,6 +73,12 @@ For a read-only balance check without requesting airdrops:
 
 ```bash
 npm run devnet:fund:authority -- --env .env.devnet.example --check-only
+```
+
+After funding, create the test mint through the bootstrap wrapper:
+
+```bash
+npm run devnet:bootstrap -- --env .env.devnet.example --mint
 ```
 
 ```bash
@@ -99,6 +112,12 @@ npm run devnet:program:check -- --env .env.devnet.example
 When prep is ready, deploy through WSL:
 
 ```bash
+npm run devnet:bootstrap -- --env .env.devnet.example --deploy --init-plan
+```
+
+Equivalent direct deploy command:
+
+```bash
 npm run devnet:deploy:wsl -- -EnvPath .env.devnet.example
 ```
 
@@ -109,6 +128,12 @@ npm run devnet:init:protocol -- --env .env.devnet.example
 ```
 
 After the derived accounts and vault custody are reviewed, initialize the protocol:
+
+```bash
+npm run devnet:bootstrap -- --env .env.devnet.example --execute-init
+```
+
+Equivalent direct initialization command:
 
 ```bash
 npm run devnet:init:protocol -- --env .env.devnet.example --execute
