@@ -20,6 +20,16 @@ export type AgentSafetyRule = {
 
 export const maintenanceRunbook: MaintenanceRunbookItem[] = [
   {
+    id: "ci-verification-gate",
+    label: "CI Verification Gate",
+    cadence: "EVERY_COMMIT",
+    script: "npm.cmd run verify:ci",
+    automationMode: "MONITOR_ONLY",
+    approvalRequired: false,
+    operatorAction: "Run the portable CI gate for ops readiness, tracked secrets, copy, visuals, dependency audit, app tests, build, and whitespace checks.",
+    aiAgentBoundary: "Agent may run or inspect the CI gate; it must not substitute CI pass for the stronger local protocol smoke gate before deployment.",
+  },
+  {
     id: "local-verification-gate",
     label: "Full Local Verification Gate",
     cadence: "EVERY_COMMIT",

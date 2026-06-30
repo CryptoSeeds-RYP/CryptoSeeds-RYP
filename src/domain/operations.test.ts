@@ -23,6 +23,7 @@ describe("operations model", () => {
     const scripted = maintenanceRunbook.filter((item) => item.script);
 
     expect(scripted.map((item) => item.id)).toEqual([
+      "ci-verification-gate",
       "local-verification-gate",
       "app-regression-check",
       "copy-visual-safety",
@@ -57,6 +58,15 @@ describe("operations model", () => {
     expect(verification?.approvalRequired).toBe(false);
     expect(verification?.script).toBe("npm.cmd run verify:local");
     expect(verification?.aiAgentBoundary).toContain("must not treat a local pass as devnet deployment");
+  });
+
+  it("provides a portable CI verification gate separate from local protocol smoke", () => {
+    const verification = maintenanceRunbook.find((item) => item.id === "ci-verification-gate");
+
+    expect(verification?.automationMode).toBe("MONITOR_ONLY");
+    expect(verification?.approvalRequired).toBe(false);
+    expect(verification?.script).toBe("npm.cmd run verify:ci");
+    expect(verification?.aiAgentBoundary).toContain("stronger local protocol smoke gate");
   });
 
   it("keeps tracked secret material audit monitor-only", () => {

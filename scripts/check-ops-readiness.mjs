@@ -7,6 +7,7 @@ const packageJson = JSON.parse(await readFile(join(repoRoot, "package.json"), "u
 const requiredScripts = [
   "test",
   "build",
+  "verify:ci",
   "verify:local",
   "copy:audit",
   "secrets:audit",

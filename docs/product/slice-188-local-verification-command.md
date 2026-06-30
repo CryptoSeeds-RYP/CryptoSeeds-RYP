@@ -23,3 +23,5 @@
 ## Operator Rule
 
 Passing `verify:local` proves local review readiness only. It does not approve devnet deployment, enable wallet broadcast, move treasury funds, or make SeedBot execution live.
+
+GitHub CI uses `verify:ci` as a portable subset. It does not replace `verify:local` before deployment because it does not run the generated Anchor IDL drift check or WSL localnet smoke gate.

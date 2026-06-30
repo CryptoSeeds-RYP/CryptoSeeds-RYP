@@ -8,6 +8,7 @@
     "build": "tsc && vite build",
     "preview": "vite preview --host 127.0.0.1",
     "test": "vitest run",
+    "verify:ci": "npm run ops:check && npm run secrets:audit && npm run copy:audit && npm run visual:audit && npm audit --audit-level=moderate && npm run test && npm run build && git diff --check",
     "verify:local": "npm run test && npm run build && npm run ops:check && npm run secrets:audit && npm run copy:audit && npm run visual:audit && npm run protocol:idl:check && npm run protocol:smoke:localnet:wsl && npm audit --audit-level=moderate && git diff --check",
     "devnet:bootstrap": "node scripts/devnet-bootstrap.mjs",
     "devnet:deployment:receipt": "node scripts/prepare-devnet-deployment-receipt.mjs",
