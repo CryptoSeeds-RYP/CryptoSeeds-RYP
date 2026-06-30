@@ -49,6 +49,7 @@ export function buildRypMissionStatusReport({
 } = {}) {
   const opsReady = opsReport?.status === "READY";
   const nextRecommendation = devnetNextReport?.recommendation ?? null;
+  const nextOperatorHandoff = devnetNextReport?.operatorHandoff ?? null;
   const nextActionId = nextRecommendation?.id ?? null;
   const readOnlyReady = readOnlyReadinessReport?.status === "READY_FOR_READ_ONLY_TESTNET_PREVIEW";
   const primaryFundingBlocker = nextActionId === "fund_devnet_authority";
@@ -245,6 +246,7 @@ export function buildRypMissionStatusReport({
       readOnlyReadiness: readOnlyReadinessReport?.status ?? null,
     },
     nextRecommendation,
+    nextOperatorHandoff,
     phaseSummary: {
       localReady: phases.filter((item) => item.status === "LOCAL_READY").length,
       readyForReview: phases.filter((item) => item.status === "READY_FOR_REVIEW").length,

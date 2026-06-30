@@ -33,6 +33,16 @@ type DevnetNextReport = {
     manualAction?: string;
     risk: string;
   };
+  operatorHandoff?: {
+    activeStep: string;
+    afterCompletionCommand: string;
+    command: string;
+    operatorRule: string;
+    requiresExplicitApproval: boolean;
+    requiresExternalAction: boolean;
+    resumeCommand: string;
+    risk: string;
+  };
 };
 
 type ReadOnlyReadinessReport = {
@@ -61,6 +71,7 @@ type MissionStatusReport = {
   blockers: string[];
   deferredBlockers: string[];
   nextActions: string[];
+  nextOperatorHandoff: DevnetNextReport["operatorHandoff"] | null;
   safetyAttestation: {
     readOnly: boolean;
     noProtocolMutation: boolean;
@@ -97,6 +108,12 @@ describe("RYP mission status CLI", () => {
     expect(report.nextActions).toContain(
       "Fund Hqt69SbbvfkTbdC23ysWAxCZrTf9mYCMe8uuVDPdjPHe with at least 0.1 devnet SOL.",
     );
+    expect(report.nextOperatorHandoff).toMatchObject({
+      activeStep: "fund_devnet_authority",
+      requiresExplicitApproval: false,
+      requiresExternalAction: true,
+      risk: "READ_ONLY",
+    });
     expect(report.blockers).toEqual([
       "Fund Devnet Authority: Fund Hqt69SbbvfkTbdC23ysWAxCZrTf9mYCMe8uuVDPdjPHe with at least 0.1 devnet SOL.",
     ]);
@@ -129,6 +146,12 @@ describe("RYP mission status CLI", () => {
     expect(report.phases.find((phase) => phase.id === "deploy_devnet_program")?.status).toBe("WAITING_ON_DEVNET");
     expect(report.phases.find((phase) => phase.id === "initialize_devnet_protocol")?.status).toBe("WAITING_ON_DEVNET");
     expect(report.nextActions).toContain("npm run devnet:mint:test -- --env .env.devnet.example");
+    expect(report.nextOperatorHandoff).toMatchObject({
+      activeStep: "create_devnet_test_mint",
+      requiresExplicitApproval: true,
+      requiresExternalAction: false,
+      risk: "DEVNET_MUTATION",
+    });
   });
 
   it("moves program deployment to review after the test mint exists", () => {
@@ -297,8 +320,46 @@ function readyOpsReport(): OpsReport {
 }
 
 function nextAction(recommendation: DevnetNextReport["recommendation"]): DevnetNextReport {
+  const requiresExplicitApproval = recommendation.risk === "DEVNET_MUTATION";
+  const requiresExternalAction = Boolean(recommendation.manualAction);
+
   return {
     status: "NEXT_ACTION_READY",
     recommendation,
+    operatorHandoff: {
+      activeStep: recommendation.id,
+      afterCompletionCommand: "npm run devnet:next -- --env .env.devnet.example",
+      command: recommendation.command,
+      operatorRule: operatorRule({
+        requiresExplicitApproval,
+        requiresExternalAction,
+        risk: recommendation.risk,
+      }),
+      requiresExplicitApproval,
+      requiresExternalAction,
+      resumeCommand: "npm run devnet:next -- --env .env.devnet.example",
+      risk: recommendation.risk,
+    },
   };
+}
+
+function operatorRule({
+  requiresExplicitApproval,
+  requiresExternalAction,
+  risk,
+}: {
+  requiresExplicitApproval: boolean;
+  requiresExternalAction: boolean;
+  risk: string;
+}) {
+  if (requiresExternalAction) {
+    return "External action required first; run the command only for the funding/status handoff, then rerun devnet:next.";
+  }
+  if (requiresExplicitApproval) {
+    return "Review the printed report and approve this step before running because it mutates devnet or ignored local key material.";
+  }
+  if (risk === "READ_ONLY") {
+    return "Safe to run as a read-only inspection or report command; rerun devnet:next afterward.";
+  }
+  return "Review before running the next action; the risk level is not recognized.";
 }

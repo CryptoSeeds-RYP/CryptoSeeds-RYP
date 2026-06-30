@@ -13,7 +13,8 @@ It aggregates:
 - read-only public testnet readiness,
 - the ten mission phases,
 - the current blocker,
-- the next safe command or manual action.
+- the next safe command or manual action,
+- `nextOperatorHandoff`, which preserves whether the next step is read-only, requires external funding, or needs explicit approval before a devnet/local-key mutation.
 
 The devnet deployment lane is split into separate phases so the terminal report and Admin Dashboard advance through the same sequence:
 
@@ -49,4 +50,4 @@ After funding, rerun:
 npm run mission:status -- --env .env.devnet.example
 ```
 
-Then follow the reported `nextRecommendation.command` one step at a time.
+Then follow the reported `nextOperatorHandoff.operatorRule` and `nextRecommendation.command` one step at a time.
