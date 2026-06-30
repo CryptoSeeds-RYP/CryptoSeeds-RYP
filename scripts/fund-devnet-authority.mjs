@@ -8,6 +8,7 @@ const MIN_DEPLOY_SOL = 3;
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const options = parseArgs(process.argv.slice(2));
 const envPath = path.resolve(repoRoot, options.envPath ?? ".env.devnet.example");
+const envSource = path.relative(repoRoot, envPath);
 const env = { ...parseEnvFile(envPath), ...process.env };
 const rpcUrl = env.VITE_SOLANA_RPC_URL ?? "https://api.devnet.solana.com";
 const authorityAddress = options.authorityAddress ?? env.VITE_ADMIN_AUTHORITY_ADDRESS;
@@ -69,7 +70,7 @@ const report = {
   attempts,
   blockers,
   warnings,
-  nextActions: nextActions(status),
+  nextActions: nextActions(status, envSource),
 };
 
 console.log(JSON.stringify(report, null, 2));
@@ -107,24 +108,24 @@ async function attemptAirdrop(publicKey, amountSol) {
   }
 }
 
-function nextActions(status) {
+function nextActions(status, commandEnv) {
   if (status === "FUNDED_FOR_DEPLOY") {
     return [
-      "Run npm run devnet:status -- --env .env.devnet.example.",
-      "Run npm run devnet:mint:test -- --env .env.devnet.example if the test mint is missing.",
-      "Run npm run devnet:deploy:wsl after mint creation and final status review.",
+      `Run npm run devnet:status -- --env ${commandEnv}.`,
+      `Run npm run devnet:mint:test -- --env ${commandEnv} if the test mint is missing.`,
+      `Run npm run devnet:bootstrap -- --env ${commandEnv} --deploy --init-plan after mint creation and final status review.`,
     ];
   }
   if (status === "FUNDED_FOR_MINT") {
     return [
-      "Run npm run devnet:mint:test -- --env .env.devnet.example.",
+      `Run npm run devnet:mint:test -- --env ${commandEnv}.`,
       `Top up ${authorityAddress} to about ${MIN_DEPLOY_SOL} devnet SOL before program deployment.`,
     ];
   }
   return [
     `Fund ${authorityAddress ?? "the devnet authority"} with at least ${MIN_MINT_SOL} devnet SOL; ${MIN_DEPLOY_SOL} SOL is recommended.`,
     "If public airdrops are rate-limited, use another devnet faucet or fund from another devnet wallet.",
-    "Re-run npm run devnet:fund:authority -- --env .env.devnet.example.",
+    `Re-run npm run devnet:fund:authority -- --env ${commandEnv}.`,
   ];
 }
 

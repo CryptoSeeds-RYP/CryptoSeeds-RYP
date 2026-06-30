@@ -10,6 +10,7 @@ const defaultEnvPath = existsSync(path.join(repoRoot, ".env.devnet.example"))
   ? path.join(repoRoot, ".env.devnet.example")
   : path.join(repoRoot, ".env");
 const envPath = path.resolve(repoRoot, options.envPath ?? defaultEnvPath);
+const envSource = path.relative(repoRoot, envPath);
 const env = { ...parseEnvFile(envPath), ...process.env };
 
 const config = {
@@ -64,7 +65,7 @@ if (blockers.length === 0) {
 
 const report = {
   status: blockers.length === 0 ? "DEPLOYED" : "BLOCKED",
-  envSource: path.relative(repoRoot, envPath),
+  envSource,
   config,
   program,
   programDataAddress,
@@ -74,11 +75,12 @@ const report = {
     ? [
         "Fund the devnet authority wallet.",
         "Create the configured devnet RYP test mint.",
-        "Run npm run devnet:deploy:wsl -- -EnvPath .env.devnet.example.",
+        `Run npm run devnet:bootstrap -- --env ${envSource} --deploy --init-plan.`,
         "Re-run this program inspection after deployment.",
       ]
     : [
-        "Initialize protocol config, reward config, and verified reward vault states on devnet.",
+        `Run npm run devnet:init:protocol -- --env ${envSource}.`,
+        "Initialize protocol config, reward config, and verified reward vault states on devnet after plan review.",
         "Run read-only devnet account inspection before reviewing any public broadcast path.",
       ],
 };

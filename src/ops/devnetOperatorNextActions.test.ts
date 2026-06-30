@@ -1,0 +1,36 @@
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { describe, expect, it } from "vitest";
+
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
+
+describe("devnet operator next actions", () => {
+  it("keeps funding helper next actions env-aware and on the staged route", async () => {
+    const script = await readScript("scripts/fund-devnet-authority.mjs");
+
+    expect(script).toContain("nextActions(status, envSource)");
+    expect(script).toContain("npm run devnet:bootstrap -- --env ${commandEnv} --deploy --init-plan");
+    expect(script).not.toContain("Run npm run devnet:deploy:wsl after mint creation and final status review.");
+    expect(script).not.toContain("Re-run npm run devnet:fund:authority -- --env .env.devnet.example.");
+  });
+
+  it("keeps status and program inspection reports env-aware", async () => {
+    const statusScript = await readScript("scripts/check-devnet-status.mjs");
+    const programScript = await readScript("scripts/check-devnet-program.mjs");
+
+    expect(statusScript).toContain("envSource = path.relative(repoRoot, envPath)");
+    expect(statusScript).toContain("npm run devnet:vaults:prep -- --env ${envSource}");
+    expect(statusScript).toContain("npm run devnet:bootstrap -- --env ${envSource} --deploy --init-plan");
+    expect(statusScript).not.toContain("Run npm run devnet:deploy:wsl -- -EnvPath .env.devnet.example.");
+
+    expect(programScript).toContain("envSource = path.relative(repoRoot, envPath)");
+    expect(programScript).toContain("npm run devnet:bootstrap -- --env ${envSource} --deploy --init-plan");
+    expect(programScript).toContain("npm run devnet:init:protocol -- --env ${envSource}");
+    expect(programScript).not.toContain("Run npm run devnet:deploy:wsl -- -EnvPath .env.devnet.example.");
+  });
+});
+
+async function readScript(relativePath: string) {
+  return readFile(path.join(repoRoot, relativePath), "utf8");
+}

@@ -21,6 +21,7 @@ const REWARD_ROLES = [
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const options = parseArgs(process.argv.slice(2));
 const envPath = path.resolve(repoRoot, options.envPath ?? ".env.devnet.example");
+const envSource = path.relative(repoRoot, envPath);
 const env = { ...parseEnvFile(envPath), ...process.env };
 const anchorToml = readText("Anchor.toml");
 const rustProgram = readText(path.join("programs", "cryptoseeds_protocol", "src", "lib.rs"));
@@ -71,7 +72,7 @@ validateChainStatus(chain);
 
 const report = {
   status: blockers.length === 0 ? "READY_FOR_DEPLOYMENT_STEPS" : "BLOCKED",
-  envSource: path.relative(repoRoot, envPath),
+  envSource,
   config: {
     adminAuthorityAddress: config.adminAuthorityAddress ?? null,
     broadcastEnabled: config.broadcastEnabled,
@@ -268,35 +269,35 @@ function validateChainStatus(chain) {
 
 function nextActions() {
   const vaultPrepAction = missingRewardVaultKeypairs()
-    ? ["Run npm run devnet:vaults:prep -- --env .env.devnet.example to create local reward-vault keypairs before protocol initialization."]
+    ? [`Run npm run devnet:vaults:prep -- --env ${envSource} to create local reward-vault keypairs before protocol initialization.`]
     : [];
 
   if (!chain.authority?.fundedForMint) {
     return [
       ...vaultPrepAction,
       `Fund devnet authority ${config.adminAuthorityAddress} with at least ${MIN_MINT_SOL} SOL for mint creation; ${MIN_DEPLOY_SOL} SOL is recommended before deployment.`,
-      "Re-run npm run devnet:status -- --env .env.devnet.example.",
-      "Then run npm run devnet:mint:test -- --env .env.devnet.example.",
+      `Re-run npm run devnet:status -- --env ${envSource}.`,
+      `Then run npm run devnet:mint:test -- --env ${envSource}.`,
     ];
   }
   if (!chain.mint?.exists) {
     return [
       ...vaultPrepAction,
-      "Run npm run devnet:mint:test -- --env .env.devnet.example.",
-      "Run npm run devnet:prep -- --env .env.devnet.example.",
+      `Run npm run devnet:mint:test -- --env ${envSource}.`,
+      `Run npm run devnet:prep -- --env ${envSource}.`,
     ];
   }
   if (!chain.program?.exists) {
     return [
       ...vaultPrepAction,
-      "Run npm run devnet:prep -- --env .env.devnet.example.",
-      "Run npm run devnet:deploy:wsl -- -EnvPath .env.devnet.example.",
-      "Re-run npm run devnet:status -- --env .env.devnet.example.",
+      `Run npm run devnet:prep -- --env ${envSource}.`,
+      `Run npm run devnet:bootstrap -- --env ${envSource} --deploy --init-plan.`,
+      `Re-run npm run devnet:status -- --env ${envSource}.`,
     ];
   }
   return [
     ...vaultPrepAction,
-    "Run npm run devnet:init:protocol -- --env .env.devnet.example.",
+    `Run npm run devnet:init:protocol -- --env ${envSource}.`,
     "Review the plan, then run with --execute when approved.",
     "Run read-only reward inspection after initialization.",
   ];
