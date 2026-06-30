@@ -21,6 +21,7 @@ const MIN_MINT_SOL = 0.1;
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const options = parseArgs(process.argv.slice(2));
 const envPath = path.resolve(repoRoot, options.envPath ?? ".env.devnet.example");
+const envSource = path.relative(repoRoot, envPath);
 const env = { ...parseEnvFile(envPath), ...process.env };
 
 const rpcUrl = env.VITE_SOLANA_RPC_URL ?? "https://api.devnet.solana.com";
@@ -47,7 +48,7 @@ const existing = await connection.getParsedAccountInfo(mint.publicKey, "confirme
 if (existing.value) {
   console.log(JSON.stringify({
     status: "EXISTS",
-    envSource: path.relative(repoRoot, envPath),
+    envSource,
     mint: mint.publicKey.toBase58(),
     authority: authority.publicKey.toBase58(),
     rpcUrl,
@@ -55,7 +56,7 @@ if (existing.value) {
   process.exit(0);
 }
 
-await ensureDevnetBalance(connection, authority.publicKey);
+await ensureDevnetBalance(connection, authority.publicKey, envSource);
 
 const lamports = await connection.getMinimumBalanceForRentExemption(MINT_SIZE);
 const initializeMintData = Buffer.alloc(70);
@@ -89,7 +90,7 @@ const signature = await sendAndConfirmTransaction(connection, transaction, [auth
 
 console.log(JSON.stringify({
   status: "CREATED",
-  envSource: path.relative(repoRoot, envPath),
+  envSource,
   mint: mint.publicKey.toBase58(),
   authority: authority.publicKey.toBase58(),
   decimals,
@@ -190,14 +191,14 @@ function assertExpectedPublicKey(label, actual, expected) {
   }
 }
 
-async function ensureDevnetBalance(connection, publicKey) {
+async function ensureDevnetBalance(connection, publicKey, commandEnv) {
   const balance = await connection.getBalance(publicKey, "confirmed");
   if (balance >= MIN_MINT_SOL * LAMPORTS_PER_SOL) return;
 
   throw new Error(
     `Devnet authority needs at least ${MIN_MINT_SOL} SOL before mint creation. ` +
       `Current balance: ${balance / LAMPORTS_PER_SOL} SOL. ` +
-      "Run npm run devnet:funding:packet -- --env .env.devnet.example for the funding handoff.",
+      `Run npm run devnet:funding:packet -- --env ${commandEnv} for the funding handoff.`,
   );
 }
 

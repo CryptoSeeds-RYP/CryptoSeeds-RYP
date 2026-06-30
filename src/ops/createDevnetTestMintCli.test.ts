@@ -14,4 +14,15 @@ describe("create devnet test mint CLI", () => {
     expect(script).toContain("devnet:funding:packet");
     expect(script).toContain("before mint creation");
   });
+
+  it("uses the selected env file in the funding handoff", async () => {
+    const script = await readFile(scriptPath, "utf8");
+
+    expect(script).toContain("const envSource = path.relative(repoRoot, envPath);");
+    expect(script).toContain("ensureDevnetBalance(connection, authority.publicKey, envSource);");
+    expect(script).toContain("npm run devnet:funding:packet -- --env ${commandEnv}");
+    expect(script).not.toContain(
+      "Run npm run devnet:funding:packet -- --env .env.devnet.example for the funding handoff.",
+    );
+  });
 });
