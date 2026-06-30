@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { seedBotPerformanceFeeModel, seedBotStrategies } from "../domain/seedbot";
 import { projects } from "../fixtures/protocolFixtures";
+import type { ProjectParticipation } from "../domain/microverse";
 import {
   advanceTransactionIntent,
   buildProjectParticipationIntent,
@@ -94,6 +95,32 @@ describe("transaction intents", () => {
     expect(intent.acknowledgement?.accepted).toBe(false);
     expect(intent.riskSummary).toContain("Requires SEED tier");
     expect(intent.lifecycle.find((step) => step.id === "wallet_signature")?.status).toBe("BLOCKED");
+  });
+
+  it("blocks project participation intents for duplicate active participation", () => {
+    const project = projects[0];
+    const intent = buildProjectParticipationIntent(project, walletAddress, {
+      activeTier: "SEED",
+      participations: [preparedParticipation({ projectId: project.id, slotIndex: 0 })],
+      slotCount: 2,
+    });
+
+    expect(intent.status).toBe("BLOCKED");
+    expect(intent.executionMode).toBe("PREVIEW_ONLY");
+    expect(intent.riskSummary).toContain("Project is already in your MicroVerse");
+  });
+
+  it("blocks project participation intents when no farm slot is open", () => {
+    const project = projects[0];
+    const intent = buildProjectParticipationIntent(project, walletAddress, {
+      activeTier: "SEED",
+      participations: [],
+      slotCount: 0,
+    });
+
+    expect(intent.status).toBe("BLOCKED");
+    expect(intent.executionMode).toBe("PREVIEW_ONLY");
+    expect(intent.riskSummary).toContain("No open project slot");
   });
 
   it("blocks project participation intents when project registry checks fail", () => {
@@ -206,3 +233,23 @@ describe("transaction intents", () => {
     expect(signed.lifecycle.find((step) => step.id === "confirmation")?.status).toBe("BLOCKED");
   });
 });
+
+function preparedParticipation({
+  projectId,
+  slotIndex,
+}: {
+  projectId: string;
+  slotIndex: number;
+}): ProjectParticipation {
+  return {
+    acknowledgedDisclosureRef: `project:${projectId}:document:test:v1.0`,
+    id: `participation-${projectId}-${slotIndex}`,
+    joinedAt: "2026-06-30T00:00:00.000Z",
+    milestoneIndex: 0,
+    projectId,
+    slotIndex,
+    status: "PREPARED",
+    updatedAt: "2026-06-30T00:00:00.000Z",
+    walletAddress,
+  };
+}

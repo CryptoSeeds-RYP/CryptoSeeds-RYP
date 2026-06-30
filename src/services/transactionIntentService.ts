@@ -1,6 +1,7 @@
 import { appConfig } from "../config/env";
-import type { Project, StakingTier } from "../domain/microverse";
+import type { Project, ProjectParticipation, StakingTier } from "../domain/microverse";
 import { basisPointsToPercent, RYP_TOKEN_TRANSFER_FEE_BPS } from "../domain/feeRouter";
+import { projectParticipationBlockingReasons } from "../domain/participation";
 import { evaluateProjectEligibility, latestRiskDisclosure } from "../domain/projectRegistry";
 import { seedBotFeeDisclosure, type SeedBotStrategy } from "../domain/seedbot";
 import { venueById } from "../domain/seedbotVenues";
@@ -20,6 +21,12 @@ import type {
 
 const SPL_TOKEN_PROGRAM_ID = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA";
 const JUPITER_ROUTER_REFERENCE = "Jupiter route quote pending";
+
+type ProjectParticipationIntentOptions = {
+  activeTier?: StakingTier;
+  participations?: ProjectParticipation[];
+  slotCount?: number;
+};
 
 export function buildStakePreviewIntent(
   walletAddress?: string,
@@ -116,9 +123,10 @@ export function buildProjectReviewIntent(project: Project, walletAddress?: strin
 export function buildProjectParticipationIntent(
   project: Project,
   walletAddress?: string,
-  activeTier: StakingTier = "NONE",
+  options: StakingTier | ProjectParticipationIntentOptions = "NONE",
 ): TransactionIntent {
-  const projectEligibility = evaluateProjectEligibility(project, activeTier);
+  const participationOptions = normalizeProjectParticipationIntentOptions(options);
+  const projectEligibility = evaluateProjectParticipationIntentEligibility(project, participationOptions);
   const projectBlocked = !projectEligibility.eligible;
 
   return buildIntent({
@@ -146,6 +154,41 @@ export function buildProjectParticipationIntent(
       ? "No project participation action is prepared until blockers are cleared."
       : "Project slot links to your MicroVerse state and milestone feed.",
   });
+}
+
+function normalizeProjectParticipationIntentOptions(
+  options: StakingTier | ProjectParticipationIntentOptions,
+): Required<Pick<ProjectParticipationIntentOptions, "activeTier">> &
+  Pick<ProjectParticipationIntentOptions, "participations" | "slotCount"> {
+  if (typeof options === "string") {
+    return { activeTier: options };
+  }
+
+  return {
+    activeTier: options.activeTier ?? "NONE",
+    participations: options.participations,
+    slotCount: options.slotCount,
+  };
+}
+
+function evaluateProjectParticipationIntentEligibility(
+  project: Project,
+  options: ReturnType<typeof normalizeProjectParticipationIntentOptions>,
+) {
+  const shouldCheckSlots = Array.isArray(options.participations) && typeof options.slotCount === "number";
+  const reasons = shouldCheckSlots
+    ? projectParticipationBlockingReasons({
+        activeTier: options.activeTier,
+        participations: options.participations ?? [],
+        project,
+        slotCount: options.slotCount ?? 0,
+      })
+    : evaluateProjectEligibility(project, options.activeTier).reasons;
+
+  return {
+    eligible: reasons.length === 0,
+    reasons,
+  };
 }
 
 export function buildSeedBotSwapIntent(walletAddress?: string): TransactionIntent {
