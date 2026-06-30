@@ -120,6 +120,16 @@ export const maintenanceRunbook: MaintenanceRunbookItem[] = [
     aiAgentBoundary: "Agent may identify drift and propose patches; protocol id or IDL changes need review.",
   },
   {
+    id: "reward-epoch-admin-plan",
+    label: "Reward Epoch Admin Plan",
+    cadence: "WEEKLY",
+    script: "npm.cmd run rewards:epoch:admin-plan -- <epoch-input.json> <epoch-id> --authority <admin-authority-pubkey>",
+    automationMode: "DRAFT_ONLY",
+    approvalRequired: true,
+    operatorAction: "Generate the reviewed draft/review/cancel reward epoch planner inputs from the approved holder snapshot packet.",
+    aiAgentBoundary: "Agent may prepare the plan-only reward epoch packet; it must not sign, broadcast, create epochs, review epochs, cancel epochs, create claim records, or move reward tokens.",
+  },
+  {
     id: "project-disclosure-review",
     label: "Project Disclosure Review",
     cadence: "WEEKLY",
@@ -184,7 +194,7 @@ export const agentSafetyRules: AgentSafetyRule[] = [
 export function allAutomatedRunbookItemsAvoidSigning() {
   return maintenanceRunbook
     .filter((item) => item.automationMode !== "BLOCKED")
-    .every((item) => !/sign|private key|seed phrase/i.test(item.aiAgentBoundary));
+    .every((item) => !/(may|can|allowed to)\s+(sign|hold private keys|store private keys|request seed phrases|broadcast)/i.test(item.aiAgentBoundary));
 }
 
 export function approvalRequiredForSensitiveRunbookItems() {

@@ -33,6 +33,7 @@ describe("operations model", () => {
       "public-readonly-testnet-gate",
       "devnet-broadcast-gate",
       "protocol-drift-gate",
+      "reward-epoch-admin-plan",
     ]);
     expect(allAutomatedRunbookItemsAvoidSigning()).toBe(true);
   });
@@ -45,5 +46,15 @@ describe("operations model", () => {
     expect(receipt?.script).toContain("devnet:deployment:receipt");
     expect(receipt?.aiAgentBoundary).toContain("must not treat the receipt as launch approval");
     expect(receipt?.aiAgentBoundary).toContain("enable broadcast");
+  });
+
+  it("keeps reward epoch admin planning plan-only and approval-gated", () => {
+    const rewardPlan = maintenanceRunbook.find((item) => item.id === "reward-epoch-admin-plan");
+
+    expect(rewardPlan?.automationMode).toBe("DRAFT_ONLY");
+    expect(rewardPlan?.approvalRequired).toBe(true);
+    expect(rewardPlan?.script).toContain("rewards:epoch:admin-plan");
+    expect(rewardPlan?.aiAgentBoundary).toContain("must not sign");
+    expect(rewardPlan?.aiAgentBoundary).toContain("move reward tokens");
   });
 });

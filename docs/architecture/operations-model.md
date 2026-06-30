@@ -25,6 +25,7 @@ CryptoSeeds should be advanced internally and simple operationally. The target i
 | Broadcast readiness gate | Before launch | `npm.cmd run testnet:readiness -- --profile wallet-execution --env .env.devnet.example` | Approval required | Yes |
 | Protocol drift gate | Every commit | `npm.cmd run protocol:idl:check` | Monitor only | No |
 | Reward epoch draft check | Weekly | `npm.cmd run rewards:epoch:draft` | Draft only | Yes |
+| Reward epoch admin plan | Weekly | `npm.cmd run rewards:epoch:admin-plan -- <epoch-input.json> <epoch-id> --authority <admin-authority-pubkey>` | Draft only | Yes |
 | Project disclosure review | Weekly | Review queue | Draft only | Yes |
 | Treasury label review | Weekly | Review queue | Draft only | Yes |
 | SeedBot permission review | Before launch | Disabled | Blocked | Yes |
