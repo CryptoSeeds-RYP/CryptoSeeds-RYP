@@ -4,68 +4,80 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const options = parseArgs(process.argv.slice(2));
-const envPath = options.envPath ?? ".env.devnet.example";
 
-const statusResult = runJsonCommand(["scripts/check-devnet-status.mjs", "--env", envPath]);
-const statusReport = statusResult.parsed;
-let protocolInspectionResult;
-let readinessResult;
+if (isMain(import.meta.url)) {
+  await main();
+}
 
-if (statusReport?.chain?.program?.exists) {
-  protocolInspectionResult = runJsonCommand(["scripts/inspect-devnet-protocol-state.mjs", "--env", envPath]);
-  if (protocolInspectionResult.parsed?.status === "READY_FOR_READ_ONLY_PROTOCOL_REVIEW") {
-    readinessResult = runJsonCommand([
-      "scripts/check-public-testnet-readiness.mjs",
-      "--profile",
-      "read-only",
-      "--env",
-      envPath,
-    ]);
+async function main() {
+  const options = parseArgs(process.argv.slice(2));
+  const envPath = options.envPath ?? ".env.devnet.example";
+  const statusResult = runJsonCommand(["scripts/check-devnet-status.mjs", "--env", envPath]);
+  const statusReport = statusResult.parsed;
+  let protocolInspectionResult;
+  let readinessResult;
+
+  if (statusReport?.chain?.program?.exists) {
+    protocolInspectionResult = runJsonCommand(["scripts/inspect-devnet-protocol-state.mjs", "--env", envPath]);
+    if (protocolInspectionResult.parsed?.status === "READY_FOR_READ_ONLY_PROTOCOL_REVIEW") {
+      readinessResult = runJsonCommand([
+        "scripts/check-public-testnet-readiness.mjs",
+        "--profile",
+        "read-only",
+        "--env",
+        envPath,
+      ]);
+    }
+  }
+
+  const recommendation = recommendDevnetNextAction({
+    envPath,
+    protocolInspection: protocolInspectionResult?.parsed,
+    readiness: readinessResult?.parsed,
+    status: statusReport,
+  });
+  const blockers = [
+    ...(!statusReport ? ["Could not parse devnet status report."] : []),
+    ...(statusResult.exitCode !== 0 ? [`Devnet status command exited with ${statusResult.exitCode}.`] : []),
+    ...(protocolInspectionResult && !protocolInspectionResult.parsed
+      ? ["Could not parse devnet protocol inspection report."]
+      : []),
+    ...(readinessResult && !readinessResult.parsed ? ["Could not parse public testnet readiness report."] : []),
+  ];
+
+  const report = {
+    status: blockers.length === 0 ? "NEXT_ACTION_READY" : "NEXT_ACTION_BLOCKED",
+    envSource: normalizeEnvPath(envPath),
+    generatedAt: new Date().toISOString(),
+    sourceStatuses: {
+      devnetStatus: statusReport?.status ?? null,
+      protocolInspection: protocolInspectionResult?.parsed?.status ?? null,
+      publicTestnetReadiness: readinessResult?.parsed?.status ?? null,
+    },
+    recommendation,
+    blockers,
+    safetyAttestation: {
+      readOnly: true,
+      noTransactionsSubmitted: true,
+      noWalletBroadcast: true,
+      noLocalKeypairsCreated: true,
+      noProtocolMutation: true,
+    },
+  };
+
+  console.log(JSON.stringify(report, null, 2));
+
+  if (options.strict && blockers.length > 0) {
+    process.exit(1);
   }
 }
 
-const recommendation = recommendNextAction({
-  protocolInspection: protocolInspectionResult?.parsed,
-  readiness: readinessResult?.parsed,
-  status: statusReport,
-});
-const blockers = [
-  ...(!statusReport ? ["Could not parse devnet status report."] : []),
-  ...(statusResult.exitCode !== 0 ? [`Devnet status command exited with ${statusResult.exitCode}.`] : []),
-  ...(protocolInspectionResult && !protocolInspectionResult.parsed
-    ? ["Could not parse devnet protocol inspection report."]
-    : []),
-  ...(readinessResult && !readinessResult.parsed ? ["Could not parse public testnet readiness report."] : []),
-];
-
-const report = {
-  status: blockers.length === 0 ? "NEXT_ACTION_READY" : "NEXT_ACTION_BLOCKED",
-  envSource: normalizeEnvPath(envPath),
-  generatedAt: new Date().toISOString(),
-  sourceStatuses: {
-    devnetStatus: statusReport?.status ?? null,
-    protocolInspection: protocolInspectionResult?.parsed?.status ?? null,
-    publicTestnetReadiness: readinessResult?.parsed?.status ?? null,
-  },
-  recommendation,
-  blockers,
-  safetyAttestation: {
-    readOnly: true,
-    noTransactionsSubmitted: true,
-    noWalletBroadcast: true,
-    noLocalKeypairsCreated: true,
-    noProtocolMutation: true,
-  },
-};
-
-console.log(JSON.stringify(report, null, 2));
-
-if (options.strict && blockers.length > 0) {
-  process.exit(1);
-}
-
-function recommendNextAction({ protocolInspection, readiness, status }) {
+export function recommendDevnetNextAction({
+  envPath = ".env.devnet.example",
+  protocolInspection,
+  readiness,
+  status,
+}) {
   if (!status) {
     return commandRecommendation({
       id: "rerun_status",
@@ -316,4 +328,8 @@ function requireValue(args, index, name) {
 
 function normalizeEnvPath(value) {
   return path.relative(repoRoot, path.resolve(repoRoot, value));
+}
+
+function isMain(moduleUrl) {
+  return fileURLToPath(moduleUrl) === process.argv[1];
 }
