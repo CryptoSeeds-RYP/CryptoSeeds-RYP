@@ -50,6 +50,16 @@ export const maintenanceRunbook: MaintenanceRunbookItem[] = [
     aiAgentBoundary: "Agent may flag risky language or asset drift; it may not approve compliance-sensitive wording by itself.",
   },
   {
+    id: "secret-material-audit",
+    label: "Secret Material Audit",
+    cadence: "EVERY_COMMIT",
+    script: "npm.cmd run secrets:audit",
+    automationMode: "MONITOR_ONLY",
+    approvalRequired: false,
+    operatorAction: "Confirm tracked files do not contain Solana keypair JSON, private-key blocks, or real-looking service tokens.",
+    aiAgentBoundary: "Agent may run the audit and identify tracked leaks; it must not print, request, move, or upload secret material.",
+  },
+  {
     id: "ryp-mission-status",
     label: "RYP Mission Status",
     cadence: "DAILY",

@@ -18,6 +18,7 @@ CryptoSeeds should be advanced internally and simple operationally. The target i
 | Full local verification gate | Every commit | `npm.cmd run verify:local` | Monitor only | No |
 | App regression check | Every commit | `npm.cmd test && npm.cmd run build` | Monitor only | No |
 | Copy and visual safety | Every commit | `npm.cmd run copy:audit && npm.cmd run visual:audit` | Monitor only | No |
+| Secret material audit | Every commit | `npm.cmd run secrets:audit` | Monitor only | No |
 | RYP token health | Daily | `npm.cmd run token:check` | Monitor only | No |
 | Devnet funding packet | Before launch | `npm.cmd run devnet:funding:packet -- --env .env.devnet.example` | Monitor only | No |
 | Devnet protocol state inspection | Before launch | `npm.cmd run devnet:inspect:protocol -- --env .env.devnet.example` | Monitor only | No |

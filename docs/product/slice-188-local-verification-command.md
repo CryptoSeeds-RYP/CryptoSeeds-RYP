@@ -13,6 +13,7 @@
 - unit and domain tests,
 - production build,
 - operations readiness,
+- tracked-secret audit,
 - copy and visual audits,
 - protocol IDL drift check,
 - WSL localnet smoke gate,

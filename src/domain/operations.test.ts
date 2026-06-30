@@ -26,6 +26,7 @@ describe("operations model", () => {
       "local-verification-gate",
       "app-regression-check",
       "copy-visual-safety",
+      "secret-material-audit",
       "ryp-mission-status",
       "ryp-token-health",
       "devnet-funding-packet",
@@ -56,6 +57,15 @@ describe("operations model", () => {
     expect(verification?.approvalRequired).toBe(false);
     expect(verification?.script).toBe("npm.cmd run verify:local");
     expect(verification?.aiAgentBoundary).toContain("must not treat a local pass as devnet deployment");
+  });
+
+  it("keeps tracked secret material audit monitor-only", () => {
+    const secretAudit = maintenanceRunbook.find((item) => item.id === "secret-material-audit");
+
+    expect(secretAudit?.automationMode).toBe("MONITOR_ONLY");
+    expect(secretAudit?.approvalRequired).toBe(false);
+    expect(secretAudit?.script).toBe("npm.cmd run secrets:audit");
+    expect(secretAudit?.aiAgentBoundary).toContain("must not print");
   });
 
   it("keeps the devnet deployment receipt read-only and approval-gated", () => {

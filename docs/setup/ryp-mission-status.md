@@ -32,7 +32,7 @@ The full local verification phase is exposed as one command:
 npm run verify:local
 ```
 
-That command runs tests, production build, ops readiness, copy audit, visual audit, IDL drift check, the WSL localnet smoke gate, npm audit, and whitespace diff checks. The localnet smoke gate is intentionally included because the Rust program must be proven against a disposable local validator before any devnet mutation is treated as release-reviewable.
+That command runs tests, production build, ops readiness, tracked-secret audit, copy audit, visual audit, IDL drift check, the WSL localnet smoke gate, npm audit, and whitespace diff checks. The localnet smoke gate is intentionally included because the Rust program must be proven against a disposable local validator before any devnet mutation is treated as release-reviewable.
 
 Use strict mode when a blocked mission should fail automation:
 

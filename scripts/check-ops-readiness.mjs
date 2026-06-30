@@ -9,6 +9,7 @@ const requiredScripts = [
   "build",
   "verify:local",
   "copy:audit",
+  "secrets:audit",
   "mission:status",
   "visual:audit",
   "token:check",
