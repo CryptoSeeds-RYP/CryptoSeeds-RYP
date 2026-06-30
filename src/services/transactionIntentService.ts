@@ -113,8 +113,12 @@ export function buildProjectReviewIntent(project: Project, walletAddress?: strin
   });
 }
 
-export function buildProjectParticipationIntent(project: Project, walletAddress?: string): TransactionIntent {
-  const projectEligibility = evaluateProjectEligibility(project, project.requiredTier);
+export function buildProjectParticipationIntent(
+  project: Project,
+  walletAddress?: string,
+  activeTier: StakingTier = "NONE",
+): TransactionIntent {
+  const projectEligibility = evaluateProjectEligibility(project, activeTier);
   const projectBlocked = !projectEligibility.eligible;
 
   return buildIntent({

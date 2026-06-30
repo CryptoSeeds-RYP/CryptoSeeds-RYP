@@ -75,7 +75,7 @@ describe("transaction intents", () => {
 
   it("marks project participation intents as wallet-ready after acknowledgement", () => {
     const project = projects[0];
-    const intent = buildProjectParticipationIntent(project, walletAddress);
+    const intent = buildProjectParticipationIntent(project, walletAddress, "SEED");
 
     expect(intent.status).toBe("READY");
     expect(intent.executionMode).toBe("WALLET_APPROVED");
@@ -85,9 +85,20 @@ describe("transaction intents", () => {
     expect(intent.accounts.some((account) => account.label === "Risk acknowledgement")).toBe(true);
   });
 
+  it("blocks project participation intents until the active tier is supplied", () => {
+    const project = projects[0];
+    const intent = buildProjectParticipationIntent(project, walletAddress);
+
+    expect(intent.status).toBe("BLOCKED");
+    expect(intent.executionMode).toBe("PREVIEW_ONLY");
+    expect(intent.acknowledgement?.accepted).toBe(false);
+    expect(intent.riskSummary).toContain("Requires SEED tier");
+    expect(intent.lifecycle.find((step) => step.id === "wallet_signature")?.status).toBe("BLOCKED");
+  });
+
   it("blocks project participation intents when project registry checks fail", () => {
     const project = projects.find((item) => item.id === "hemp-greenhouse")!;
-    const intent = buildProjectParticipationIntent(project, walletAddress);
+    const intent = buildProjectParticipationIntent(project, walletAddress, "SAPLING");
 
     expect(intent.status).toBe("BLOCKED");
     expect(intent.executionMode).toBe("PREVIEW_ONLY");

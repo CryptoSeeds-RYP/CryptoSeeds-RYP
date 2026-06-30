@@ -246,8 +246,9 @@ export function useMicroVerseState() {
 
   function prepareProjectIntent(project: Project) {
     const effectiveWallet = effectiveIntentWalletAddress();
+    const activeTier = snapshot?.user.stakingTier ?? "NONE";
     setSelectedProjectId(project.id);
-    setIntent(buildProjectParticipationIntent(project, effectiveWallet));
+    setIntent(buildProjectParticipationIntent(project, effectiveWallet, activeTier));
     if (!effectiveWallet) return;
 
     setSnapshot((current) => {
@@ -255,7 +256,7 @@ export function useMicroVerseState() {
 
       const participation = createPreparedParticipation({
         project,
-        activeTier: selectedTier,
+        activeTier: current.user.stakingTier,
         walletAddress: effectiveWallet,
         participations: current.participations,
         slotCount: current.farm.projectSlotsUnlocked,
