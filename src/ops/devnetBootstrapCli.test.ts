@@ -25,4 +25,14 @@ describe("devnet bootstrap CLI", () => {
     expect(script).toContain("scripts/inspect-devnet-protocol-state.mjs");
     expect(script).toContain("scripts/check-public-testnet-readiness.mjs");
   });
+
+  it("recommends the staged mint and initialization commands in next actions", async () => {
+    const script = await readFile(scriptPath, "utf8");
+
+    expect(script).toContain("npm run devnet:mint:test");
+    expect(script).toContain("npm run devnet:init:protocol");
+    expect(script).toContain("npm run testnet:readiness");
+    expect(script).not.toContain("run with --mint to create the devnet test mint");
+    expect(script).not.toContain("Run npm run devnet:bootstrap -- --env .env.devnet.example --execute-init.");
+  });
 });

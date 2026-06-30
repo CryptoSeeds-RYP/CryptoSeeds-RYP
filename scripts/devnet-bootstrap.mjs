@@ -184,31 +184,31 @@ function nextActions(blockers) {
   if (blockers.some((step) => step.label === "check_authority_funding" || step.label === "fund_authority")) {
     return [
       "Fund the devnet authority externally if public airdrops are rate-limited.",
-      "Re-run npm run devnet:bootstrap -- --env .env.devnet.example --fund.",
+      `Re-run npm run devnet:fund:authority -- --env ${envPath}.`,
     ];
   }
   if (blockers.some((step) => step.label === "deployment_prep")) {
     return [
       "Create the devnet test mint after authority funding.",
-      "Re-run npm run devnet:bootstrap -- --env .env.devnet.example --mint.",
+      `Run npm run devnet:mint:test -- --env ${envPath}.`,
     ];
   }
   if (blockers.some((step) => step.label === "program_check")) {
     return [
       "Deploy the program after funding and mint creation.",
-      "Run npm run devnet:bootstrap -- --env .env.devnet.example --deploy --init-plan.",
+      `Run npm run devnet:bootstrap -- --env ${envPath} --deploy --init-plan.`,
     ];
   }
   if (blockers.some((step) => step.label === "inspect_protocol_state")) {
     return [
       "Initialize protocol state after deploy plan review.",
-      "Run npm run devnet:bootstrap -- --env .env.devnet.example --execute-init.",
+      `Run npm run devnet:init:protocol -- --env ${envPath} --execute.`,
     ];
   }
   if (blockers.some((step) => step.label === "read_only_testnet_readiness")) {
     return [
       "Review devnet protocol-state inspection blockers.",
-      "Re-run npm run devnet:bootstrap -- --env .env.devnet.example --read-only-ready.",
+      `Re-run npm run testnet:readiness -- --profile read-only --env ${envPath}.`,
     ];
   }
   if (blockers.length > 0) {
@@ -223,9 +223,9 @@ function nextActions(blockers) {
     !options.readOnlyReady
   ) {
     return [
-      "When authority funding is available, run with --mint to create the devnet test mint.",
-      "After mint/prep pass, run with --deploy --init-plan.",
-      "Only after reviewing the initialization plan, run with --execute-init.",
+      `When authority funding is available, run npm run devnet:mint:test -- --env ${envPath}.`,
+      `After mint/prep pass, run npm run devnet:bootstrap -- --env ${envPath} --deploy --init-plan.`,
+      `Only after reviewing the initialization plan, run npm run devnet:init:protocol -- --env ${envPath} --execute.`,
     ];
   }
   return ["Continue with the next explicit bootstrap flag after reviewing the printed reports."];
