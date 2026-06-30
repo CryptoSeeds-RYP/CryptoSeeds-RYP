@@ -23,15 +23,19 @@ export function useMetaMaskWallet() {
     }
 
     const [accounts, chainId] = await Promise.all([
-      provider.request<string[]>({ method: "eth_accounts" }).catch(() => []),
+      provider.request<unknown>({ method: "eth_accounts" }).catch(() => []),
       provider.request<string>({ method: "eth_chainId" }).catch(() => undefined),
     ]);
+    const normalizedAccounts = normalizeEvmAccounts(accounts);
 
     setState({
       available: true,
-      connected: accounts.length > 0,
-      address: accounts[0],
+      connected: normalizedAccounts.length > 0,
+      address: normalizedAccounts[0],
       chainId,
+      error: accountsContainMalformedEntries(accounts)
+        ? "Injected EVM provider returned malformed account data"
+        : undefined,
     });
   }, [provider]);
 
@@ -43,12 +47,14 @@ export function useMetaMaskWallet() {
     if (!provider?.on) return undefined;
 
     const handleAccountsChanged = (accounts: unknown) => {
-      const nextAccounts = Array.isArray(accounts) ? accounts.filter((item): item is string => typeof item === "string") : [];
+      const nextAccounts = normalizeEvmAccounts(accounts);
       setState((current) => ({
         ...current,
         connected: nextAccounts.length > 0,
         address: nextAccounts[0],
-        error: undefined,
+        error: accountsContainMalformedEntries(accounts)
+          ? "Injected EVM provider returned malformed account data"
+          : undefined,
       }));
     };
 
@@ -75,13 +81,17 @@ export function useMetaMaskWallet() {
     }
 
     try {
-      const accounts = await provider.request<string[]>({ method: "eth_requestAccounts" });
+      const accounts = await provider.request<unknown>({ method: "eth_requestAccounts" });
       const chainId = await provider.request<string>({ method: "eth_chainId" }).catch(() => undefined);
+      const normalizedAccounts = normalizeEvmAccounts(accounts);
       setState({
         available: true,
-        connected: accounts.length > 0,
-        address: accounts[0],
+        connected: normalizedAccounts.length > 0,
+        address: normalizedAccounts[0],
         chainId,
+        error: accountsContainMalformedEntries(accounts)
+          ? "Injected EVM provider returned malformed account data"
+          : undefined,
       });
     } catch (error) {
       setState((current) => ({
@@ -95,7 +105,7 @@ export function useMetaMaskWallet() {
 }
 
 export function shortEvmAddress(address?: string) {
-  if (!address) return "";
+  if (!address || !isLikelyEvmAddress(address)) return "";
   return `${address.slice(0, 6)}...${address.slice(-4)}`;
 }
 
@@ -107,4 +117,21 @@ export function evmChainLabel(chainId?: string) {
   if (chainId === "0xa4b1") return "Arbitrum";
   if (chainId === "0x2105") return "Base";
   return `EVM ${Number.parseInt(chainId, 16) || chainId}`;
+}
+
+export function normalizeEvmAccounts(accounts: unknown) {
+  if (!Array.isArray(accounts)) return [];
+  return accounts
+    .filter((account): account is string => typeof account === "string")
+    .map((account) => account.trim())
+    .filter(isLikelyEvmAddress);
+}
+
+export function isLikelyEvmAddress(address: string) {
+  return /^0x[a-fA-F0-9]{40}$/.test(address);
+}
+
+function accountsContainMalformedEntries(accounts: unknown) {
+  if (!Array.isArray(accounts)) return accounts !== undefined;
+  return accounts.some((account) => typeof account !== "string" || !isLikelyEvmAddress(account.trim()));
 }
