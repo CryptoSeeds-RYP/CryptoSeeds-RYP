@@ -101,6 +101,7 @@ export function AdminView({
   const missionControl = buildAdminMissionControl({
     access,
     config: appConfig,
+    deployment: devnetDeploymentInspection,
     launchReadiness,
     protocol: protocolReadiness,
     reward: rewardReadiness,

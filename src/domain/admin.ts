@@ -21,6 +21,7 @@ import {
   PROTOCOL_PAUSE_MODULE_FLAGS,
   PROTOCOL_PAUSE_MODULE_MASK,
 } from "../solana/protocolTransactionPlan";
+import type { DevnetDeploymentInspection } from "../solana/devnetDeploymentInspection";
 
 export type AdminAccessStatus =
   | "UNCONFIGURED"
@@ -139,6 +140,7 @@ export type AdminMissionControlInput = {
     AppConfig,
     "cluster" | "protocolDeployment" | "protocolProgramId" | "rypMintAddress" | "solanaBroadcastEnabled"
   >;
+  deployment?: Pick<DevnetDeploymentInspection, "authority" | "blockers" | "mint" | "nextActions" | "program">;
   launchReadiness: AdminLaunchReadiness;
   protocol: AdminProtocolReadinessInput;
   reward: AdminRewardReadinessInput;
@@ -353,6 +355,7 @@ export function buildAdminLaunchReadiness({
 export function buildAdminMissionControl({
   access,
   config,
+  deployment,
   launchReadiness,
   protocol,
   reward,
@@ -360,7 +363,16 @@ export function buildAdminMissionControl({
   const devnetConfigured = config.cluster === "devnet" && config.protocolDeployment === "devnet";
   const protocolDecoded = protocol.status === "DECODED";
   const rewardDecoded = reward.rewardConfigStatus === "DECODED";
-  const waitingOnDevnet = devnetConfigured && !protocolDecoded;
+  const authorityFundedForMint = deployment?.authority.fundedForMint ?? protocolDecoded;
+  const authorityFundedForDeploy = deployment?.authority.fundedForDeploy ?? protocolDecoded;
+  const mintReady = deployment ? deployment.mint.status === "PRESENT" && deployment.mint.isMint === true : protocolDecoded;
+  const programReady = deployment
+    ? deployment.program.status === "PRESENT" && deployment.program.executable === true
+    : protocolDecoded;
+  const fundingBlocked = devnetConfigured && !authorityFundedForMint;
+  const mintWaiting = devnetConfigured && authorityFundedForMint && !mintReady;
+  const programWaiting = devnetConfigured && mintReady && !programReady;
+  const protocolWaiting = devnetConfigured && programReady && !protocolDecoded;
   const missionBlocked = launchReadiness.status === "BLOCKED";
   const liveBroadcastReviewed = config.solanaBroadcastEnabled && launchReadiness.status === "READY_FOR_REVIEW";
 
@@ -389,12 +401,38 @@ export function buildAdminMissionControl({
     missionPhase({
       id: "devnet-funding",
       label: "Devnet Funding",
-      status: waitingOnDevnet ? "BLOCKED" : "LOCAL_READY",
-      summary: waitingOnDevnet
-        ? "Devnet account inspection is not decoded yet; fund the authority and follow the next-action command."
-        : "Devnet funding is not the active dashboard blocker.",
+      status: fundingBlocked ? "BLOCKED" : "LOCAL_READY",
+      summary: fundingBlocked
+        ? "Authority needs devnet SOL before mint creation or deployment can proceed."
+        : authorityFundedForDeploy
+          ? "Authority has deployment headroom for the devnet sequence."
+          : "Authority has mint funding; top-up is still recommended before deployment.",
       command: "npm run devnet:next -- --env .env.devnet.example",
-      blockers: waitingOnDevnet ? ["Fund the devnet authority if mission:status reports fund_devnet_authority."] : [],
+      blockers: fundingBlocked ? ["Fund the devnet authority if mission:status reports fund_devnet_authority."] : [],
+    }),
+    missionPhase({
+      id: "devnet-mint",
+      label: "Devnet Test Mint",
+      status: mintReady ? "READY_FOR_REVIEW" : fundingBlocked ? "WAITING_ON_DEVNET" : "REVIEW_REQUIRED",
+      summary: mintReady
+        ? "Configured devnet RYP test mint exists and can be reviewed."
+        : fundingBlocked
+          ? "Mint creation waits on authority funding."
+          : "Authority funding exists; create and review the configured devnet RYP test mint.",
+      command: "npm run devnet:mint:test -- --env .env.devnet.example",
+      blockers: mintReady || fundingBlocked ? [] : deployment?.mint.status === "DECODE_ERROR" ? [deployment.mint.message] : [],
+    }),
+    missionPhase({
+      id: "devnet-program",
+      label: "Devnet Program",
+      status: programReady ? "READY_FOR_REVIEW" : mintReady ? "REVIEW_REQUIRED" : "WAITING_ON_DEVNET",
+      summary: programReady
+        ? "Program account exists, is executable, and can be inspected."
+        : mintReady
+          ? "Mint is ready; deploy the program and print the initialization plan."
+          : "Program deployment waits on test mint readiness.",
+      command: "npm run devnet:bootstrap -- --env .env.devnet.example --deploy --init-plan",
+      blockers: programReady || !mintReady ? [] : deployment?.program.status === "DECODE_ERROR" ? [deployment.program.message] : [],
     }),
     missionPhase({
       id: "devnet-protocol",
@@ -402,7 +440,9 @@ export function buildAdminMissionControl({
       status: protocolDecoded ? "READY_FOR_REVIEW" : "WAITING_ON_DEVNET",
       summary: protocolDecoded
         ? "Protocol config decodes from the selected deployment and can be reviewed."
-        : "Deploy and initialize the devnet protocol before public preview review.",
+        : protocolWaiting
+          ? "Program is deployed; initialize and inspect protocol accounts."
+          : "Protocol initialization waits on funding, mint, and program deployment.",
       command: "npm run devnet:inspect:protocol -- --env .env.devnet.example",
       blockers: protocol.blockers,
     }),
@@ -459,8 +499,13 @@ export function buildAdminMissionControl({
     phase.status === "BLOCKED" ? phase.blockers.map((blocker) => `${phase.label}: ${blocker}`) : [],
   ));
   const nextActions = uniqueMessages([
+    ...(deployment?.nextActions ?? []),
     ...phases
-      .filter((phase) => phase.status === "BLOCKED" || phase.status === "WAITING_ON_DEVNET")
+      .filter((phase) =>
+        phase.status === "BLOCKED" ||
+        phase.status === "WAITING_ON_DEVNET" ||
+        (phase.id.startsWith("devnet-") && phase.status === "REVIEW_REQUIRED")
+      )
       .map((phase) => phase.command),
     missionBlocked ? "npm run mission:status -- --env .env.devnet.example" : undefined,
   ].filter((action): action is string => Boolean(action)));

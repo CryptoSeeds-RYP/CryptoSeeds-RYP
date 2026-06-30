@@ -322,6 +322,29 @@ describe("admin access", () => {
         rypMintAddress: "B2Q92Qns3cukkNhtG4kbE1PVcUyjcKMs79HJtCJT9Eq7",
         solanaBroadcastEnabled: false,
       },
+      deployment: {
+        authority: {
+          address: validAdminAddress,
+          status: "PRESENT",
+          lamports: 0,
+          sol: 0,
+          fundedForMint: false,
+          fundedForDeploy: false,
+          message: "Devnet authority balance is 0 SOL.",
+        },
+        blockers: ["Devnet authority needs at least 0.1 SOL to create the test mint."],
+        mint: {
+          address: "B2Q92Qns3cukkNhtG4kbE1PVcUyjcKMs79HJtCJT9Eq7",
+          status: "MISSING",
+          message: "Devnet RYP test mint account was not found.",
+        },
+        nextActions: ["npm run devnet:funding:packet -- --env .env.devnet.example"],
+        program: {
+          address: "5RWpGEGB9Yr7cmaoWZJQ9t263Wb8K18GrcMDqHByLXSb",
+          status: "MISSING",
+          message: "Devnet program account was not found.",
+        },
+      },
       launchReadiness: readiness,
       protocol: {
         status: "PREVIEW_ONLY",
@@ -341,8 +364,197 @@ describe("admin access", () => {
     expect(mission.blockedCount).toBe(1);
     expect(mission.waitingOnDevnetCount).toBeGreaterThan(0);
     expect(mission.phases.find((phase) => phase.id === "devnet-funding")?.status).toBe("BLOCKED");
+    expect(mission.phases.find((phase) => phase.id === "devnet-mint")?.status).toBe("WAITING_ON_DEVNET");
+    expect(mission.phases.find((phase) => phase.id === "devnet-program")?.status).toBe("WAITING_ON_DEVNET");
     expect(mission.phases.find((phase) => phase.id === "devnet-protocol")?.status).toBe("WAITING_ON_DEVNET");
+    expect(mission.nextActions[0]).toBe("npm run devnet:funding:packet -- --env .env.devnet.example");
     expect(mission.nextActions).toContain("npm run mission:status -- --env .env.devnet.example");
+  });
+
+  it("advances mission next action from funding to test mint creation once authority is funded", () => {
+    const access = buildAdminAccess({
+      config: {
+        adminAuthorityAddress: validAdminAddress,
+        cluster: "devnet",
+        protocolDeployment: "devnet",
+        solanaBroadcastEnabled: false,
+      },
+      walletAddress: validAdminAddress,
+      demoMode: false,
+    });
+    const readiness = buildAdminLaunchReadiness({
+      access,
+      config: {
+        adminAuthorityAddress: validAdminAddress,
+        cluster: "devnet",
+        demoMode: false,
+        protocolDeployment: "devnet",
+        protocolProgramId: "5RWpGEGB9Yr7cmaoWZJQ9t263Wb8K18GrcMDqHByLXSb",
+        rypMintAddress: "B2Q92Qns3cukkNhtG4kbE1PVcUyjcKMs79HJtCJT9Eq7",
+        solanaBroadcastEnabled: false,
+      },
+      protocol: {
+        status: "PREVIEW_ONLY",
+        blockers: ["ProtocolConfig account is missing."],
+        warnings: [],
+        activeModulePauses: [],
+      },
+      reward: {
+        rewardConfigStatus: "PREVIEW_ONLY",
+        epochStatus: "PREVIEW_ONLY",
+        blockers: ["RewardConfig account is missing."],
+        warnings: [],
+      },
+    });
+    const mission = buildAdminMissionControl({
+      access,
+      config: {
+        cluster: "devnet",
+        protocolDeployment: "devnet",
+        protocolProgramId: "5RWpGEGB9Yr7cmaoWZJQ9t263Wb8K18GrcMDqHByLXSb",
+        rypMintAddress: "B2Q92Qns3cukkNhtG4kbE1PVcUyjcKMs79HJtCJT9Eq7",
+        solanaBroadcastEnabled: false,
+      },
+      deployment: {
+        authority: {
+          address: validAdminAddress,
+          status: "PRESENT",
+          lamports: 100_000_000,
+          sol: 0.1,
+          fundedForMint: true,
+          fundedForDeploy: false,
+          message: "Devnet authority balance is 0.1 SOL.",
+        },
+        blockers: ["Devnet RYP test mint account does not exist."],
+        mint: {
+          address: "B2Q92Qns3cukkNhtG4kbE1PVcUyjcKMs79HJtCJT9Eq7",
+          status: "MISSING",
+          message: "Devnet RYP test mint account was not found.",
+        },
+        nextActions: ["npm run devnet:mint:test -- --env .env.devnet.example"],
+        program: {
+          address: "5RWpGEGB9Yr7cmaoWZJQ9t263Wb8K18GrcMDqHByLXSb",
+          status: "MISSING",
+          message: "Devnet program account was not found.",
+        },
+      },
+      launchReadiness: readiness,
+      protocol: {
+        status: "PREVIEW_ONLY",
+        blockers: ["ProtocolConfig account is missing."],
+        warnings: [],
+        activeModulePauses: [],
+      },
+      reward: {
+        rewardConfigStatus: "PREVIEW_ONLY",
+        epochStatus: "PREVIEW_ONLY",
+        blockers: ["RewardConfig account is missing."],
+        warnings: [],
+      },
+    });
+
+    expect(mission.phases.find((phase) => phase.id === "devnet-funding")?.status).toBe("LOCAL_READY");
+    expect(mission.phases.find((phase) => phase.id === "devnet-mint")?.status).toBe("REVIEW_REQUIRED");
+    expect(mission.phases.find((phase) => phase.id === "devnet-program")?.status).toBe("WAITING_ON_DEVNET");
+    expect(mission.nextActions[0]).toBe("npm run devnet:mint:test -- --env .env.devnet.example");
+  });
+
+  it("advances mission next action to protocol inspection after program deployment", () => {
+    const access = buildAdminAccess({
+      config: {
+        adminAuthorityAddress: validAdminAddress,
+        cluster: "devnet",
+        protocolDeployment: "devnet",
+        solanaBroadcastEnabled: false,
+      },
+      walletAddress: validAdminAddress,
+      demoMode: false,
+    });
+    const readiness = buildAdminLaunchReadiness({
+      access,
+      config: {
+        adminAuthorityAddress: validAdminAddress,
+        cluster: "devnet",
+        demoMode: false,
+        protocolDeployment: "devnet",
+        protocolProgramId: "5RWpGEGB9Yr7cmaoWZJQ9t263Wb8K18GrcMDqHByLXSb",
+        rypMintAddress: "B2Q92Qns3cukkNhtG4kbE1PVcUyjcKMs79HJtCJT9Eq7",
+        solanaBroadcastEnabled: false,
+      },
+      protocol: {
+        status: "PREVIEW_ONLY",
+        blockers: ["ProtocolConfig account is missing."],
+        warnings: [],
+        activeModulePauses: [],
+      },
+      reward: {
+        rewardConfigStatus: "PREVIEW_ONLY",
+        epochStatus: "PREVIEW_ONLY",
+        blockers: ["RewardConfig account is missing."],
+        warnings: [],
+      },
+    });
+    const mission = buildAdminMissionControl({
+      access,
+      config: {
+        cluster: "devnet",
+        protocolDeployment: "devnet",
+        protocolProgramId: "5RWpGEGB9Yr7cmaoWZJQ9t263Wb8K18GrcMDqHByLXSb",
+        rypMintAddress: "B2Q92Qns3cukkNhtG4kbE1PVcUyjcKMs79HJtCJT9Eq7",
+        solanaBroadcastEnabled: false,
+      },
+      deployment: {
+        authority: {
+          address: validAdminAddress,
+          status: "PRESENT",
+          lamports: 3_000_000_000,
+          sol: 3,
+          fundedForMint: true,
+          fundedForDeploy: true,
+          message: "Devnet authority balance is 3 SOL.",
+        },
+        blockers: ["ProtocolConfig account is missing."],
+        mint: {
+          address: "B2Q92Qns3cukkNhtG4kbE1PVcUyjcKMs79HJtCJT9Eq7",
+          status: "PRESENT",
+          isMint: true,
+          decimals: 6,
+          mintAuthority: null,
+          freezeAuthority: null,
+          supply: "0",
+          message: "Devnet RYP test mint decoded.",
+        },
+        nextActions: ["npm run devnet:init:protocol -- --env .env.devnet.example"],
+        program: {
+          address: "5RWpGEGB9Yr7cmaoWZJQ9t263Wb8K18GrcMDqHByLXSb",
+          status: "PRESENT",
+          executable: true,
+          owner: "BPFLoaderUpgradeab1e11111111111111111111111",
+          lamports: 1,
+          dataLength: 36,
+          message: "Devnet program account was found.",
+        },
+      },
+      launchReadiness: readiness,
+      protocol: {
+        status: "PREVIEW_ONLY",
+        blockers: ["ProtocolConfig account is missing."],
+        warnings: [],
+        activeModulePauses: [],
+      },
+      reward: {
+        rewardConfigStatus: "PREVIEW_ONLY",
+        epochStatus: "PREVIEW_ONLY",
+        blockers: ["RewardConfig account is missing."],
+        warnings: [],
+      },
+    });
+
+    expect(mission.phases.find((phase) => phase.id === "devnet-funding")?.status).toBe("LOCAL_READY");
+    expect(mission.phases.find((phase) => phase.id === "devnet-mint")?.status).toBe("READY_FOR_REVIEW");
+    expect(mission.phases.find((phase) => phase.id === "devnet-program")?.status).toBe("READY_FOR_REVIEW");
+    expect(mission.phases.find((phase) => phase.id === "devnet-protocol")?.summary).toContain("initialize");
+    expect(mission.nextActions[0]).toBe("npm run devnet:init:protocol -- --env .env.devnet.example");
   });
 
   it("keeps mission status blocked when launch readiness is blocked outside the devnet lane", () => {
