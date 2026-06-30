@@ -12,12 +12,15 @@ export type AppConfig = {
   seedBotSignedExecutionEnabled: boolean;
   adminAuthorityAddress?: string;
   independentTreasuryAddress?: string;
+  opsEnvFile: string;
   rewardInspectionEpochId: bigint;
   governanceInspectionProposalId: bigint;
   projectInspectionId: bigint;
 };
 
 export const PLACEHOLDER_PROTOCOL_PROGRAM_ID = "FG6PaFpoGXkYsidMpWxTWqVfbGqmtn8z8DK9HdJrMPfL";
+const DEFAULT_OPS_ENV_FILE = ".env.devnet.example";
+const SAFE_OPS_ENV_FILE_PATTERN = /^[A-Za-z0-9._/\\:-]+$/;
 
 const cluster = readCluster(import.meta.env.VITE_SOLANA_CLUSTER);
 const protocolProgramId =
@@ -43,6 +46,7 @@ export const appConfig: AppConfig = {
   seedBotSignedExecutionEnabled: import.meta.env.VITE_SEEDBOT_SIGNED_EXECUTION === "true",
   adminAuthorityAddress: readOptionalString(import.meta.env.VITE_ADMIN_AUTHORITY_ADDRESS),
   independentTreasuryAddress: readOptionalString(import.meta.env.VITE_INDEPENDENT_TREASURY_ADDRESS),
+  opsEnvFile: readOpsEnvFile(import.meta.env.VITE_OPS_ENV_FILE),
   rewardInspectionEpochId: readRewardInspectionEpochId(import.meta.env.VITE_REWARD_INSPECTION_EPOCH_ID),
   governanceInspectionProposalId: readInspectionId(import.meta.env.VITE_GOVERNANCE_INSPECTION_PROPOSAL_ID),
   projectInspectionId: readInspectionId(import.meta.env.VITE_PROJECT_INSPECTION_ID),
@@ -72,6 +76,12 @@ export function readHyperliquidNetwork(value: string | undefined): AppConfig["se
 export function readOptionalString(value: string | undefined) {
   const trimmed = value?.trim();
   return trimmed ? trimmed : undefined;
+}
+
+export function readOpsEnvFile(value: string | undefined) {
+  const envFile = readOptionalString(value);
+  if (!envFile || !SAFE_OPS_ENV_FILE_PATTERN.test(envFile)) return DEFAULT_OPS_ENV_FILE;
+  return envFile;
 }
 
 export function readRewardInspectionEpochId(value: string | undefined) {

@@ -16,6 +16,7 @@ describe("devnet deployment inspection", () => {
       config: {
         adminAuthorityAddress: authorityAddress,
         cluster: "devnet",
+        opsEnvFile: ".env.devnet.example",
         protocolDeployment: "devnet",
         protocolProgramId: programAddress,
         rypDecimals: 6,
@@ -42,6 +43,7 @@ describe("devnet deployment inspection", () => {
       config: {
         adminAuthorityAddress: undefined,
         cluster: "localnet",
+        opsEnvFile: ".env.devnet.example",
         protocolDeployment: "placeholder",
         protocolProgramId: "FG6PaFpoGXkYsidMpWxTWqVfbGqmtn8z8DK9HdJrMPfL",
         rypDecimals: 6,
@@ -126,6 +128,22 @@ describe("devnet deployment inspection", () => {
       risk: "DEVNET_MUTATION",
     });
   });
+
+  it("uses the selected ops env file in next actions and handoff commands", () => {
+    const inspection = validateDevnetDeploymentInspection({
+      ...baseInspection(),
+      opsEnvFile: ".env.devnet.staging",
+    });
+
+    expect(inspection.nextActions).toContain("npm run devnet:funding:packet -- --env .env.devnet.staging");
+    expect(inspection.nextActions).toContain("npm run devnet:next -- --env .env.devnet.staging");
+    expect(inspection.operatorHandoff).toMatchObject({
+      activeStep: "fund_devnet_authority",
+      command: "npm run devnet:funding:packet -- --env .env.devnet.staging",
+      resumeCommand: "npm run devnet:next -- --env .env.devnet.staging",
+      afterCompletionCommand: "npm run devnet:next -- --env .env.devnet.staging",
+    });
+  });
 });
 
 function baseInspection(): DevnetDeploymentInspection {
@@ -133,6 +151,7 @@ function baseInspection(): DevnetDeploymentInspection {
     executionMode: "READ_ONLY",
     cluster: "devnet",
     deployment: "devnet",
+    opsEnvFile: ".env.devnet.example",
     minimumMintSolRequired: 0.1,
     minimumDeploySolRecommended: 3,
     authority: {

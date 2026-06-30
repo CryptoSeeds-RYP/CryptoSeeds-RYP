@@ -4,6 +4,7 @@ import {
   readCluster,
   readHyperliquidNetwork,
   readInspectionId,
+  readOpsEnvFile,
   readOptionalString,
   readProtocolDeployment,
   readRewardInspectionEpochId,
@@ -37,6 +38,13 @@ describe("environment config readers", () => {
     expect(readHyperliquidNetwork("bogus")).toBe("TESTNET");
     expect(readOptionalString("  wallet-address  ")).toBe("wallet-address");
     expect(readOptionalString("   ")).toBeUndefined();
+  });
+
+  it("defaults ops commands to the devnet example env and trims overrides", () => {
+    expect(readOpsEnvFile(undefined)).toBe(".env.devnet.example");
+    expect(readOpsEnvFile("  .env.devnet.staging  ")).toBe(".env.devnet.staging");
+    expect(readOpsEnvFile("   ")).toBe(".env.devnet.example");
+    expect(readOpsEnvFile(".env.devnet.staging && bad")).toBe(".env.devnet.example");
   });
 
   it("normalizes reward inspection epoch ids", () => {

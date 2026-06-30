@@ -317,6 +317,7 @@ describe("admin access", () => {
       access,
       config: {
         cluster: "devnet",
+        opsEnvFile: ".env.devnet.example",
         protocolDeployment: "devnet",
         protocolProgramId: "5RWpGEGB9Yr7cmaoWZJQ9t263Wb8K18GrcMDqHByLXSb",
         rypMintAddress: "B2Q92Qns3cukkNhtG4kbE1PVcUyjcKMs79HJtCJT9Eq7",
@@ -435,6 +436,7 @@ describe("admin access", () => {
       access,
       config: {
         cluster: "devnet",
+        opsEnvFile: ".env.devnet.example",
         protocolDeployment: "devnet",
         protocolProgramId: "5RWpGEGB9Yr7cmaoWZJQ9t263Wb8K18GrcMDqHByLXSb",
         rypMintAddress: "B2Q92Qns3cukkNhtG4kbE1PVcUyjcKMs79HJtCJT9Eq7",
@@ -484,6 +486,75 @@ describe("admin access", () => {
     expect(mission.nextActions[0]).toBe("npm run devnet:mint:test -- --env .env.devnet.example");
   });
 
+  it("uses the selected ops env file in mission-control commands", () => {
+    const access = buildAdminAccess({
+      config: {
+        adminAuthorityAddress: validAdminAddress,
+        cluster: "devnet",
+        protocolDeployment: "devnet",
+        solanaBroadcastEnabled: false,
+      },
+      walletAddress: validAdminAddress,
+      demoMode: false,
+    });
+    const readiness = buildAdminLaunchReadiness({
+      access,
+      config: {
+        adminAuthorityAddress: validAdminAddress,
+        cluster: "devnet",
+        demoMode: false,
+        protocolDeployment: "devnet",
+        protocolProgramId: "5RWpGEGB9Yr7cmaoWZJQ9t263Wb8K18GrcMDqHByLXSb",
+        rypMintAddress: "B2Q92Qns3cukkNhtG4kbE1PVcUyjcKMs79HJtCJT9Eq7",
+        solanaBroadcastEnabled: false,
+      },
+      protocol: {
+        status: "PREVIEW_ONLY",
+        blockers: ["ProtocolConfig account is missing."],
+        warnings: [],
+        activeModulePauses: [],
+      },
+      reward: {
+        rewardConfigStatus: "PREVIEW_ONLY",
+        epochStatus: "PREVIEW_ONLY",
+        blockers: ["RewardConfig account is missing."],
+        warnings: [],
+      },
+    });
+    const mission = buildAdminMissionControl({
+      access,
+      config: {
+        cluster: "devnet",
+        opsEnvFile: ".env.devnet.staging",
+        protocolDeployment: "devnet",
+        protocolProgramId: "5RWpGEGB9Yr7cmaoWZJQ9t263Wb8K18GrcMDqHByLXSb",
+        rypMintAddress: "B2Q92Qns3cukkNhtG4kbE1PVcUyjcKMs79HJtCJT9Eq7",
+        solanaBroadcastEnabled: false,
+      },
+      launchReadiness: readiness,
+      protocol: {
+        status: "PREVIEW_ONLY",
+        blockers: ["ProtocolConfig account is missing."],
+        warnings: [],
+        activeModulePauses: [],
+      },
+      reward: {
+        rewardConfigStatus: "PREVIEW_ONLY",
+        epochStatus: "PREVIEW_ONLY",
+        blockers: ["RewardConfig account is missing."],
+        warnings: [],
+      },
+    });
+
+    expect(mission.phases.find((phase) => phase.id === "devnet-funding")?.command).toBe(
+      "npm run devnet:funding:packet -- --env .env.devnet.staging",
+    );
+    expect(mission.nextActions).toContain("npm run mission:status -- --env .env.devnet.staging");
+    expect(mission.phases.find((phase) => phase.id === "wallet-execution")?.command).toBe(
+      "npm run testnet:readiness -- --profile wallet-execution --env .env.devnet.staging",
+    );
+  });
+
   it("advances mission next action to protocol initialization after program deployment", () => {
     const access = buildAdminAccess({
       config: {
@@ -523,6 +594,7 @@ describe("admin access", () => {
       access,
       config: {
         cluster: "devnet",
+        opsEnvFile: ".env.devnet.example",
         protocolDeployment: "devnet",
         protocolProgramId: "5RWpGEGB9Yr7cmaoWZJQ9t263Wb8K18GrcMDqHByLXSb",
         rypMintAddress: "B2Q92Qns3cukkNhtG4kbE1PVcUyjcKMs79HJtCJT9Eq7",
@@ -624,6 +696,7 @@ describe("admin access", () => {
       access,
       config: {
         cluster: "localnet",
+        opsEnvFile: ".env.devnet.example",
         protocolDeployment: "placeholder",
         protocolProgramId: PLACEHOLDER_PROTOCOL_PROGRAM_ID,
         rypMintAddress: "CFPzKkPYqpyfNJp3WDB4dykMemfhwYrV9cgNUy7nsoPD",
@@ -687,6 +760,7 @@ describe("admin access", () => {
       access,
       config: {
         cluster: "devnet",
+        opsEnvFile: ".env.devnet.example",
         protocolDeployment: "devnet",
         protocolProgramId: "5RWpGEGB9Yr7cmaoWZJQ9t263Wb8K18GrcMDqHByLXSb",
         rypMintAddress: "B2Q92Qns3cukkNhtG4kbE1PVcUyjcKMs79HJtCJT9Eq7",

@@ -139,7 +139,12 @@ export type AdminMissionControlInput = {
   access: AdminAccess;
   config: Pick<
     AppConfig,
-    "cluster" | "protocolDeployment" | "protocolProgramId" | "rypMintAddress" | "solanaBroadcastEnabled"
+    | "cluster"
+    | "opsEnvFile"
+    | "protocolDeployment"
+    | "protocolProgramId"
+    | "rypMintAddress"
+    | "solanaBroadcastEnabled"
   >;
   deployment?: Pick<
     DevnetDeploymentInspection,
@@ -379,6 +384,7 @@ export function buildAdminMissionControl({
   const protocolWaiting = devnetConfigured && programReady && !protocolDecoded;
   const missionBlocked = launchReadiness.status === "BLOCKED";
   const liveBroadcastReviewed = config.solanaBroadcastEnabled && launchReadiness.status === "READY_FOR_REVIEW";
+  const commands = missionCommands(config.opsEnvFile);
 
   const phases: AdminMissionPhase[] = [
     missionPhase({
@@ -400,7 +406,7 @@ export function buildAdminMissionControl({
       label: "Local Verification",
       status: "REVIEW_REQUIRED",
       summary: "Run the full local suite before treating any deployment or public preview state as reviewable.",
-      command: "npm run verify:local",
+      command: commands.verifyLocal,
     }),
     missionPhase({
       id: "devnet-funding",
@@ -411,7 +417,7 @@ export function buildAdminMissionControl({
         : authorityFundedForDeploy
           ? "Authority has deployment headroom for the devnet sequence."
           : "Authority has mint funding; top-up is still recommended before deployment.",
-      command: "npm run devnet:funding:packet -- --env .env.devnet.example",
+      command: commands.fundingPacket,
       blockers: fundingBlocked ? ["Fund the devnet authority if mission:status reports fund_devnet_authority."] : [],
     }),
     missionPhase({
@@ -423,7 +429,7 @@ export function buildAdminMissionControl({
         : fundingBlocked
           ? "Mint creation waits on authority funding."
           : "Authority funding exists; create and review the configured devnet RYP test mint.",
-      command: "npm run devnet:mint:test -- --env .env.devnet.example",
+      command: commands.mintTest,
       blockers: mintReady || fundingBlocked ? [] : deployment?.mint.status === "DECODE_ERROR" ? [deployment.mint.message] : [],
     }),
     missionPhase({
@@ -435,7 +441,7 @@ export function buildAdminMissionControl({
         : mintReady
           ? "Mint is ready; deploy the program and print the initialization plan."
           : "Program deployment waits on test mint readiness.",
-      command: "npm run devnet:bootstrap -- --env .env.devnet.example --deploy --init-plan",
+      command: commands.bootstrapDeploy,
       blockers: programReady || !mintReady ? [] : deployment?.program.status === "DECODE_ERROR" ? [deployment.program.message] : [],
     }),
     missionPhase({
@@ -448,8 +454,8 @@ export function buildAdminMissionControl({
           ? "Program is deployed; initialize and inspect protocol accounts."
           : "Protocol initialization waits on funding, mint, and program deployment.",
       command: protocolWaiting
-        ? "npm run devnet:init:protocol -- --env .env.devnet.example"
-        : "npm run devnet:inspect:protocol -- --env .env.devnet.example",
+        ? commands.initProtocol
+        : commands.inspectProtocol,
       blockers: protocol.blockers,
     }),
     missionPhase({
@@ -459,7 +465,7 @@ export function buildAdminMissionControl({
       summary: launchReadiness.status === "READY_FOR_REVIEW"
         ? "Admin inspectors and read-only mirrors are ready for human release review."
         : "Read-only UI mirrors remain gated by decoded devnet protocol and reward state.",
-      command: "npm run testnet:readiness -- --profile read-only --env .env.devnet.example",
+      command: commands.readOnlyReadiness,
       blockers: launchReadiness.blockers,
     }),
     missionPhase({
@@ -486,7 +492,7 @@ export function buildAdminMissionControl({
       summary: launchReadiness.status === "READY_FOR_REVIEW"
         ? "Prepare the read-only deployment receipt and human launch checklist."
         : "MicroVerse, Admin, and locked districts are local-ready; public testnet waits on clean devnet inspection.",
-      command: "npm run devnet:deployment:receipt -- --profile read-only --env .env.devnet.example",
+      command: commands.deploymentReceiptReadOnly,
       blockers: launchReadiness.blockers,
     }),
     missionPhase({
@@ -496,7 +502,7 @@ export function buildAdminMissionControl({
       summary: liveBroadcastReviewed
         ? "Broadcast is enabled only in a reviewed devnet lane."
         : "Keep wallet-approved mutation paths disabled until read-only devnet review passes.",
-      command: "npm run testnet:readiness -- --profile wallet-execution --env .env.devnet.example",
+      command: commands.walletExecutionReadiness,
       blockers: liveBroadcastReviewed ? [] : ["Wallet execution requires explicit review after read-only devnet readiness."],
     }),
   ];
@@ -513,7 +519,7 @@ export function buildAdminMissionControl({
         (phase.id.startsWith("devnet-") && phase.status === "REVIEW_REQUIRED")
       )
       .map((phase) => phase.command),
-    missionBlocked ? "npm run mission:status -- --env .env.devnet.example" : undefined,
+    missionBlocked ? commands.missionStatus : undefined,
   ].filter((action): action is string => Boolean(action)));
 
   return {
@@ -903,6 +909,22 @@ function splitBps(bucket: "HOLDERS" | "STAKERS" | "INDEPENDENT_TREASURY") {
   const entry = draftCoreFeeSplit.find((candidate) => candidate.bucket === bucket);
   if (!entry) throw new Error(`Missing fee split bucket: ${bucket}`);
   return entry.shareBps;
+}
+
+function missionCommands(opsEnvFile: string) {
+  const envArg = `--env ${opsEnvFile}`;
+  return {
+    bootstrapDeploy: `npm run devnet:bootstrap -- ${envArg} --deploy --init-plan`,
+    deploymentReceiptReadOnly: `npm run devnet:deployment:receipt -- --profile read-only ${envArg}`,
+    fundingPacket: `npm run devnet:funding:packet -- ${envArg}`,
+    initProtocol: `npm run devnet:init:protocol -- ${envArg}`,
+    inspectProtocol: `npm run devnet:inspect:protocol -- ${envArg}`,
+    mintTest: `npm run devnet:mint:test -- ${envArg}`,
+    missionStatus: `npm run mission:status -- ${envArg}`,
+    readOnlyReadiness: `npm run testnet:readiness -- --profile read-only ${envArg}`,
+    verifyLocal: "npm run verify:local",
+    walletExecutionReadiness: `npm run testnet:readiness -- --profile wallet-execution ${envArg}`,
+  };
 }
 
 function rewardVaultMetadataHashHex({

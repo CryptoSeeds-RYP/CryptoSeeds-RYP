@@ -55,6 +55,7 @@ export type DevnetDeploymentInspection = {
   executionMode: "READ_ONLY";
   cluster: AppConfig["cluster"];
   deployment: AppConfig["protocolDeployment"];
+  opsEnvFile: string;
   minimumMintSolRequired: number;
   minimumDeploySolRecommended: number;
   authority: DevnetAuthorityInspection;
@@ -75,13 +76,20 @@ export function buildDevnetDeploymentInspectionPreview({
 }: {
   config?: Pick<
     AppConfig,
-    "adminAuthorityAddress" | "cluster" | "protocolDeployment" | "protocolProgramId" | "rypDecimals" | "rypMintAddress"
+    | "adminAuthorityAddress"
+    | "cluster"
+    | "opsEnvFile"
+    | "protocolDeployment"
+    | "protocolProgramId"
+    | "rypDecimals"
+    | "rypMintAddress"
   >;
 } = {}): DevnetDeploymentInspection {
   return validateDevnetDeploymentInspection({
     executionMode: "READ_ONLY",
     cluster: config.cluster,
     deployment: config.protocolDeployment,
+    opsEnvFile: config.opsEnvFile,
     minimumMintSolRequired: MIN_MINT_SOL,
     minimumDeploySolRecommended: MIN_DEPLOY_SOL,
     authority: {
@@ -104,7 +112,7 @@ export function buildDevnetDeploymentInspectionPreview({
     blockers: [],
     warnings: ["Devnet deployment inspection is read-only."],
     nextActions: [],
-    operatorHandoff: buildOperatorHandoff("fund_devnet_authority"),
+    operatorHandoff: buildOperatorHandoff("fund_devnet_authority", config.opsEnvFile),
   }, { rypDecimals: config.rypDecimals });
 }
 
@@ -114,7 +122,13 @@ export async function readDevnetDeploymentInspection({
 }: {
   config?: Pick<
     AppConfig,
-    "adminAuthorityAddress" | "cluster" | "protocolDeployment" | "protocolProgramId" | "rypDecimals" | "rypMintAddress"
+    | "adminAuthorityAddress"
+    | "cluster"
+    | "opsEnvFile"
+    | "protocolDeployment"
+    | "protocolProgramId"
+    | "rypDecimals"
+    | "rypMintAddress"
   >;
   connection: Connection;
 }): Promise<DevnetDeploymentInspection> {
@@ -192,7 +206,7 @@ export function validateDevnetDeploymentInspection(
     blockers: uniqueMessages(blockers),
     warnings: uniqueMessages(warnings),
     nextActions: buildNextActions(inspection),
-    operatorHandoff: buildOperatorHandoff(nextStep(inspection)),
+    operatorHandoff: buildOperatorHandoff(nextStep(inspection), inspection.opsEnvFile),
   };
 }
 
@@ -321,28 +335,29 @@ async function readProgram({
 
 function buildNextActions(inspection: DevnetDeploymentInspection) {
   const step = nextStep(inspection);
+  const commands = devnetCommands(inspection.opsEnvFile);
   if (step === "fund_devnet_authority") {
     return [
       `Fund ${inspection.authority.address ?? "the devnet authority"} with at least ${inspection.minimumMintSolRequired} devnet SOL; ${inspection.minimumDeploySolRecommended} SOL is recommended.`,
-      "npm run devnet:funding:packet -- --env .env.devnet.example",
-      "npm run devnet:next -- --env .env.devnet.example",
+      commands.fundingPacket,
+      commands.next,
     ];
   }
   if (step === "create_devnet_test_mint") {
     return [
-      "npm run devnet:mint:test -- --env .env.devnet.example",
-      "npm run devnet:next -- --env .env.devnet.example",
+      commands.mintTest,
+      commands.next,
     ];
   }
   if (step === "deploy_devnet_program") {
     return [
-      "npm run devnet:bootstrap -- --env .env.devnet.example --deploy --init-plan",
-      "npm run devnet:next -- --env .env.devnet.example",
+      commands.bootstrapDeploy,
+      commands.next,
     ];
   }
   return [
-    "npm run devnet:init:protocol -- --env .env.devnet.example",
-    "npm run testnet:readiness -- --profile read-only --env .env.devnet.example",
+    commands.initProtocol,
+    commands.readOnlyReadiness,
   ];
 }
 
@@ -353,13 +368,14 @@ function nextStep(inspection: DevnetDeploymentInspection): DevnetOperatorHandoff
   return "initialize_devnet_protocol";
 }
 
-function buildOperatorHandoff(activeStep: DevnetOperatorHandoff["activeStep"]): DevnetOperatorHandoff {
-  const resumeCommand = "npm run devnet:next -- --env .env.devnet.example";
+function buildOperatorHandoff(activeStep: DevnetOperatorHandoff["activeStep"], opsEnvFile: string): DevnetOperatorHandoff {
+  const commands = devnetCommands(opsEnvFile);
+  const resumeCommand = commands.next;
   const commandByStep: Record<DevnetOperatorHandoff["activeStep"], string> = {
-    fund_devnet_authority: "npm run devnet:funding:packet -- --env .env.devnet.example",
-    create_devnet_test_mint: "npm run devnet:mint:test -- --env .env.devnet.example",
-    deploy_devnet_program: "npm run devnet:bootstrap -- --env .env.devnet.example --deploy --init-plan",
-    initialize_devnet_protocol: "npm run devnet:init:protocol -- --env .env.devnet.example",
+    fund_devnet_authority: commands.fundingPacket,
+    create_devnet_test_mint: commands.mintTest,
+    deploy_devnet_program: commands.bootstrapDeploy,
+    initialize_devnet_protocol: commands.initProtocol,
   };
   const risk = activeStep === "fund_devnet_authority" ? "READ_ONLY" : "DEVNET_MUTATION";
   const requiresExternalAction = activeStep === "fund_devnet_authority";
@@ -374,6 +390,18 @@ function buildOperatorHandoff(activeStep: DevnetOperatorHandoff["activeStep"]): 
     requiresExplicitApproval,
     risk,
     operatorRule: operatorRule({ requiresExplicitApproval, requiresExternalAction, risk }),
+  };
+}
+
+function devnetCommands(opsEnvFile: string) {
+  const envArg = `--env ${opsEnvFile}`;
+  return {
+    bootstrapDeploy: `npm run devnet:bootstrap -- ${envArg} --deploy --init-plan`,
+    fundingPacket: `npm run devnet:funding:packet -- ${envArg}`,
+    initProtocol: `npm run devnet:init:protocol -- ${envArg}`,
+    mintTest: `npm run devnet:mint:test -- ${envArg}`,
+    next: `npm run devnet:next -- ${envArg}`,
+    readOnlyReadiness: `npm run testnet:readiness -- --profile read-only ${envArg}`,
   };
 }
 
