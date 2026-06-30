@@ -26,12 +26,16 @@ import {
 } from "../solana/solanaTransactionBoundary";
 import { buildSolanaBroadcastReadiness } from "../solana/solanaBroadcastReadiness";
 import {
+  buildRewardAccountInspectionPreview,
+  buildSeedBotPermissionInspectionPreview,
   readRewardAccountInspection,
   readSeedBotPermissionInspection,
   type RewardAccountInspection,
   type SeedBotPermissionInspection,
 } from "../solana/rewardAccountInspection";
 import {
+  buildGovernanceStateInspectionPreview,
+  buildProjectStateInspectionPreview,
   readGovernanceStateInspection,
   readProjectStateInspection,
   readStakePositionInspection,
@@ -116,7 +120,8 @@ export function useMicroVerseState() {
       return;
     }
     const ownerAddress = liveWalletAddress;
-    setSeedBotPermissionInspection(undefined);
+    const preview = buildSeedBotPermissionInspectionPreview({ ownerAddress });
+    setSeedBotPermissionInspection(preview);
 
     async function loadSeedBotPermissionInspection() {
       try {
@@ -126,8 +131,10 @@ export function useMicroVerseState() {
           ownerAddress,
         });
         if (!cancelled) setSeedBotPermissionInspection(inspection);
-      } catch {
-        if (!cancelled) setSeedBotPermissionInspection(undefined);
+      } catch (error) {
+        if (!cancelled) {
+          setSeedBotPermissionInspection(withInspectionWarning(preview, "SeedBot permission", error));
+        }
       }
     }
 
@@ -148,38 +155,53 @@ export function useMicroVerseState() {
       return;
     }
 
-    setGovernanceInspection(undefined);
-    setProjectInspection(undefined);
-    setRewardInspection(undefined);
+    const governancePreview = buildGovernanceStateInspectionPreview({
+      proposalId: appConfig.governanceInspectionProposalId,
+      walletAddress,
+    });
+    const projectPreview = buildProjectStateInspectionPreview({
+      projectId: appConfig.projectInspectionId,
+      walletAddress,
+    });
+    const rewardPreview = buildRewardAccountInspectionPreview({ epochId: appConfig.rewardInspectionEpochId });
+
+    setGovernanceInspection(governancePreview);
+    setProjectInspection(projectPreview);
+    setRewardInspection(rewardPreview);
 
     async function loadConfiguredProtocolInspections() {
-      try {
-        const [governance, project, reward] = await Promise.all([
-          readGovernanceStateInspection({
-            connection,
-            proposalId: appConfig.governanceInspectionProposalId,
-            walletAddress,
-          }),
-          readProjectStateInspection({
-            connection,
-            projectId: appConfig.projectInspectionId,
-            walletAddress,
-          }),
-          readRewardAccountInspection({
-            connection,
-            epochId: appConfig.rewardInspectionEpochId,
-          }),
-        ]);
-        if (cancelled) return;
-        setGovernanceInspection(governance);
-        setProjectInspection(project);
-        setRewardInspection(reward);
-      } catch {
-        if (cancelled) return;
-        setGovernanceInspection(undefined);
-        setProjectInspection(undefined);
-        setRewardInspection(undefined);
-      }
+      const [governance, project, reward] = await Promise.allSettled([
+        readGovernanceStateInspection({
+          connection,
+          proposalId: appConfig.governanceInspectionProposalId,
+          walletAddress,
+        }),
+        readProjectStateInspection({
+          connection,
+          projectId: appConfig.projectInspectionId,
+          walletAddress,
+        }),
+        readRewardAccountInspection({
+          connection,
+          epochId: appConfig.rewardInspectionEpochId,
+        }),
+      ]);
+      if (cancelled) return;
+      setGovernanceInspection(
+        governance.status === "fulfilled"
+          ? governance.value
+          : withInspectionWarning(governancePreview, "Governance state", governance.reason),
+      );
+      setProjectInspection(
+        project.status === "fulfilled"
+          ? project.value
+          : withInspectionWarning(projectPreview, "Project state", project.reason),
+      );
+      setRewardInspection(
+        reward.status === "fulfilled"
+          ? reward.value
+          : withInspectionWarning(rewardPreview, "Reward account", reward.reason),
+      );
     }
 
     loadConfiguredProtocolInspections();
@@ -374,4 +396,19 @@ function shouldReadLiveProtocolAccount({
 
 function shouldReadConfiguredProtocolState({ demoMode }: { demoMode: boolean }) {
   return Boolean(!demoMode && appConfig.protocolDeployment !== "placeholder");
+}
+
+function withInspectionWarning<T extends { warnings: string[] }>(
+  inspection: T,
+  label: string,
+  error: unknown,
+): T {
+  return {
+    ...inspection,
+    warnings: [...inspection.warnings, `${label} RPC read failed: ${errorMessage(error)}.`],
+  };
+}
+
+function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "unknown error";
 }
