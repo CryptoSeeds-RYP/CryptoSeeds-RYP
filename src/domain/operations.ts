@@ -50,6 +50,16 @@ export const maintenanceRunbook: MaintenanceRunbookItem[] = [
     aiAgentBoundary: "Agent may alert on authority/supply drift; it cannot mutate token state.",
   },
   {
+    id: "devnet-protocol-state-inspection",
+    label: "Devnet Protocol State Inspection",
+    cadence: "BEFORE_LAUNCH",
+    script: "npm.cmd run devnet:inspect:protocol -- --env .env.devnet.example",
+    automationMode: "MONITOR_ONLY",
+    approvalRequired: false,
+    operatorAction: "Inspect deployed program, protocol config, reward config, and reward vault states before public preview review.",
+    aiAgentBoundary: "Agent may run read-only inspection and summarize blockers; it must not initialize accounts or enable execution.",
+  },
+  {
     id: "public-readonly-testnet-gate",
     label: "Read-only Public Testnet Gate",
     cadence: "BEFORE_LAUNCH",

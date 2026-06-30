@@ -94,6 +94,7 @@ describe("public testnet readiness CLI", () => {
       "ops",
       "devnet-status",
       "devnet-program",
+      "devnet-protocol-state",
     ]);
     expect(report.status).toBe("READY_FOR_READ_ONLY_TESTNET_PREVIEW");
     expect(report.nextActions).toContain(
@@ -106,7 +107,7 @@ describe("public testnet readiness CLI", () => {
       buildCheckDefinitions({ envSource: ".env.devnet.example", profile: "wallet-execution" }).map(
         (definition) => definition.id,
       ),
-    ).toEqual(["ops", "devnet-status", "devnet-program", "devnet-readiness"]);
+    ).toEqual(["ops", "devnet-status", "devnet-program", "devnet-protocol-state", "devnet-readiness"]);
   });
 
   it("keeps child blockers sourced to the failing readiness gate", () => {

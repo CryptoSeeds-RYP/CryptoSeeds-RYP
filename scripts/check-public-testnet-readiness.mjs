@@ -87,6 +87,12 @@ export function buildCheckDefinitions({ envSource = ".env.devnet.example", profi
       script: "scripts/check-devnet-program.mjs",
       args: ["--env", envSource],
     },
+    {
+      id: "devnet-protocol-state",
+      label: "Devnet protocol state inspection",
+      script: "scripts/inspect-devnet-protocol-state.mjs",
+      args: ["--env", envSource],
+    },
   ];
 
   if (profile === "wallet-execution") {

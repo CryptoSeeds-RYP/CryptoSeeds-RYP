@@ -11,7 +11,8 @@ This slice separates read-only public devnet preview readiness from wallet-execu
 - The read-only profile checks:
   - ops readiness,
   - devnet status,
-  - devnet program inspection.
+  - devnet program inspection,
+  - devnet protocol state inspection.
 - The wallet-execution profile also checks devnet broadcast readiness.
 - The readiness report now includes the selected profile.
 - Updated the operations runbook to include a read-only public testnet gate before the wallet-execution gate.

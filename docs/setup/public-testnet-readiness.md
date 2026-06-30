@@ -11,7 +11,8 @@ The default profile is `wallet-execution`. It runs the existing readiness gates 
 - ops readiness,
 - devnet status,
 - devnet broadcast readiness,
-- devnet program inspection.
+- devnet program inspection,
+- devnet protocol state inspection.
 
 It does not create accounts, deploy programs, initialize protocol state, send transactions, or enable frontend broadcast.
 
@@ -23,7 +24,7 @@ For a read-only public preview gate, run:
 npm run testnet:readiness -- --profile read-only --env .env.devnet.example
 ```
 
-The read-only profile checks ops readiness, devnet status, and devnet program inspection. It intentionally excludes the broadcast readiness gate because no wallet execution path should be enabled for that profile.
+The read-only profile checks ops readiness, devnet status, devnet program inspection, and devnet protocol state inspection. It intentionally excludes the broadcast readiness gate because no wallet execution path should be enabled for that profile.
 
 ## Status Values
 

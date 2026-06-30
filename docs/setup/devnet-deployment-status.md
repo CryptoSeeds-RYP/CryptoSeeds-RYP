@@ -38,6 +38,7 @@ Repo-side devnet prep is partially complete:
 - `npm run devnet:deploy:wsl -- -EnvPath .env.devnet.example` is available to build, run strict prep, deploy the program, and inspect the deployed program account.
 - `npm run devnet:init:protocol -- --env .env.devnet.example` is available to plan protocol initialization after devnet deploy.
 - `npm run devnet:init:protocol -- --env .env.devnet.example --execute` initializes config, reward config, and reward vault states only after reviewed execution.
+- `npm run devnet:inspect:protocol -- --env .env.devnet.example` is available to read and validate the deployed program, protocol config, reward config, and reward vault state accounts before any public preview or wallet execution review.
 
 The status report now includes a `protocolTargets` block before funding/deployment. This lets the team review the deterministic config PDA, reward config PDA, staking vault ATA, treasury reward ATA, and reward-vault state PDAs before any transaction is sent. Program-controlled reward vault token accounts use ignored local keypairs under `target/devnet/reward-vaults`; `devnet:vaults:prep` creates those local keypairs early so their public addresses and metadata hashes can be reviewed before protocol initialization.
 
@@ -137,6 +138,12 @@ Equivalent direct initialization command:
 
 ```bash
 npm run devnet:init:protocol -- --env .env.devnet.example --execute
+```
+
+Inspect initialized protocol state:
+
+```bash
+npm run devnet:inspect:protocol -- --env .env.devnet.example
 ```
 
 Only after protocol initialization and read-only account inspection pass should frontend transaction broadcast be reviewed. The Admin Dashboard now exposes protocol config, stake position, governance proposal/vote, project/participation, and reward account inspectors so the deployment state can be checked from decoded on-chain accounts before any signed frontend flow is enabled.
