@@ -32,6 +32,7 @@ const keypairPaths = {
   authority: path.resolve(repoRoot, options.authorityPath ?? "target/devnet/devnet-authority.json"),
   mint: path.resolve(repoRoot, options.mintPath ?? "target/devnet/ryp-test-mint-keypair.json"),
   program: path.resolve(repoRoot, options.programPath ?? "target/devnet/cryptoseeds_protocol-keypair.json"),
+  treasury: path.resolve(repoRoot, options.treasuryPath ?? "target/devnet/independent-treasury.json"),
 };
 const vaultKeypairDir = path.resolve(repoRoot, options.vaultKeypairDir ?? "target/devnet/reward-vaults");
 
@@ -45,6 +46,7 @@ const config = {
   rpcUrl: env.VITE_SOLANA_RPC_URL ?? "https://api.devnet.solana.com",
   rypDecimals: Number(env.VITE_RYP_DECIMALS ?? 6),
   rypMintAddress: env.VITE_RYP_MINT_ADDRESS ?? MAINNET_RYP_MINT,
+  independentTreasuryAddress: env.VITE_INDEPENDENT_TREASURY_ADDRESS,
   treasuryAddress: env.VITE_INDEPENDENT_TREASURY_ADDRESS || env.VITE_ADMIN_AUTHORITY_ADDRESS,
 };
 
@@ -61,6 +63,7 @@ const local = {
     authority: readKeypairStatus(keypairPaths.authority, config.adminAuthorityAddress),
     mint: readKeypairStatus(keypairPaths.mint, config.rypMintAddress),
     program: readKeypairStatus(keypairPaths.program, config.programId),
+    treasury: readKeypairStatus(keypairPaths.treasury, config.treasuryAddress),
   },
   rewardVaultKeypairs: readRewardVaultKeypairStatuses(),
 };
@@ -84,6 +87,7 @@ const baseReport = {
     rpcUrl: config.rpcUrl,
     rypDecimals: config.rypDecimals,
     rypMintAddress: config.rypMintAddress,
+    independentTreasuryAddress: config.independentTreasuryAddress ?? null,
     treasuryAddress: config.treasuryAddress ?? null,
   },
   local,
@@ -219,12 +223,13 @@ function validateStaticConfig() {
   if (!isValidPublicKey(config.rypMintAddress)) blockers.push("VITE_RYP_MINT_ADDRESS is not a valid public key.");
   if (config.rypMintAddress === MAINNET_RYP_MINT) blockers.push("Devnet must use a devnet test RYP mint.");
   if (!isValidPublicKey(config.adminAuthorityAddress)) blockers.push("VITE_ADMIN_AUTHORITY_ADDRESS is not a valid public key.");
+  if (!config.independentTreasuryAddress) blockers.push("VITE_INDEPENDENT_TREASURY_ADDRESS must be set for devnet work.");
   if (!isValidPublicKey(config.treasuryAddress)) blockers.push("Treasury address is not a valid public key.");
   if (!Number.isInteger(config.rypDecimals) || config.rypDecimals < 0 || config.rypDecimals > 18) {
     blockers.push("VITE_RYP_DECIMALS must be an integer between 0 and 18.");
   }
   if (config.treasuryAddress === config.adminAuthorityAddress) {
-    warnings.push("VITE_INDEPENDENT_TREASURY_ADDRESS is not set; devnet treasury target defaults to the admin authority wallet.");
+    blockers.push("Independent treasury address must be distinct from the admin authority wallet.");
   }
   if (!local.idlExists) blockers.push("Anchor IDL is missing; run npm run protocol:build:wsl.");
   if (!local.programSoExists) blockers.push("Compiled SBF program is missing; run npm run protocol:build:wsl.");
@@ -319,6 +324,7 @@ function parseArgs(args) {
     mintPath: undefined,
     programPath: undefined,
     strict: false,
+    treasuryPath: undefined,
     vaultKeypairDir: undefined,
   };
 
@@ -362,6 +368,15 @@ function parseArgs(args) {
     }
     if (arg?.startsWith("--program=")) {
       parsed.programPath = arg.slice("--program=".length);
+      continue;
+    }
+    if (arg === "--treasury") {
+      parsed.treasuryPath = requireValue(args, index, "--treasury");
+      index += 1;
+      continue;
+    }
+    if (arg?.startsWith("--treasury=")) {
+      parsed.treasuryPath = arg.slice("--treasury=".length);
       continue;
     }
     if (arg === "--vault-keypair-dir") {

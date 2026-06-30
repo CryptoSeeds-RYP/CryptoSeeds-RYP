@@ -5,6 +5,7 @@
 - Set `VITE_INDEPENDENT_TREASURY_ADDRESS` in `.env.devnet.example`.
 - Generated the matching local-only devnet treasury keypair under ignored `target/devnet/independent-treasury.json`.
 - Updated devnet deployment docs so the treasury owner is explicit and separate from the admin authority.
+- Updated devnet status checks so treasury separation and the matching local treasury keypair are deployment blockers.
 
 ## Reason
 

@@ -54,6 +54,8 @@ The devnet authority keypair is generated locally under ignored `target/devnet/d
 The devnet independent treasury keypair is generated locally under ignored `target/devnet/independent-treasury.json`.
 The planned devnet test RYP mint keypair is generated locally under ignored `target/devnet/ryp-test-mint-keypair.json`.
 
+`npm run devnet:status -- --env .env.devnet.example` verifies that all four public keys match the configured devnet env values before deployment work proceeds.
+
 For the current development stage, use:
 
 ```bash

@@ -20,6 +20,10 @@ describe("devnet operator next actions", () => {
     const programScript = await readScript("scripts/check-devnet-program.mjs");
 
     expect(statusScript).toContain("envSource = path.relative(repoRoot, envPath)");
+    expect(statusScript).toContain("target/devnet/independent-treasury.json");
+    expect(statusScript).toContain("--treasury");
+    expect(statusScript).toContain("VITE_INDEPENDENT_TREASURY_ADDRESS must be set for devnet work.");
+    expect(statusScript).toContain("Independent treasury address must be distinct from the admin authority wallet.");
     expect(statusScript).toContain("npm run devnet:vaults:prep -- --env ${envSource}");
     expect(statusScript).toContain("npm run devnet:next -- --env ${envSource}");
     expect(statusScript).toContain("npm run devnet:bootstrap -- --env ${envSource} --deploy --init-plan");
