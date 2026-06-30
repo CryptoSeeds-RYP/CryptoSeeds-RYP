@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { PLACEHOLDER_PROTOCOL_PROGRAM_ID } from "../config/env";
-import { adminActionPreviews, buildAdminAccess, buildAdminLaunchReadiness, buildAdminProtocolPreviews } from "./admin";
+import {
+  adminActionPreviews,
+  buildAdminAccess,
+  buildAdminLaunchReadiness,
+  buildAdminMissionControl,
+  buildAdminProtocolPreviews,
+} from "./admin";
 
 const adminAddress = "Admin111111111111111111111111111111111111111";
 const validAdminAddress = "11111111111111111111111111111111";
@@ -270,5 +276,200 @@ describe("admin access", () => {
     expect(readiness.blockers).toContain(
       "Reward epoch account must decode before admin reward inspection is considered ready.",
     );
+  });
+
+  it("surfaces the current mission as waiting on devnet funding and protocol inspection", () => {
+    const access = buildAdminAccess({
+      config: {
+        adminAuthorityAddress: validAdminAddress,
+        cluster: "devnet",
+        protocolDeployment: "devnet",
+        solanaBroadcastEnabled: false,
+      },
+      walletAddress: validAdminAddress,
+      demoMode: false,
+    });
+    const readiness = buildAdminLaunchReadiness({
+      access,
+      config: {
+        adminAuthorityAddress: validAdminAddress,
+        cluster: "devnet",
+        demoMode: false,
+        protocolDeployment: "devnet",
+        protocolProgramId: "5RWpGEGB9Yr7cmaoWZJQ9t263Wb8K18GrcMDqHByLXSb",
+        rypMintAddress: "B2Q92Qns3cukkNhtG4kbE1PVcUyjcKMs79HJtCJT9Eq7",
+        solanaBroadcastEnabled: false,
+      },
+      protocol: {
+        status: "PREVIEW_ONLY",
+        blockers: ["ProtocolConfig account is missing."],
+        warnings: [],
+        activeModulePauses: [],
+      },
+      reward: {
+        rewardConfigStatus: "PREVIEW_ONLY",
+        epochStatus: "PREVIEW_ONLY",
+        blockers: ["RewardConfig account is missing."],
+        warnings: [],
+      },
+    });
+    const mission = buildAdminMissionControl({
+      access,
+      config: {
+        cluster: "devnet",
+        protocolDeployment: "devnet",
+        protocolProgramId: "5RWpGEGB9Yr7cmaoWZJQ9t263Wb8K18GrcMDqHByLXSb",
+        rypMintAddress: "B2Q92Qns3cukkNhtG4kbE1PVcUyjcKMs79HJtCJT9Eq7",
+        solanaBroadcastEnabled: false,
+      },
+      launchReadiness: readiness,
+      protocol: {
+        status: "PREVIEW_ONLY",
+        blockers: ["ProtocolConfig account is missing."],
+        warnings: [],
+        activeModulePauses: [],
+      },
+      reward: {
+        rewardConfigStatus: "PREVIEW_ONLY",
+        epochStatus: "PREVIEW_ONLY",
+        blockers: ["RewardConfig account is missing."],
+        warnings: [],
+      },
+    });
+
+    expect(mission.status).toBe("MISSION_BLOCKED");
+    expect(mission.blockedCount).toBe(1);
+    expect(mission.waitingOnDevnetCount).toBeGreaterThan(0);
+    expect(mission.phases.find((phase) => phase.id === "devnet-funding")?.status).toBe("BLOCKED");
+    expect(mission.phases.find((phase) => phase.id === "devnet-protocol")?.status).toBe("WAITING_ON_DEVNET");
+    expect(mission.nextActions).toContain("npm run mission:status -- --env .env.devnet.example");
+  });
+
+  it("keeps mission status blocked when launch readiness is blocked outside the devnet lane", () => {
+    const access = buildAdminAccess({
+      config: {
+        adminAuthorityAddress: undefined,
+        cluster: "localnet",
+        protocolDeployment: "placeholder",
+        solanaBroadcastEnabled: false,
+      },
+      walletAddress: undefined,
+      demoMode: true,
+    });
+    const readiness = buildAdminLaunchReadiness({
+      access,
+      config: {
+        adminAuthorityAddress: undefined,
+        cluster: "localnet",
+        demoMode: true,
+        protocolDeployment: "placeholder",
+        protocolProgramId: PLACEHOLDER_PROTOCOL_PROGRAM_ID,
+        rypMintAddress: "CFPzKkPYqpyfNJp3WDB4dykMemfhwYrV9cgNUy7nsoPD",
+        solanaBroadcastEnabled: false,
+      },
+      protocol: {
+        status: "PREVIEW_ONLY",
+        blockers: [],
+        warnings: [],
+      },
+      reward: {
+        rewardConfigStatus: "PREVIEW_ONLY",
+        epochStatus: "PREVIEW_ONLY",
+        blockers: [],
+        warnings: [],
+      },
+    });
+    const mission = buildAdminMissionControl({
+      access,
+      config: {
+        cluster: "localnet",
+        protocolDeployment: "placeholder",
+        protocolProgramId: PLACEHOLDER_PROTOCOL_PROGRAM_ID,
+        rypMintAddress: "CFPzKkPYqpyfNJp3WDB4dykMemfhwYrV9cgNUy7nsoPD",
+        solanaBroadcastEnabled: false,
+      },
+      launchReadiness: readiness,
+      protocol: {
+        status: "PREVIEW_ONLY",
+        blockers: [],
+        warnings: [],
+      },
+      reward: {
+        rewardConfigStatus: "PREVIEW_ONLY",
+        epochStatus: "PREVIEW_ONLY",
+        blockers: [],
+        warnings: [],
+      },
+    });
+
+    expect(readiness.status).toBe("BLOCKED");
+    expect(mission.status).toBe("MISSION_BLOCKED");
+    expect(mission.nextActions).toContain("npm run mission:status -- --env .env.devnet.example");
+  });
+
+  it("marks mission phases ready for review after decoded devnet protocol and reward state", () => {
+    const access = buildAdminAccess({
+      config: {
+        adminAuthorityAddress: validAdminAddress,
+        cluster: "devnet",
+        protocolDeployment: "devnet",
+        solanaBroadcastEnabled: false,
+      },
+      walletAddress: validAdminAddress,
+      demoMode: false,
+    });
+    const readiness = buildAdminLaunchReadiness({
+      access,
+      config: {
+        adminAuthorityAddress: validAdminAddress,
+        cluster: "devnet",
+        demoMode: false,
+        protocolDeployment: "devnet",
+        protocolProgramId: "5RWpGEGB9Yr7cmaoWZJQ9t263Wb8K18GrcMDqHByLXSb",
+        rypMintAddress: "B2Q92Qns3cukkNhtG4kbE1PVcUyjcKMs79HJtCJT9Eq7",
+        solanaBroadcastEnabled: false,
+      },
+      protocol: {
+        status: "DECODED",
+        blockers: [],
+        warnings: [],
+        activeModulePauses: [],
+      },
+      reward: {
+        rewardConfigStatus: "DECODED",
+        epochStatus: "PREVIEW_ONLY",
+        blockers: [],
+        warnings: [],
+      },
+    });
+    const mission = buildAdminMissionControl({
+      access,
+      config: {
+        cluster: "devnet",
+        protocolDeployment: "devnet",
+        protocolProgramId: "5RWpGEGB9Yr7cmaoWZJQ9t263Wb8K18GrcMDqHByLXSb",
+        rypMintAddress: "B2Q92Qns3cukkNhtG4kbE1PVcUyjcKMs79HJtCJT9Eq7",
+        solanaBroadcastEnabled: false,
+      },
+      launchReadiness: readiness,
+      protocol: {
+        status: "DECODED",
+        blockers: [],
+        warnings: [],
+        activeModulePauses: [],
+      },
+      reward: {
+        rewardConfigStatus: "DECODED",
+        epochStatus: "PREVIEW_ONLY",
+        blockers: [],
+        warnings: [],
+      },
+    });
+
+    expect(mission.status).toBe("MISSION_READY_FOR_REVIEW");
+    expect(mission.blockedCount).toBe(0);
+    expect(mission.phases.find((phase) => phase.id === "frontend-state")?.status).toBe("READY_FOR_REVIEW");
+    expect(mission.phases.find((phase) => phase.id === "wallet-execution")?.status).toBe("REVIEW_REQUIRED");
+    expect(mission.nextActions).not.toContain("npm run mission:status -- --env .env.devnet.example");
   });
 });

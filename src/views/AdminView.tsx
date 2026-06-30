@@ -7,6 +7,7 @@ import {
   adminActionPreviews,
   buildAdminAccess,
   buildAdminLaunchReadiness,
+  buildAdminMissionControl,
   buildAdminProtocolPreviews,
 } from "../domain/admin";
 import { basisPointsToPercent, feeRoutePolicies } from "../domain/feeRouter";
@@ -71,21 +72,30 @@ export function AdminView({
   const [rewardInspection, setRewardInspection] = useState<RewardAccountInspection>(() =>
     buildRewardAccountInspectionPreview({ epochId: appConfig.rewardInspectionEpochId }),
   );
+  const protocolReadiness = {
+    activeModulePauses: protocolInspection.decoded?.activeModulePauses,
+    blockers: protocolInspection.blockers,
+    status: protocolInspection.status,
+    warnings: protocolInspection.warnings,
+  };
+  const rewardReadiness = {
+    blockers: rewardInspection.blockers,
+    epochStatus: rewardInspection.epochStatus,
+    rewardConfigStatus: rewardInspection.rewardConfigStatus,
+    warnings: rewardInspection.warnings,
+  };
   const launchReadiness = buildAdminLaunchReadiness({
     access,
     config: appConfig,
-    protocol: {
-      activeModulePauses: protocolInspection.decoded?.activeModulePauses,
-      blockers: protocolInspection.blockers,
-      status: protocolInspection.status,
-      warnings: protocolInspection.warnings,
-    },
-    reward: {
-      blockers: rewardInspection.blockers,
-      epochStatus: rewardInspection.epochStatus,
-      rewardConfigStatus: rewardInspection.rewardConfigStatus,
-      warnings: rewardInspection.warnings,
-    },
+    protocol: protocolReadiness,
+    reward: rewardReadiness,
+  });
+  const missionControl = buildAdminMissionControl({
+    access,
+    config: appConfig,
+    launchReadiness,
+    protocol: protocolReadiness,
+    reward: rewardReadiness,
   });
 
   useEffect(() => {
@@ -322,6 +332,58 @@ export function AdminView({
               <p>{gate.summary}</p>
               {gate.blockers.length > 0 && <em>{gate.blockers[0]}</em>}
               {gate.blockers.length === 0 && gate.warnings.length > 0 && <em>{gate.warnings[0]}</em>}
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className={`governance-section mission-control-panel ${missionControl.status.toLowerCase()}`}>
+        <div className="view-header">
+          <div>
+            <FileCog size={20} />
+            <strong>RYP Mission Control</strong>
+          </div>
+          <span>{formatLabel(missionControl.status)}</span>
+        </div>
+        <div className="policy-strip mission-summary-strip">
+          <div>
+            <span>Local</span>
+            <strong>{missionControl.localReadyCount}</strong>
+          </div>
+          <div>
+            <span>Review</span>
+            <strong>{missionControl.reviewCount}</strong>
+          </div>
+          <div>
+            <span>Devnet</span>
+            <strong>{missionControl.waitingOnDevnetCount}</strong>
+          </div>
+          <div>
+            <span>Blocked</span>
+            <strong>{missionControl.blockedCount}</strong>
+          </div>
+        </div>
+        {(missionControl.blockers.length > 0 || missionControl.nextActions.length > 0) && (
+          <div className="admin-blocker-list mission-next-actions">
+            {missionControl.blockers.slice(0, 3).map((blocker) => (
+              <span key={blocker}><AlertTriangle size={14} /> {blocker}</span>
+            ))}
+            {missionControl.nextActions.slice(0, 3).map((action) => (
+              <span className="warning" key={action}><FileCog size={14} /> {action}</span>
+            ))}
+          </div>
+        )}
+        <div className="authority-grid ops-grid mission-phase-grid">
+          {missionControl.phases.map((phase) => (
+            <article className={`authority-card mission-phase-card ${phase.status.toLowerCase()}`} key={phase.id}>
+              <div className="authority-card-top">
+                <ShieldCheck size={17} />
+                <span>{formatLabel(phase.status)}</span>
+              </div>
+              <strong>{phase.label}</strong>
+              <p>{phase.summary}</p>
+              {phase.blockers.length > 0 && <em>{phase.blockers[0]}</em>}
+              <code>{phase.command}</code>
             </article>
           ))}
         </div>

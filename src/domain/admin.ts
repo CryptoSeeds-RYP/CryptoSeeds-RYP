@@ -73,6 +73,12 @@ export type AdminProtocolPreview = {
 };
 
 export type AdminReadinessGateStatus = "READY" | "REVIEW_REQUIRED" | "BLOCKED";
+export type AdminMissionPhaseStatus =
+  | "LOCAL_READY"
+  | "READY_FOR_REVIEW"
+  | "REVIEW_REQUIRED"
+  | "WAITING_ON_DEVNET"
+  | "BLOCKED";
 
 export type AdminReadinessGate = {
   id: string;
@@ -93,6 +99,26 @@ export type AdminLaunchReadiness = {
   warnings: string[];
 };
 
+export type AdminMissionPhase = {
+  id: string;
+  label: string;
+  status: AdminMissionPhaseStatus;
+  summary: string;
+  command: string;
+  blockers: string[];
+};
+
+export type AdminMissionControl = {
+  status: "MISSION_BLOCKED" | "MISSION_READY_FOR_REVIEW";
+  phases: AdminMissionPhase[];
+  localReadyCount: number;
+  reviewCount: number;
+  waitingOnDevnetCount: number;
+  blockedCount: number;
+  blockers: string[];
+  nextActions: string[];
+};
+
 export type AdminProtocolReadinessInput = {
   status: string;
   blockers: string[];
@@ -105,6 +131,17 @@ export type AdminRewardReadinessInput = {
   epochStatus: string;
   blockers: string[];
   warnings: string[];
+};
+
+export type AdminMissionControlInput = {
+  access: AdminAccess;
+  config: Pick<
+    AppConfig,
+    "cluster" | "protocolDeployment" | "protocolProgramId" | "rypMintAddress" | "solanaBroadcastEnabled"
+  >;
+  launchReadiness: AdminLaunchReadiness;
+  protocol: AdminProtocolReadinessInput;
+  reward: AdminRewardReadinessInput;
 };
 
 const DEFAULT_REWARD_EPOCH_CADENCE_SECONDS = 7 * 24 * 60 * 60;
@@ -310,6 +347,133 @@ export function buildAdminLaunchReadiness({
     blockedCount,
     blockers,
     warnings,
+  };
+}
+
+export function buildAdminMissionControl({
+  access,
+  config,
+  launchReadiness,
+  protocol,
+  reward,
+}: AdminMissionControlInput): AdminMissionControl {
+  const devnetConfigured = config.cluster === "devnet" && config.protocolDeployment === "devnet";
+  const protocolDecoded = protocol.status === "DECODED";
+  const rewardDecoded = reward.rewardConfigStatus === "DECODED";
+  const waitingOnDevnet = devnetConfigured && !protocolDecoded;
+  const missionBlocked = launchReadiness.status === "BLOCKED";
+  const liveBroadcastReviewed = config.solanaBroadcastEnabled && launchReadiness.status === "READY_FOR_REVIEW";
+
+  const phases: AdminMissionPhase[] = [
+    missionPhase({
+      id: "rust-safety",
+      label: "Rust Safety",
+      status: "LOCAL_READY",
+      summary: "Scoped pause controls, authority boundaries, and protocol safety gates are represented locally.",
+      command: "npm run protocol:idl:check",
+    }),
+    missionPhase({
+      id: "abi-lock",
+      label: "ABI Lock",
+      status: "LOCAL_READY",
+      summary: "Frontend transaction planners must continue to match the Anchor IDL and account layouts.",
+      command: "npm run protocol:idl:check",
+    }),
+    missionPhase({
+      id: "local-verification",
+      label: "Local Verification",
+      status: "REVIEW_REQUIRED",
+      summary: "Run the full local suite before treating any deployment or public preview state as reviewable.",
+      command: "npm test && npm run build && npm run ops:check && npm run protocol:idl:check",
+    }),
+    missionPhase({
+      id: "devnet-funding",
+      label: "Devnet Funding",
+      status: waitingOnDevnet ? "BLOCKED" : "LOCAL_READY",
+      summary: waitingOnDevnet
+        ? "Devnet account inspection is not decoded yet; fund the authority and follow the next-action command."
+        : "Devnet funding is not the active dashboard blocker.",
+      command: "npm run devnet:next -- --env .env.devnet.example",
+      blockers: waitingOnDevnet ? ["Fund the devnet authority if mission:status reports fund_devnet_authority."] : [],
+    }),
+    missionPhase({
+      id: "devnet-protocol",
+      label: "Devnet Protocol",
+      status: protocolDecoded ? "READY_FOR_REVIEW" : "WAITING_ON_DEVNET",
+      summary: protocolDecoded
+        ? "Protocol config decodes from the selected deployment and can be reviewed."
+        : "Deploy and initialize the devnet protocol before public preview review.",
+      command: "npm run devnet:inspect:protocol -- --env .env.devnet.example",
+      blockers: protocol.blockers,
+    }),
+    missionPhase({
+      id: "frontend-state",
+      label: "Frontend State",
+      status: launchReadiness.status === "READY_FOR_REVIEW" ? "READY_FOR_REVIEW" : "WAITING_ON_DEVNET",
+      summary: launchReadiness.status === "READY_FOR_REVIEW"
+        ? "Admin inspectors and read-only mirrors are ready for human release review."
+        : "Read-only UI mirrors remain gated by decoded devnet protocol and reward state.",
+      command: "npm run testnet:readiness -- --profile read-only --env .env.devnet.example",
+      blockers: launchReadiness.blockers,
+    }),
+    missionPhase({
+      id: "fee-holder-rewards",
+      label: "Fees & Holder Rewards",
+      status: rewardDecoded ? "READY_FOR_REVIEW" : "WAITING_ON_DEVNET",
+      summary: rewardDecoded
+        ? "Reward config decodes and can be reviewed against holder/staker/treasury policy."
+        : "Reward vaults and holder claim paths stay local/read-only until devnet reward state exists.",
+      command: "npm run rewards:holder-claim-packet",
+      blockers: reward.blockers,
+    }),
+    missionPhase({
+      id: "projects-seedbot",
+      label: "Projects & SeedBot",
+      status: "LOCAL_READY",
+      summary: "Project participation and SeedBot remain self-custodial, review-gated, and non-live by default.",
+      command: "npm run test -- src/domain/projectRegistry.test.ts src/domain/seedbot.test.ts",
+    }),
+    missionPhase({
+      id: "public-product",
+      label: "Public Product Layer",
+      status: launchReadiness.status === "READY_FOR_REVIEW" ? "READY_FOR_REVIEW" : "WAITING_ON_DEVNET",
+      summary: launchReadiness.status === "READY_FOR_REVIEW"
+        ? "Prepare the read-only deployment receipt and human launch checklist."
+        : "MicroVerse, Admin, and locked districts are local-ready; public testnet waits on clean devnet inspection.",
+      command: "npm run devnet:deployment:receipt -- --profile read-only --env .env.devnet.example",
+      blockers: launchReadiness.blockers,
+    }),
+    missionPhase({
+      id: "wallet-execution",
+      label: "Wallet Execution",
+      status: liveBroadcastReviewed ? "READY_FOR_REVIEW" : "REVIEW_REQUIRED",
+      summary: liveBroadcastReviewed
+        ? "Broadcast is enabled only in a reviewed devnet lane."
+        : "Keep wallet-approved mutation paths disabled until read-only devnet review passes.",
+      command: "npm run testnet:readiness -- --profile wallet-execution --env .env.devnet.example",
+      blockers: liveBroadcastReviewed ? [] : ["Wallet execution requires explicit review after read-only devnet readiness."],
+    }),
+  ];
+
+  const blockers = uniqueMessages(phases.flatMap((phase) =>
+    phase.status === "BLOCKED" ? phase.blockers.map((blocker) => `${phase.label}: ${blocker}`) : [],
+  ));
+  const nextActions = uniqueMessages([
+    ...phases
+      .filter((phase) => phase.status === "BLOCKED" || phase.status === "WAITING_ON_DEVNET")
+      .map((phase) => phase.command),
+    missionBlocked ? "npm run mission:status -- --env .env.devnet.example" : undefined,
+  ].filter((action): action is string => Boolean(action)));
+
+  return {
+    status: missionBlocked || blockers.length > 0 ? "MISSION_BLOCKED" : "MISSION_READY_FOR_REVIEW",
+    phases,
+    localReadyCount: phases.filter((phase) => phase.status === "LOCAL_READY").length,
+    reviewCount: phases.filter((phase) => phase.status === "READY_FOR_REVIEW" || phase.status === "REVIEW_REQUIRED").length,
+    waitingOnDevnetCount: phases.filter((phase) => phase.status === "WAITING_ON_DEVNET").length,
+    blockedCount: phases.filter((phase) => phase.status === "BLOCKED").length,
+    blockers,
+    nextActions,
   };
 }
 
@@ -610,6 +774,24 @@ function readinessGate({
     status: blockers.length > 0 ? "BLOCKED" : "READY",
     summary: blockers.length > 0 ? summary : readySummary,
     warnings: uniqueMessages(warnings),
+  };
+}
+
+function missionPhase({
+  blockers = [],
+  command,
+  id,
+  label,
+  status,
+  summary,
+}: Omit<AdminMissionPhase, "blockers"> & { blockers?: string[] }) {
+  return {
+    blockers: uniqueMessages(blockers),
+    command,
+    id,
+    label,
+    status,
+    summary,
   };
 }
 
